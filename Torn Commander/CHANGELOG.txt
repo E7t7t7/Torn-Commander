@@ -1,3 +1,9 @@
+v0.6.8 (2026-10-12)
+- Fixed in-app updater failure for installation paths containing spaces by removing cmd /k launch-string construction.
+- Updated offline PowerShell helper to invoke publisher directly, verify built EXE/version, restart the executable, and preserve source/dist rollback backup on build failure.
+- Added persistent update/build logs under LOCALAPPDATA\TornCommander.
+- Aligned launcher/UI/assembly versions and updater User-Agent to v0.6.8.
+
 v0.6.7 (2026-10-12)
 - Fix GitHub and local ZIP updater to compare against real running assembly version, not hard-coded v0.6.3.
 - Default official GitHub update repository for new installations; legacy blank repository also checks official channel.

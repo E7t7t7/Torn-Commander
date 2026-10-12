@@ -13,7 +13,7 @@ internal sealed class TornApiClient
 
     public TornApiClient()
     {
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.7 (desktop companion)");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.8 (desktop companion)");
     }
 
     private async Task<string> GetAsync(string relative, string key, CancellationToken ct)

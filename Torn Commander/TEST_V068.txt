@@ -1,0 +1,11 @@
+Torn Commander v0.6.8 — updater quoting regression
+
+1. Run on Windows from a folder containing spaces, such as C:\Users\You\OneDrive\Desktop\Torn Commander.
+2. Verify Build v0.6.8.
+3. Once v0.6.9 exists as a GitHub Release, click Check GitHub for Update.
+4. Agree twice, then verify clean build and restart to v0.6.9.
+5. No message should say "C:\Users\...\Torn is not recognized".
+6. For failure logs see %LOCALAPPDATA%\TornCommander\update-last.log and update-build-last.log.
+7. Account settings and browser sessions must remain in %LOCALAPPDATA%, never in the release ZIP.
+
+Since no newer release exists yet, testing the full future update needs v0.6.9 or a controlled local package with a higher version.

@@ -34,7 +34,7 @@ try {
     $shortcut.WorkingDirectory = Split-Path -Parent $exe
     # Use the actual ICO file: the shortcut is branded even while Windows caches EXE thumbnails.
     $shortcut.IconLocation = $icon + ',0'
-    $shortcut.Description = 'Torn Commander v0.6.3 - Launch Windows desktop app (no command window)'
+    $shortcut.Description = 'Torn Commander v0.6.8 - Launch Windows desktop app (no command window)'
     $shortcut.WindowStyle = 1
     $shortcut.Save()
 

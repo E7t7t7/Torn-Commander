@@ -47,7 +47,7 @@ public sealed partial class MainForm
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander-Updater/0.6.3");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander-Updater/0.6.8");
             http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             using var response = await http.GetAsync("https://api.github.com/repos/" + repo + "/releases/latest");
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
