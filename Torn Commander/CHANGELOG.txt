@@ -1,3 +1,11 @@
+v0.6.10 (2026-10-12)
+- Fix in-app updater lock failure: verify the complete .NET Windows build in a local staging folder, never build over a running dist directory.
+- Copy new sources and binaries only after a successful staged build and a safe move of the old dist.
+- Retry temporary OneDrive/antivirus file locks; abort without replacing source if old dist cannot be moved.
+- Preserve prior binaries by renaming rather than deleting them; rollback avoids Remove-Item on locked dist.
+- Keep all profile/browser/credential data under LOCALAPPDATA, outside the update.
+- Preserve updater logs and provide safer error messages on failure.
+
 v0.6.9 (2026-10-12)
 - Travel after landing: new in-app Scan Shop and When Will It Restock? controls.
 - Reads visible foreign shop stock, shop cash and capacity, ranks affordable purchases from existing price observations.

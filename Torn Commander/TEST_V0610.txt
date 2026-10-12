@@ -1,0 +1,8 @@
+Torn Commander v0.6.10 staged-updater test
+1. Run REBUILD_AND_LAUNCH.bat in a NEW clean extracted folder.
+2. Verify Build v0.6.10 and existing local logins.
+3. Do NOT test updating again until there is a newer GitHub release.
+4. On the next release, the updater must build under LOCALAPPDATA\TornCommander\UpdateStaging BEFORE moving the installed dist.
+5. If dist remains locked, it should leave existing sources/EXE unchanged, and write update-last.log.
+6. Rollback should NEVER recursively delete dist while in use; prior EXE is preserved in dist-prior-<id>.
+7. Windows and live-update smoke tests still required.

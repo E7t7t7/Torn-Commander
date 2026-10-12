@@ -175,6 +175,10 @@ if errorlevel 1 (
   echo Source sanity check failed: public travel forecast integration is missing.
   exit /b 1
 )
+if not exist "%~dp0APPLY_COMMANDER_UPDATE.ps1" (
+  echo Source sanity check failed: update staging helper is missing.
+  exit /b 1
+)
 echo Source sanity checks passed.
 echo.
 
