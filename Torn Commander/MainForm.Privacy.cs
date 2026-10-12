@@ -38,7 +38,7 @@ public sealed partial class MainForm
             secondary.Name = "Profile 2";
             RefreshProfileSelector();
             RefreshLossProfileCombos();
-            Text = $"Torn Commander v0.6.8 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.9 — {CurrentProfile.Name}";
         }
         _settings.LegacyExampleLabelsReviewed = true;
         Storage.SaveSettings(_settings);

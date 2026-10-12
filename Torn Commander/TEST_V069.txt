@@ -1,0 +1,8 @@
+0.6.9 Landing Advisor checks
+1. Build on Windows and open Torn foreign shop in the current profile.
+2. Travel > I've Landed — Scan Shop shows actual country/cash/carry slots and parsed stock rows.
+3. Click When Will It Restock?: unavailable items show estimated time only with sufficiently current forecast data, otherwise 'Unknown' and a suggested recheck.
+4. With $0, no purchasable items are suggested. No purchase controls are clicked.
+5. Switch profiles: landing status must clear. Browser sessions and credentials remain isolated.
+6. In Torn or flying: no overseas advice from old shop scans.
+7. GitHub updater retains existing local account data and installs version 0.6.9.

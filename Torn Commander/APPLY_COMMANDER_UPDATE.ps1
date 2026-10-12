@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory = $true)][int]$WaitPid
 )
 
-# Torn Commander update helper v0.6.8.
+# Torn Commander update helper v0.6.9.
 # All paths are passed as individual PowerShell arguments. Do NOT assemble a cmd /k
 # string out of an untrusted path: paths such as "Desktop\Torn Commander" contain spaces.
 $ErrorActionPreference = 'Stop'

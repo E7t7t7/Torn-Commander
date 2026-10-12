@@ -1,3 +1,14 @@
+v0.6.9 (2026-10-12)
+- Travel after landing: new in-app Scan Shop and When Will It Restock? controls.
+- Reads visible foreign shop stock, shop cash and capacity, ranks affordable purchases from existing price observations.
+- Provides suggested recheck windows rather than inventing exact restock times; distinguishes provider estimates and unknown restock windows.
+- Separate per-profile in-memory shop observations, no player identity or private browser data saved.
+- Detect changes between actual foreign shelf scans (for example Orchid 0 -> 12); report the observation window without claiming exact restock time.
+- Passively re-scan the visible shop about every 20 seconds while abroad; add an explicit Refresh Torn Shop button for pages that do not update themselves.
+- Calculate an affordable mixed-item load instead of choosing only one product when multiple profitable items are available.
+- Keep $0-abroad safety and never auto-buy or infer a restock time from a polling interval.
+- Never auto-buys. Does not confuse stored cash budget with actual money carried abroad.
+
 v0.6.8 (2026-10-12)
 - Fixed in-app updater failure for installation paths containing spaces by removing cmd /k launch-string construction.
 - Updated offline PowerShell helper to invoke publisher directly, verify built EXE/version, restart the executable, and preserve source/dist rollback backup on build failure.

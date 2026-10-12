@@ -44,6 +44,8 @@ public sealed partial class MainForm
     private void TickTravelMonitor()
     {
         var now = DateTime.UtcNow;
+        // Live shop scans are independent of the slow international API refresh interval.
+        TickTravelArrival();
         if (_travelLastPlanMinuteUtc == DateTime.MinValue || now - _travelLastPlanMinuteUtc >= TimeSpan.FromMinutes(1))
         {
             _travelLastPlanMinuteUtc = now;

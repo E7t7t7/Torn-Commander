@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 
-title Torn Commander v0.6.8 Launcher
+title Torn Commander v0.6.9 Launcher
 echo.
 echo ==========================================================
 echo   TORN COMMANDER - CURRENT SOURCE
@@ -100,7 +100,7 @@ if not exist "%~dp0LAUNCH_CHECK.ps1" (
   pause
   exit /b 25
 )
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0LAUNCH_CHECK.ps1" -ExePath "%~dp0dist\TornCommander.exe" -SourceVersion "0.6.8"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0LAUNCH_CHECK.ps1" -ExePath "%~dp0dist\TornCommander.exe" -SourceVersion "0.6.9"
 set "LAUNCH_RESULT=%errorlevel%"
 if not "%LAUNCH_RESULT%"=="0" (
   echo.
