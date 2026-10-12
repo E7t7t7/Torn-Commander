@@ -1,12 +1,14 @@
-Torn Commander v0.6.15 — Company Intelligence
+Torn Commander v0.6.16 — Shortcut and versioned install repairs
 
-1. Update using the v0.6.14 in-app GitHub updater. Verify Build v0.6.15.
-2. Open Company in the Commander dashboard.
-3. Sync Company with the active profile's saved API key. No API key or insufficient permission should yield a readable error, not a crash.
-4. Verify company name/type/ratings, daily income/customer counts and ad budget (if permitted) match Torn.
-5. Enter advertising, payroll, and stock costs. Blank means unknown; 0 means zero. Save and verify Accounted Margin.
-6. Refresh: same UTC day's entry should update rather than create a second row. Manual cost fields must survive the API refresh.
-7. Switch to a different Commander profile: a separate local journal should appear. Switch back: previous journal preserved.
-8. With fewer than 7 daily advertising records, the advisor must say BASELINE or NO BASELINE; never claim ideal spend.
-9. Check the daily history and theme at a narrow dashboard width. Buttons and cards should not overflow horizontally.
-10. Confirm Travel, Graffiti, Cart, Loss Desk and the update panel still work.
+1. Extract the v0.6.16 source ZIP into a freshly named Torn_Commander_v0.6.16 folder, or use the installed updater once.
+2. Run REBUILD_AND_LAUNCH.bat and verify Build v0.6.16.
+3. Close Commander and run CREATE_DESKTOP_SHORTCUT.bat. It must create a valid T-branded Windows shortcut without a parser error.
+4. Verify the desktop shortcut points to the NEW v0.6.16 EXE, not a v0.6.14 or earlier folder.
+5. Test Torn Commander.bat to confirm launching the active EXE.
+6. Existing profiles, cookies, API keys and themes must still load from %LOCALAPPDATA%.
+7. The version-folder feature affects updates STARTING FROM a v0.6.16 app. If an old updater was used to install v0.6.16, its parent folder may still have the older version name. A fresh v0.6.16 installation avoids that mismatch.
+8. Next future v0.6.17+ update should create Torn_Commander_vX.Y.Z/Torn Commander as a version-named sibling, leave the old folder in place, and open the new EXE.
+9. Check the updated desktop shortcut points at the new versioned folder.
+10. If updating fails, send %LOCALAPPDATA%\TornCommander\update-last.log (not private data).
+
+GitHub CI verifies PowerShell syntax, T .lnk creation and a simulated versioned update with locked old EXE directory.

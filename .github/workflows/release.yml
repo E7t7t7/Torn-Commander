@@ -44,6 +44,21 @@ jobs:
           }
           if ($tracked.Count -lt 25) { throw 'Source tree incomplete; refusing to publish.' }
           "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Validate PowerShell scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem -LiteralPath 'Torn Commander' -Filter '*.ps1' -Recurse | ForEach-Object {
+            $tokens = $null; $errors = $null
+            [Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { throw "$($_.Name): $($errors[0].Message)" }
+          }
+      - name: Test T desktop shortcut
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & 'Torn Commander/TEST_SHORTCUT.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Shortcut test failed; release withheld.' }
       - name: Restore and compile on Windows
         shell: pwsh
         run: |
