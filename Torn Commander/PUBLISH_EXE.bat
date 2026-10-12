@@ -199,6 +199,8 @@ if not exist "%~dp0dist\TornCommander.exe" (
 )
 
 if exist "%~dp0VERSION.txt" copy /y "%~dp0VERSION.txt" "%~dp0dist\VERSION.txt" >nul
+rem A manual publisher run activates the new standard dist instead of the prior side-by-side slot.
+if exist "%~dp0ACTIVE_DIST.txt" del /q "%~dp0ACTIVE_DIST.txt" >nul 2>&1
 
 echo.
 echo Done:

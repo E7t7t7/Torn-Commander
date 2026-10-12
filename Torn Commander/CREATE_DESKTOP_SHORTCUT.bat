@@ -7,7 +7,7 @@ echo ======================================================
 echo   TORN COMMANDER - T ICON DESKTOP SHORTCUT
 echo ======================================================
 echo.
-if not exist "%~dp0dist\TornCommander.exe" (
+if not exist "%~dp0dist\TornCommander.exe" if not exist "%~dp0ACTIVE_DIST.txt" (
   echo The actual Commander EXE does not exist yet.
   echo First run REBUILD_AND_LAUNCH.bat to compile and launch it.
   echo Then close Commander and run this shortcut creator.

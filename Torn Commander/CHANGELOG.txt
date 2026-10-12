@@ -1,3 +1,11 @@
+v0.6.14 (2026-10-12)
+- Install updated binaries to a separate versioned dist-v folder; never move or delete old dist.
+- Keep old EXEs available for recovery; no requirement to release a OneDrive/WebView2/cmd directory lock.
+- Atomically activate the new binary via ACTIVE_DIST.txt after source and new EXE verification.
+- Fix updater inherited working-directory lock by explicitly launching helper from temp.
+- Update Desktop shortcut and BAT launcher to honor active versioned installs.
+- CI smoke test holds the old dist directory open while verifying side-by-side activation.
+
 v0.6.13 (2026-10-12)
 - Travel itinerary no longer spends one current stock observation across multiple later flights.
 - Future legs require explicit restock-window evidence and carry speculative labels.

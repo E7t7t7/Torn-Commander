@@ -14,7 +14,7 @@ Set-Content -LiteralPath (Join-Path $installed 'dist\VERSION.txt') -Value '0.6.9
 foreach ($item in @('TornCommander.csproj','REBUILD_AND_LAUNCH.bat','CommanderUpdater.cs','APPLY_COMMANDER_UPDATE.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $item) -Destination $package -Force
 }
-Set-Content -LiteralPath (Join-Path $package 'VERSION.txt') -Value '0.6.10'
+Set-Content -LiteralPath (Join-Path $package 'VERSION.txt') -Value '0.6.14'
 $publisher = @'
 @echo off
 if not exist "%~dp0dist" mkdir "%~dp0dist"
@@ -23,7 +23,7 @@ copy /y "%~dp0VERSION.txt" "%~dp0dist\VERSION.txt" >nul
 exit /b 0
 '@
 Set-Content -LiteralPath (Join-Path $package 'PUBLISH_EXE.bat') -Value $publisher -Encoding Ascii
-$zip = Join-Path $work 'Torn_Commander_v0.6.10.zip'
+$zip = Join-Path $work 'Torn_Commander_v0.6.14.zip'
 Compress-Archive -Path $package -DestinationPath $zip -Force
 $tokens = $null; $errors = $null
 [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'APPLY_COMMANDER_UPDATE.ps1'),[ref]$tokens,[ref]$errors) | Out-Null
@@ -38,15 +38,44 @@ foreach ($arg in @('-NoProfile','-ExecutionPolicy','Bypass','-File',
     '-ZipPath',$zip,'-ProjectRoot',$installed,'-WaitPid','2147483647','-NoLaunch')) {
     [void]$psi.ArgumentList.Add($arg)
 }
-$proc = [System.Diagnostics.Process]::Start($psi)
+# Simulate an unrelated process holding the old dist as its working
+# directory; the updater must work without any old dist directory swap.
+$lockInfo = [System.Diagnostics.ProcessStartInfo]::new('cmd.exe')
+$lockInfo.UseShellExecute = $false
+$lockInfo.CreateNoWindow = $true
+$lockInfo.WorkingDirectory = Join-Path $installed 'dist'
+$lockInfo.ArgumentList.Add('/c')
+$lockInfo.ArgumentList.Add('ping -n 14 127.0.0.1 >nul')
+$holder = [System.Diagnostics.Process]::Start($lockInfo)
+try {
+    $psi.WorkingDirectory = (Join-Path $installed 'dist')
+    $proc = [System.Diagnostics.Process]::Start($psi)
 $proc.StandardInput.Close()
 $output = $proc.StandardOutput.ReadToEnd()
 $failure = $proc.StandardError.ReadToEnd()
 $proc.WaitForExit()
 Write-Host $output
 if ($proc.ExitCode -ne 0) { throw "Staging updater failed ($($proc.ExitCode)): $failure`n$output" }
-if ((Get-Content (Join-Path $installed 'VERSION.txt') -Raw).Trim() -ne '0.6.10') { throw 'Updated source marker incorrect.' }
-if ((Get-Content (Join-Path $installed 'dist\VERSION.txt') -Raw).Trim() -ne '0.6.10') { throw 'Updated executable marker incorrect.' }
+if ((Get-Content (Join-Path $installed 'VERSION.txt') -Raw).Trim() -ne '0.6.14') { throw 'Updated source marker incorrect.' }
+$activeMarker = Join-Path $installed 'ACTIVE_DIST.txt'
+if (!(Test-Path -LiteralPath $activeMarker)) { throw 'Active-version pointer missing.' }
+$slot = (Get-Content -LiteralPath $activeMarker -Raw).Trim()
+if ($slot -notmatch '^dist-v0\.6\.14-[a-fA-F0-9]{8}
+if (!(Test-Path (Join-Path $installed 'old-marker.txt'))) { throw 'Old source files unexpectedly removed.' }
+if (!(Test-Path -LiteralPath (Join-Path $installed 'dist\TornCommander.exe'))) { throw 'Old dist EXE was removed.' }
+    Write-Host 'SIDE-BY-SIDE UPDATE SMOKE TEST PASSED: old dist locked, new slot installed, active pointer verified.'
+} finally {
+    if ($holder -and -not $holder.HasExited) { $holder.Kill() }
+    if ($holder) { $holder.Dispose() }
+}
+$global:LASTEXITCODE = 0
+) { throw "Invalid active slot: $slot" }
+if ((Get-Content (Join-Path $installed (Join-Path $slot 'VERSION.txt')) -Raw).Trim() -ne '0.6.14') {
+    throw 'New active slot has wrong VERSION.txt.'
+}
+if ((Get-Content (Join-Path $installed 'dist\VERSION.txt') -Raw).Trim() -ne '0.6.9') {
+    throw 'The locked old dist directory was modified.'
+}
 if (!(Test-Path (Join-Path $installed 'old-marker.txt'))) { throw 'Old source files unexpectedly removed.' }
 if (@(Get-ChildItem -LiteralPath $installed -Filter 'dist-prior-*' -Directory).Count -lt 1) { throw 'Previous binary backup not retained.' }
 Write-Host 'TRANSACTIONAL UPDATE SMOKE TEST PASSED: spaced paths, staging build, dist swap, old-dist retention.'

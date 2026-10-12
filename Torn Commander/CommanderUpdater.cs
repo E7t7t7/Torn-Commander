@@ -187,7 +187,7 @@ public sealed partial class MainForm
         File.Copy(script, tempScript);
         var tempZip = Path.Combine(Path.GetTempPath(), "tc-update-" + Guid.NewGuid().ToString("N") + ".zip");
         File.Copy(sourceZip, tempZip);
-        var psi = new ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = false };
+        var psi = new ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = false, WorkingDirectory = Path.GetTempPath() };
         foreach (var arg in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", tempScript,
             "-ZipPath", tempZip, "-ProjectRoot", project, "-WaitPid", Environment.ProcessId.ToString() })
             psi.ArgumentList.Add(arg);

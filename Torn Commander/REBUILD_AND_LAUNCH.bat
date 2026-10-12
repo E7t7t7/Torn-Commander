@@ -17,6 +17,8 @@ if not errorlevel 1 (
   pause
   exit /b 1
 )
+rem Force rebuild intentionally clears the active side-by-side pointer.
+if exist "%~dp0ACTIVE_DIST.txt" del /q "%~dp0ACTIVE_DIST.txt" >nul 2>&1
 if exist "%~dp0dist" rmdir /s /q "%~dp0dist"
 if exist "%~dp0obj" rmdir /s /q "%~dp0obj"
 if exist "%~dp0bin" rmdir /s /q "%~dp0bin"

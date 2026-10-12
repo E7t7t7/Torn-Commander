@@ -47,7 +47,8 @@ function Copy-SourceFiles([string]$from, [string]$to) {
     # are held under LOCALAPPDATA, completely outside the installation tree.
     Get-ChildItem -LiteralPath $from -Force | Where-Object {
         $_.Name -notin @('dist', 'bin', 'obj', '.git', 'TornCommander-UpdateBackups') -and
-        $_.Name -notlike 'dist-prior-*' -and $_.Name -notlike 'dist-failed-*'
+        $_.Name -notlike 'dist-prior-*' -and $_.Name -notlike 'dist-failed-*' -and
+        $_.Name -notlike 'dist-v*' -and $_.Name -ne 'ACTIVE_DIST.txt'
     } | ForEach-Object {
         $item = $_
         $target = Join-Path $to $item.Name
@@ -106,7 +107,9 @@ try {
         throw 'Installed Commander source folder was not found.'
     }
     if (-not (Test-Path -LiteralPath $ZipPath -PathType Leaf)) { throw 'Downloaded update ZIP is missing.' }
-    Write-UpdateLog "Update requested in: $script:root"
+    # Ensure this updater never keeps the currently running binary directory as its cwd.
+    Set-Location -LiteralPath $logRoot
+    Write-UpdateLog "Update requested in: $script:root; updater cwd: $(Get-Location)"
     Write-UpdateLog 'Waiting for the old Commander process to exit.'
     try { Wait-Process -Id $WaitPid -Timeout 60 -ErrorAction SilentlyContinue } catch {}
     if (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue) { throw 'Commander is still running. Close it completely before updating.' }
@@ -155,46 +158,88 @@ try {
     Copy-SourceFiles $script:root (Join-Path $script:backup 'source')
     Write-UpdateLog "Previous source backed up to $script:backup"
 
-    $oldDist = Join-Path $script:root 'dist'
-    if (Test-Path -LiteralPath $oldDist) {
-        $savedDist = Join-Path $script:root ('dist-prior-' + [guid]::NewGuid().ToString('N').Substring(0, 10))
-        # IMPORTANT: Never Remove-Item the active executable. A locked folder
-        # aborts the install BEFORE any source is replaced.
-        Retry-UpdateIO 'Move old executable directory safely' {
-            Move-Item -LiteralPath $oldDist -Destination $savedDist -ErrorAction Stop
-        } 12
-        $script:oldDistMovedTo = $savedDist
-        Write-UpdateLog "Previous executable preserved at $savedDist"
+    # Install side by side. Never rename/delete a current or old dist directory:
+    # a WebView child, cmd cwd, antivirus, or OneDrive can lock it indefinitely.
+    $slotName = 'dist-v' + $expectedVersion + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+    $liveDist = Join-Path $script:root $slotName
+    New-Item -ItemType Directory -Path $liveDist -ErrorAction Stop | Out-Null
+    foreach ($item in (Get-ChildItem -LiteralPath $stagedDist -Force)) {
+        $entry = $item
+        Retry-UpdateIO "Copy new version $($entry.Name)" {
+            Copy-Item -LiteralPath $entry.FullName -Destination $liveDist -Recurse -Force -ErrorAction Stop
+        } 8
     }
+    $installedExe = Join-Path $liveDist 'TornCommander.exe'
+    $installedMarker = Join-Path $liveDist 'VERSION.txt'
+    if (-not (Test-Path -LiteralPath $installedExe -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $installedMarker -PathType Leaf) -or
+        (Get-Content -LiteralPath $installedMarker -Raw).Trim() -ne $expectedVersion) {
+        throw 'Side-by-side EXE/version verification failed; original dist remains untouched.'
+    }
+    Write-UpdateLog "New executable staged at $liveDist; original dist untouched."
 
-    $liveDist = Join-Path $script:root 'dist'
-    $script:newDistCopied = $true
-    New-Item -ItemType Directory -Path $liveDist -Force | Out-Null
-    Get-ChildItem -LiteralPath $stagedDist -Force | ForEach-Object {
-        $item = $_
-        Retry-UpdateIO "Copy executable $($item.Name)" {
-            Copy-Item -LiteralPath $item.FullName -Destination $liveDist -Recurse -Force -ErrorAction Stop
-        } 10
-    }
     $script:sourceTouched = $true
     Copy-SourceFiles $source $script:root
-
-    # An old marker must not force the next startup to rebuild the live EXE.
     $firstRun = Join-Path $script:root 'FIRST_RUN_REBUILD.flag'
     if (Test-Path -LiteralPath $firstRun) { Remove-Item -LiteralPath $firstRun -Force -ErrorAction Stop }
-    $newVersion = (Get-Content -LiteralPath (Join-Path $script:root 'VERSION.txt') -Raw).Trim()
-    $installedMarker = (Get-Content -LiteralPath (Join-Path $liveDist 'VERSION.txt') -Raw).Trim()
-    if ($newVersion -ne $expectedVersion -or $installedMarker -ne $expectedVersion -or
-        -not (Test-Path -LiteralPath (Join-Path $liveDist 'TornCommander.exe') -PathType Leaf)) {
-        throw 'Installed version verification failed.'
+    if ((Get-Content -LiteralPath (Join-Path $script:root 'VERSION.txt') -Raw).Trim() -ne $expectedVersion) {
+        throw 'Installed source VERSION.txt mismatch; old EXE remains untouched.'
     }
 
+    # Atomically switch a tiny launch pointer after the new binary and source
+    # have both been verified. Never modify the old binary or its directory.
+    $activeMarker = Join-Path $script:root 'ACTIVE_DIST.txt'
+    $tempMarker = Join-Path $script:root ('active-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    [IO.File]::WriteAllText($tempMarker, $slotName)
+    try {
+        if (Test-Path -LiteralPath $activeMarker -PathType Leaf) {
+            Retry-UpdateIO 'Activate version pointer' {
+                [IO.File]::Replace($tempMarker, $activeMarker, $null, $true)
+            } 6
+        } else {
+            Retry-UpdateIO 'Create version pointer' {
+                [IO.File]::Move($tempMarker, $activeMarker)
+            } 6
+        }
+    } finally {
+        if (Test-Path -LiteralPath $tempMarker) {
+            Remove-Item -LiteralPath $tempMarker -Force -ErrorAction SilentlyContinue
+        }
+    }
     $script:swapComplete = $true
-    Write-UpdateLog "Installed v$expectedVersion. Starting its EXE. Previous binaries kept at $script:oldDistMovedTo"
+    Write-UpdateLog "Activated $slotName. Old EXE directories remain available for recovery."
+
     if (-not $NoLaunch) {
-        Start-Process -FilePath (Join-Path $liveDist 'TornCommander.exe') -WorkingDirectory $liveDist -ErrorAction Stop
-        Write-UpdateLog 'EXE launch requested successfully. Update complete.'
-    } else { Write-UpdateLog 'Update installed; launch intentionally skipped in CI simulation.' }
+        # Refresh only the standard Desktop Commander shortcut. Refuse to
+        # overwrite unrelated shortcuts which point to another installation.
+        try {
+            $desktop = [Environment]::GetFolderPath('Desktop')
+            $shortcutPath = Join-Path $desktop 'Torn Commander.lnk'
+            if ((Test-Path -LiteralPath $desktop -PathType Container) -and
+                (Test-Path -LiteralPath (Join-Path $script:root 'Assets\TornCommander_T_Icon.ico') -PathType Leaf)) {
+                $wsh = New-Object -ComObject WScript.Shell
+                $safeToEdit = $true
+                if (Test-Path -LiteralPath $shortcutPath -PathType Leaf) {
+                    $existingTarget = $wsh.CreateShortcut($shortcutPath).TargetPath
+                    if ($existingTarget -and -not $existingTarget.StartsWith(($script:root + '\'), [StringComparison]::OrdinalIgnoreCase)) {
+                        $safeToEdit = $false
+                        Write-UpdateLog "Another installation owns Desktop shortcut: $existingTarget"
+                    }
+                }
+                if ($safeToEdit) {
+                    $shortcut = $wsh.CreateShortcut($shortcutPath)
+                    $shortcut.TargetPath = $installedExe
+                    $shortcut.WorkingDirectory = $liveDist
+                    $shortcut.IconLocation = (Join-Path $script:root 'Assets\TornCommander_T_Icon.ico') + ',0'
+                    $shortcut.Description = 'Torn Commander v' + $expectedVersion
+                    $shortcut.Save()
+                    Write-UpdateLog "Desktop shortcut updated to $installedExe"
+                }
+            }
+        } catch { Write-UpdateLog "Desktop shortcut warning: $($_.Exception.Message). Run CREATE_DESKTOP_SHORTCUT.bat if needed." }
+        Start-Process -FilePath $installedExe -WorkingDirectory $liveDist -ErrorAction Stop
+        Write-UpdateLog "Launched v$expectedVersion from $liveDist"
+    } else { Write-UpdateLog 'Update installed; launch skipped in CI simulation.' }
     if (Test-Path -LiteralPath $script:stage) { Remove-Item -LiteralPath $script:stage -Recurse -Force -ErrorAction SilentlyContinue }
     exit 0
 }

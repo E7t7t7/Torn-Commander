@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 
-title Torn Commander v0.6.13 Launcher
+title Torn Commander v0.6.14 Launcher
 echo.
 echo ==========================================================
 echo   TORN COMMANDER - CURRENT SOURCE
@@ -13,17 +13,23 @@ echo Source version:
 if exist "%~dp0VERSION.txt" type "%~dp0VERSION.txt"
 echo.
 
+set "TC_DIST_DIR=dist"
+if exist "%~dp0ACTIVE_DIST.txt" (
+  for /f "usebackq delims=" %%D in ("%~dp0ACTIVE_DIST.txt") do set "TC_DIST_DIR=%%D"
+)
+if not exist "%~dp0%TC_DIST_DIR%\TornCommander.exe" set "TC_DIST_DIR=dist"
+
 if exist "%~dp0FIRST_RUN_REBUILD.flag" (
   echo First run after upgrade: bypassing any old compiled EXE.
   goto :BUILD_FROM_SOURCE
 )
 
-if exist "%~dp0dist\TornCommander.exe" (
-  if exist "%~dp0dist\VERSION.txt" if exist "%~dp0VERSION.txt" (
-    fc /b "%~dp0VERSION.txt" "%~dp0dist\VERSION.txt" >nul 2>&1
+if exist "%~dp0%TC_DIST_DIR%\TornCommander.exe" (
+  if exist "%~dp0%TC_DIST_DIR%\VERSION.txt" if exist "%~dp0VERSION.txt" (
+    fc /b "%~dp0VERSION.txt" "%~dp0%TC_DIST_DIR%\VERSION.txt" >nul 2>&1
     if not errorlevel 1 (
       echo Launching compiled version from:
-      echo   %~dp0dist\TornCommander.exe
+      echo   %~dp0%TC_DIST_DIR%\TornCommander.exe
       echo If the window shows an older version, close all old TornCommander.exe processes.
       call :LAUNCH_CHECK
       if errorlevel 1 exit /b 1
@@ -78,14 +84,15 @@ set "TC_BUILD_LOG=%TC_LOG_ROOT%\build-last.log"
 echo Saving full build output to: %TC_BUILD_LOG%
 call "%~dp0PUBLISH_EXE.bat" >"%TC_BUILD_LOG%" 2>&1
 set "BUILD_RESULT=%errorlevel%"
+if "%BUILD_RESULT%"=="0" set "TC_DIST_DIR=dist"
 type "%TC_BUILD_LOG%"
 if not "%BUILD_RESULT%"=="0" goto :BUILD_FAIL
 
-if exist "%~dp0dist\TornCommander.exe" (
+if exist "%~dp0%TC_DIST_DIR%\TornCommander.exe" (
   echo.
   if exist "%~dp0FIRST_RUN_REBUILD.flag" del /q "%~dp0FIRST_RUN_REBUILD.flag" >nul 2>&1
   echo Build complete. Launching Torn Commander...
-  echo Executable: %~dp0dist\TornCommander.exe
+  echo Executable: %~dp0%TC_DIST_DIR%\TornCommander.exe
   call :LAUNCH_CHECK
   if errorlevel 1 exit /b 1
   exit /b 0
@@ -100,7 +107,7 @@ if not exist "%~dp0LAUNCH_CHECK.ps1" (
   pause
   exit /b 25
 )
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0LAUNCH_CHECK.ps1" -ExePath "%~dp0dist\TornCommander.exe" -SourceVersion "0.6.13"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0LAUNCH_CHECK.ps1" -ExePath "%~dp0%TC_DIST_DIR%\TornCommander.exe" -SourceVersion "0.6.14"
 set "LAUNCH_RESULT=%errorlevel%"
 if not "%LAUNCH_RESULT%"=="0" (
   echo.

@@ -1,14 +1,11 @@
-Torn Commander v0.6.13 — Travel itinerary fidelity + route line
+Torn Commander v0.6.14 — Locked directory updater regression
 
-1. Install through Settings > Check GitHub for Update from a working v0.6.12.
-2. Verify Build v0.6.13; choose Travel > Rolling 24h itinerary.
-3. Enable 'Show route-line map (schematic)' and rebuild. Confirm Torn > destination > Torn for each listed round trip.
-4. Click a destination node. The matching itinerary card should scroll into view.
-5. Disable route map and reopen Commander: the preference should stay off.
-6. Set your cash budget to what you actually can spend; $0 means UNLIMITED, not $0 cash.
-7. Check that scenario upside and risk-weighted planning score are labeled differently.
-8. A shelf stock report without observed restock timing must not fund multiple later day trips.
-9. If a route disappears instead of showing exaggerated profit, refresh to obtain real stock/restock evidence.
-10. Watch that forecast routes are marked speculative and live Torn purchases are never automatic.
-
-Checks: source-only and browser layout tests locally; Windows build/release validated by GitHub Actions.
+1. If already running v0.6.10 or newer, click Settings > Check GitHub for Update.
+2. A new version should build in staging and install under a dist-v0.6.14-xxxxxxxx directory.
+3. No attempts to rename or delete the old dist should be logged.
+4. Check the active VERSION badge shows 0.6.14 and your accounts/sessions persist.
+5. Close and reopen using the dark T Desktop shortcut: it should target the new version.
+6. Torn Commander.bat from the source root should also launch the active version.
+7. A taskbar shortcut directly pinned to the old EXE may need to be re-pinned.
+8. If needed, the old dist remains intact for recovery.
+9. Windows CI uses a separate lock-holding process to verify that updates work while the old dist is in use.
