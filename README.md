@@ -19,14 +19,14 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings → Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-There is not yet a GitHub Release until the source is uploaded, validated on Windows, and a version is published. The release workflow included here is a starting point for that process.
+**Latest published release:** [v0.6.7](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings → Update Commander → Check GitHub for Update button uses that release channel.
 
 ## Source organization
 
-The current source ZIP is maintained separately while the repository is initialized. The checked-in project should live inside `Torn Commander/` with exactly one `TornCommander.csproj`. Keep all personal state outside the project tree.
+The public privacy-cleaned source is tracked in `Torn Commander/` with exactly one `TornCommander.csproj`. Keep all personal state outside the project tree. GitHub Actions packages tracked source only.
 
 This project is not affiliated with Torn City or any third-party travel-data service. Do not redistribute unlicensed third-party userscript sources.
 
 ## Build and publishing
 
-When the sanitized project has been added and committed, CI will validate and build on Windows. Pushing a `vX.Y.Z` tag, or manually running the release workflow for a version, can generate a release ZIP from **tracked source files only**. Verify the build, privacy scan and release asset before telling users to update.
+CI validates and builds on Windows whenever Commander source is pushed to `main`. If all checks pass, it publishes a new GitHub Release based on `VERSION.txt`, with a matching versioned source ZIP. Existing published version tags are never overwritten; bump `VERSION.txt` for new releases. This checks compilation, **not** live game behavior.
