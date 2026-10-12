@@ -1,0 +1,13 @@
+Torn Commander v0.6.11 — first real in-app GitHub update test
+
+Starting from a running v0.6.10:
+1. Settings -> Check GitHub for Update -> confirm v0.6.11.
+2. Verify Commander closes, staged build completes, EXE restarts, and Build v0.6.11 appears.
+3. Open Settings. Select Obsidian Purple or Emerald. Dashboard should change immediately.
+4. Press Cancel Preview to return to the saved theme.
+5. Select Ember, Apply Theme, close Commander, reopen; Ember should still be selected.
+6. Switch Torn profile; saved theme should NOT reset.
+7. Restore Midnight Blue then reopen; it should persist.
+8. Torn gameplay page and Classic Tools should not be recolored.
+
+If the update fails, send the end of %LOCALAPPDATA%\TornCommander\update-last.log, excluding any secrets.

@@ -52,6 +52,8 @@ public sealed class AppSettings
     public int TravelTransferMinutes { get; set; } = 10;
     public bool TravelPlanStartNow { get; set; } = true;
     public bool TravelPauseUntilHome { get; set; } = false;
+    // Shared local UI preference; no account data and never included in public releases.
+    public string DashboardTheme { get; set; } = "midnight";
     public string UpdateGithubRepo { get; set; } = "E7t7t7/Torn-Commander";
     public DateTime TravelPlanCustomStartUtc { get; set; } = DateTime.MinValue;
     // Neutral for friends' first installations; established users retain locally saved values.

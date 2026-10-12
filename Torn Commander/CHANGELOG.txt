@@ -1,3 +1,10 @@
+v0.6.11 (2026-10-12)
+- Added installation-wide dashboard color themes: Midnight Blue, Obsidian Purple, Emerald, Ember, and Slate.
+- Settings offers live preview, Apply Theme, Restore Midnight Blue, and Cancel Preview.
+- Saved theme persists in local settings.json and is not bundled with releases.
+- Colors apply only to Commander's modern dashboard; Torn gameplay pages and Classic Tools remain unchanged.
+- Focused updater-cycle test release: no changes to Travel, Graffiti, Loss Desk, account isolation or updater mechanics.
+
 v0.6.10 (2026-10-12)
 - Fix in-app updater lock failure: verify the complete .NET Windows build in a local staging folder, never build over a running dist directory.
 - Copy new sources and binaries only after a successful staged build and a safe move of the old dist.

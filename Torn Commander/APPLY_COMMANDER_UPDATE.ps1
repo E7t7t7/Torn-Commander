@@ -5,7 +5,7 @@ param(
     [switch]$NoLaunch
 )
 
-# Torn Commander staged updater v0.6.10.
+# Torn Commander staged updater v0.6.11.
 # Build entirely away from the live executable, then install only after verification.
 # A locked current dist is never removed or overwritten: updates fail without
 # touching the installation if a safe directory swap cannot be obtained.
