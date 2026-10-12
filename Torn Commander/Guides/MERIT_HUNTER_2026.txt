@@ -1,0 +1,18 @@
+TORN COMMANDER — MERIT HUNTER 2026
+
+Full Sync compares your achieved honors/medals against Torn's current honor and medal catalogs.
+
+The grid now separates:
+- Requirement: Torn's live catalog description.
+- WhatToDo: Commander's plain-English instructions.
+- Progress: only shown when Commander can map a trustworthy account statistic to that exact requirement.
+
+Commander deliberately does NOT estimate referral or legacy-social honors from your own account level. A description such as "refer 3 players who reach level 10" is not 15/10 just because your account is level 15.
+
+Useful examples:
+- Zero Liability: allow ONE skimmer to collect at least 250 card details, then recover that same skimmer.
+- Social Butterfly: personally refer 3 players and have each reach level 10.
+- Pyramid Scheme: one of your referrals must refer another player, and that second-generation referral must reach level 10.
+- The Socialist: the old Torn Lite/Facebook route is retired. At level 20 the honor can be purchased from the Points Building for 600 points.
+
+Use Explain Selected for a focused explanation of any highlighted award. Guide Next opens the relevant Torn area and shows both the exact requirement and the action plan.

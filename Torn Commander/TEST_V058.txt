@@ -1,0 +1,19 @@
+Torn Commander v0.5.8 — Travel itinerary test
+
+1. Close other Commander windows. Extract to a clean folder and run REBUILD_AND_LAUNCH.bat.
+2. Confirm v0.5.8 in the native title and dashboard badge. Windows/.NET compilation is not verified in this package.
+3. Travel > Save + Refresh. Check feed status, availability and price-known routes.
+4. Set Depart now, Transfer 10 min, Auto-monitor enabled 15 min; choose Rebuild Plan.
+5. Confirm itinerary shows full Torn -> country -> Torn legs, takeoff/arrival/return times, net per leg, total modeled 24h profit.
+6. Set custom departure tomorrow at noon and Rebuild Plan; ensure plan changes and the 24h window shifts.
+7. Lower capacity, change flight type and Rebuild Plan; verify profit/itinerary recalculate without refreshing a feed.
+8. Copy 24h Plan and paste into a notepad; check timing and warnings.
+9. Turn auto-monitor off/on and verify Next feed check status and persistence after restart.
+10. Leave Commander running beyond the selected interval; verify the last/next feed check changes even if Travel is not selected.
+11. Confirm Graffiti Run Once / Loss Desk / account profiles are still present, but do not run loss worker without testing.
+12. If no price-known public stocks are available, itinerary must state it cannot model a profitable trip rather than inventing a plan.
+
+Assumptions: planning starts in Torn; each overseas trip returns to Torn before the next;
+no auto-clicking flights, no guaranteed stock, no paid TornTravel data; 24-hour model uses 15-minute time slots
+and may not produce a mathematical global optimum. Auto-monitor runs only while Commander is open;
+feed requests are capped to a minimum 10-minute interval and rate-limited upstream.

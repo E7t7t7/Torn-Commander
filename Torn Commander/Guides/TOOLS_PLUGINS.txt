@@ -1,0 +1,16 @@
+TORN COMMANDER — TOOLS / PLUG-INS
+
+Included launch catalog:
+- TornTools
+- Lazy Crimes
+- Simple Cracking Helper
+- torn.report
+- YATA
+- TornLabs Market
+
+Torn Commander supports:
+1) Local plain-JavaScript injection from its Scripts folder.
+2) Unpacked Chromium/WebView2 extensions where supported by WebView2.
+3) External userscript managers such as Greasemonkey/Violentmonkey for scripts that depend on GM_* APIs.
+
+Unknown navigation can be allowed once or permanently through the personal domain whitelist. That whitelist does not bypass Torn rules, CAPTCHAs, Cloudflare, Google security, or browser restrictions.

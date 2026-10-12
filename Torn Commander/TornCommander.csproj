@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <Version>0.6.7</Version>
+    <FileVersion>0.6.7.0</FileVersion>
+    <AssemblyVersion>0.6.7.0</AssemblyVersion>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TornCommander</AssemblyName>
+    <RootNamespace>TornCommander</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <ApplicationIcon>Assets\TornCommander_T_Icon.ico</ApplicationIcon>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Guides\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Scripts\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="BundledScripts\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

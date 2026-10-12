@@ -1,0 +1,16 @@
+Torn Commander v0.5.7 - Graffiti single-action mode fix
+
+1. Completely close all TornCommander.exe processes.
+2. Unzip into an empty folder. Open the inner "Torn Commander" project folder.
+3. Run REBUILD_AND_LAUNCH.bat; confirm Build v0.5.7 and the EXE path.
+4. Full Sync on the main profile to get a Graffiti recommendation.
+5. On the modern dashboard, press Open Only first to view Torn Graffiti.
+6. Press Run Once ONCE. The dashboard status should change to CHECKING, then
+   Graffiti [STOPPED], [VERIFIED], [CLICK_SENT] or [ERROR].
+7. CLICK_SENT only means one Spray click was sent. Verify Torn's own result.
+8. If no Spray, copy Graffiti Debug from the Overview or Crimes page and
+   send the relevant output. Do not repeat Run Once while the status says
+   CHECKING and do not allow automation to retry ambiguous selections.
+
+Note: Classic Coach's separate mode dropdown still controls its Classic
+button; modern dashboard Run Once always requests one action explicitly.

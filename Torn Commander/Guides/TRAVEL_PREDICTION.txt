@@ -1,0 +1,45 @@
+TORN COMMANDER v0.5.1 - TRAVEL / FOREIGN STOCK
+
+HOW TO GET USEFUL RESULTS
+1. Open Travel. Choose your REAL carry capacity and flight method.
+2. Choose whether the Mailing Yourself Abroad book bonus (-25% time) is active.
+3. Leave cash budget at 0 for unlimited, or enter your real abroad-buying budget.
+4. Keep the 5% Item Market fee enabled if you plan to sell through that market.
+5. Select confidence/horizon, then Save + Refresh.
+6. Search/filter to find routes; compare net/trip, net/hour, stock age, cash and ROI.
+7. Confirm foreign stock in Torn before flying. Quotes are estimates, not reservations.
+
+SOURCE POLICY
+Commander uses the published DroqsDB public forecast and export APIs, which are
+publicly documented for integrations. When remote predictions are unavailable,
+Commander can infer local restock windows from its own observed public snapshots.
+No scraping or unlocking TornTravel private subscription features.
+
+FORECAST AND AVAILABILITY
+- IN STOCK = reported by public snapshot at the displayed observation age; it can
+  sell out before you land. Aged snapshots are marked STALE.
+- PREDICTED = a modelled possible restock or flight window, not guaranteed.
+- STALE / UNVERIFIED = delayed or incomplete source timestamps; confirm manually.
+- Local restock estimates require at least three observed restock events (two
+  complete cycle intervals), and are capped in confidence.
+- Cached data is kept with the original refresh time during feed outages.
+
+MATH AND LIMITATIONS
+- Units = min(carry capacity, reported stock if in stock, affordable quantity).
+- Cash required = units * foreign shop price.
+- After-fee sell price = floor(Torn market value * .95) if fee enabled.
+- Net/trip = units * (after-fee sell price - shop price) - standard roundtrip airfare.
+- Net/hour = net/trip divided by estimated roundtrip flight duration + any wait
+  until a future predicted departure. Ground-shopping/market-sale time excluded.
+- ROI = net/trip / shop purchase budget.
+- Travel durations use the Torn Wiki table; calculated route times are approximate.
+- Business ticket opportunity cost is NOT deducted (its cash value varies).
+- Personal mugging risk, rehab fees, market slippage, flight timing variation,
+  outbound wait, time spent shopping, and all other external costs are excluded.
+- Unknown price/route/stock status is not promoted as a profitable live run.
+
+WINDOWS / TROUBLESHOOTING
+The modern Commander dashboard is the normal reflowing, card-based view.
+For deeper rows, switch to CLASSIC TOOLS -> Travel. If feeds fail, the UI shows
+source errors and retains old data as stale. If public sources change their
+response format, capture the error and report it for a parser update.

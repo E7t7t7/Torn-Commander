@@ -1,0 +1,37 @@
+# Build / IDE
+bin/
+obj/
+dist/
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+
+# LOCAL player state: never commit
+settings.json
+TornCommander_Backup_*.zip
+WebView2Profile/
+Profiles/
+*.sqlite
+*.sqlite3
+*Cookies*
+User Data/
+startup-diagnostic.log
+startup-crash.log
+launcher-last.log
+build-last.log
+travel_forecast_cache.json
+travel_stock_history.json
+loss_orders.json
+shopping_cart.json
+nnb_milestones.json
+casino_sessions.json
+trades.json
+racing_notes.json
+
+# No private credentials
+.env
+.env.*
+*api-key*.txt
+*secret*.json

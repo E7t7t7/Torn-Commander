@@ -1,0 +1,17 @@
+Torn Commander 0.5.6 - launcher/startup visibility patch
+
+1. Close all Commander processes, and unzip to a NEW EMPTY folder.
+2. Open the inner Torn Commander source folder and run REBUILD_AND_LAUNCH.bat.
+3. If a compile error occurs, CMD stays open; send the error lines or
+   %LOCALAPPDATA%\TornCommander\build-last.log (review for private data).
+4. If the EXE exits before its GUI appears, CMD stays open and prints the exit
+   code. Send the last 30 lines of launcher-last.log / startup-diagnostic.log /
+   startup-crash.log from that same data directory.
+5. If the exe still runs invisibly or closes without explanation, use
+   DIAGNOSE_STARTUP.bat in the source folder and send its results.
+6. Do NOT delete %LOCALAPPDATA%\TornCommander: it contains browser profiles,
+   settings, scripts and history. Do not send keys/cookies.
+
+0.5.6 does not claim to have resolved an unknown Windows-native startup crash.
+It changes the launcher to catch build errors and early exits, logs startup
+checkpoints, and preserves all 0.5.5 Graffiti/Travel features.

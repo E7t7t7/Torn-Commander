@@ -1,0 +1,30 @@
+TORN COMMANDER — LOSS SELLING
+
+Commander supports both manual/direct loss-order tracking and an integrated Auto Cycle in the Losses tab.
+
+Manual mode:
+- NEXT A / NEXT B opens the assigned target/profile workflow.
+- +1 A/B records a confirmed loss manually.
+- Pause / Resume, FINISH + COMPLETE, and ledger controls remain available.
+
+Integrated Auto Cycle (v0.4.2+):
+- Uses embedded WebView2 workers tied to Commander Profile A / Profile B.
+- Does not require the old Edge/Chrome browser extensions or re-teaching controls.
+- Flow: claim one loss -> open target -> JOIN FIGHT -> Pillow turns -> visible loss result -> commit one loss -> First Aid Kit recovery -> repeat.
+- A shared target lease prevents A and B from attacking the same target simultaneously.
+- Combined order claims prevent overshooting the requested loss total.
+- Wins, unclear results, Cloudflare/verification, missing Pillow/FAK controls, or uncertain healing pause safely instead of guessing.
+- Final recovery is checked before automatic completion.
+- Previous running state stays paused after an app/browser restart until Resume is explicitly pressed.
+
+IMPORTANT: Auto Cycle performs repeated Torn browser actions automatically and may violate Torn's scripting rules. Use it only if you accept that account risk.
+
+Loss X-change can be installed/updated directly from the author through the Losses/Tools tabs. Commander does not redistribute the script.
+
+Other community services included:
+- Hive Network
+- 24/7 Services
+- Nebula Services
+- Phenix Co.
+
+Rates change constantly. Verify live contract terms before accepting work.

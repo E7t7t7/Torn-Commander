@@ -1,0 +1,20 @@
+TORN COMMANDER v0.6.5 - CRITICAL COMPILE HOTFIX
+
+WHY THIS BUILD
+v0.6.4 failed to compile because MainForm.Privacy.cs references
+AppSettings.LegacyExampleLabelsReviewed, but Models.cs omitted that property.
+This release supplies the missing persisted flag and enables a one-time optional
+legacy-label review.
+
+TEST ON WINDOWS
+1. Close Commander and extract this ZIP into a NEW empty folder.
+2. Open the inner Torn Commander folder and run REBUILD_AND_LAUNCH.bat.
+3. Confirm there are NO CS1061 errors, especially for LegacyExampleLabelsReviewed.
+4. Confirm the dashboard displays Build v0.6.5.
+5. Confirm all local saved profiles, cookies, and API keys are still available.
+6. If a one-time prompt offers to rename older example profile labels,
+   choose No to keep existing labels, or Yes to rename only display labels.
+7. Graffiti and Travel should remain installed but are NOT validated by this hotfix.
+
+FAILURE LOG: %LOCALAPPDATA%\TornCommander\build-last.log
+Please send any new compiler error lines if present.

@@ -1,0 +1,18 @@
+Torn Commander v0.6.0 - icon + graffiti reliability pass
+
+1. Extract into a clean folder.
+2. Run REBUILD_AND_LAUNCH.bat.
+3. Confirm Build v0.6.0 in the dashboard and the darker T app icon in the title bar/taskbar.
+4. Open Torn Crimes > Graffiti.
+5. Press Run Once once.
+6. Watch the persistent status message for:
+   - CHECKING: district
+   - CHECKING: paint
+   - CHECKING: spray control
+   - CLICK_SENT or STOPPED
+7. If it still does not spray, use Copy Graffiti Debug and send the result.
+
+Notes:
+- Run Once should submit at most one click.
+- No retry loop is allowed.
+- If district or paint cannot be verified, Commander should STOP without spraying.

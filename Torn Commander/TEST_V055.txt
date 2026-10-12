@@ -1,0 +1,13 @@
+TORN COMMANDER v0.5.5 - WINDOWS / GRAFFITI CHECK
+1. CLOSE any running Commander. Extract into a new folder, not over a previous build.
+2. Run REBUILD_AND_LAUNCH.bat, and verify Build v0.5.5 in dashboard.
+3. Open Crimes > Graffiti in a Torn browser tab and verify the paint overlay says Commander Paint.
+4. Coach: choose Open & Configure; press Do Recommended one time.
+5. Expected: CHECKING then VERIFIED with Residential District + Purple, or STOPPED with a concrete reason. No automatic Spray in this mode.
+6. Confirm the displayed district + paint match (do not spray manually yet if wrong).
+7. Resize the Commander window, verify the paint overlay resizes and remains inside the game viewport.
+8. If it says STOPPED, open Classic Tools > Coach > Copy Graffiti Debug and paste the JSON into ChatGPT.
+9. Keep One-click single action disabled until the exact selection controls have been proven on your live page.
+10. Report screenshot + final status and whether any other userscripts also control Graffiti.
+
+Windows .NET compilation and live Torn site behavior were not available during source checks.

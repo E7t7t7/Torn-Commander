@@ -1,0 +1,65 @@
+TORN COMMANDER — SHOPPING CART / BULK BUY
+
+PURPOSE
+Build a local cart from Torn's live Item Market data, then work through it one market purchase at a time.
+
+ITEM SEARCH
+You do NOT need Torn's exact punctuation anymore.
+Examples:
+  green paint
+  Purple
+  spray paint red
+  Xanax
+
+Use "Load item list" for autocomplete, or just type/paste a partial name and press Add / Find.
+Commander resolves the text against Torn's live item catalog. Pasted rows with extra columns/totals are cleaned before matching.
+
+PAINT PRESET
+Choose the amount per color and press Load paint cart.
+It loads Black, Blue, Green, Orange, Pink, Purple, Red, and White Spray Paint.
+
+BUY LIMITS
+Max price per unit:
+  $0 = unlimited.
+  Otherwise listings above this price are excluded.
+
+Max total cart spend:
+  $0 = unlimited.
+  Otherwise Commander blocks a step that would push the recorded cart spend above the cap.
+
+Minimum wallet to keep:
+  $0 = allow spending cash down to $0.
+  Otherwise Commander blocks a step that would leave less than this amount in your last-synced wallet.
+
+NUKE MY PILE:
+  Explicitly ignores all three Commander limits above.
+  This does NOT bypass Torn and does NOT make Commander loop purchases.
+  One Buy Next Once press still submits at most one market purchase.
+
+PURCHASE FLOW
+Scan / Build Cart:
+  Reads the live market and builds the cheapest current plan.
+
+Prepare Next:
+  Opens the exact item market, finds the planned listing, opens Torn's Buy flow,
+  prefills the planned quantity, and stops before the final confirmation.
+
+Buy Next Once:
+  Same preparation, then submits exactly one planned market purchase.
+
+MANUAL PURCHASE TRACKING
+The bundled Item Market Cart Helper watches the final purchase confirmation inside Commander.
+When detected, Commander updates the Bought/Need quantities automatically.
+If Torn changes its UI or a purchase is missed, select the row and use Record selected bought.
+Undo last reverses the latest recorded cart purchase.
+
+NOTE
+Torn's user inventory API is cached by category (currently up to one hour), so Commander does not pretend
+an inventory refresh can instantly prove a manual purchase. The browser helper is used for immediate tracking.
+
+CHAT EXPORT
+Select Copy cart for chat to place a clean plain-text request on the Windows clipboard.
+Commander exports only quantities you still need, so already-recorded purchases are excluded.
+If the cart has been scanned, the message also includes the current estimated market total.
+Paste it directly into a Torn faction/private chat to ask for stock before market buying.
+

@@ -1,0 +1,26 @@
+TORN COMMANDER — AUTOMATION BOUNDARY
+
+Torn Commander is intentionally built as a manual companion.
+
+OK DESIGN
+=========
+- Read documented Torn API data.
+- Display calculations and recommendations.
+- React to the page you manually opened.
+- Inject UI helpers into pages you actively load.
+- Maintain local histories / notes.
+- Open tabs and bookmarks when you choose them.
+
+NOT PART OF THIS PROJECT
+========================
+- unattended crime clicking
+- automatic attacking
+- automatic race entry
+- automatic item purchasing / selling
+- automatic gambling
+- CAPTCHA bypass
+- silently crawling Torn pages in the background
+- making hidden non-API game requests
+
+Reference:
+https://www.torn.com/forums.php?p=threads&t=16037108

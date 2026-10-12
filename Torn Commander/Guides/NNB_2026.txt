@@ -1,0 +1,186 @@
+TORN COMMANDER — NATURAL NERVE GUIDE (CRIMES 2.0, 2026)
+General reference only. Open Crime Coach and use Full Sync for your own account data.
+
+CORE IDEA
+=========
+Natural Nerve Bar (NNB) is driven by hidden Crime Experience (CE), not by Crime Skill alone.
+
+Natural nerve rises in 5-point steps. Crimes 2.0 no longer has the old 60-NNB ceiling.
+
+A successful crime adds CE.
+A normal failure hurts your crime chain but is not the same as a CE-destroying critical fail.
+Critical failures are especially bad for a pure NNB grind because they can cost CE and reset chain progress.
+
+For maximum long-term NNB, optimize:
+safe CE gained per nerve
+x crime progression bonuses
+x crime-chain bonus
+x total nerve throughput
+while minimizing critical failures.
+
+ACCOUNT-SPECIFIC PROGRESSION
+============================
+Use Crime Coach + Full Sync for current crime skill, nerve, merits, and
+recommendations. Do not rely on another player's recorded values.
+
+PHASE 1 — BUILD A SAFE CRIME CHAIN
+==================================
+Choose crimes appropriate to your own level and success probabilities.
+Progress to more demanding crime categories as your account develops.
+
+CRIME CHAIN
+===========
+Crime chain makes successful progression better and is worth protecting.
+
+Cheap, safe crimes are valuable for chain building because each successful attempt contributes to the chain independent of nerve cost.
+
+Concept:
+safe cheap successes -> build chain -> expensive/high-CE safe crime
+
+Hustling becomes particularly useful later because it combines low nerve cost with strong safety when your CE is ready.
+
+PHASE 2 — ~35 TRUE NNB
+=======================
+Begin HUSTLING as the bridge.
+
+Mix in SAFE Disposal opportunities.
+
+Do not treat this as "must do every available job." Your target is safe CE accumulation, not maximum variety.
+
+PHASE 3 — ~40 TRUE NNB
+=======================
+CRACKING becomes a major CE engine.
+
+Before making it your life:
+- obtain the Office Chair crime enhancer
+- get the relevant Computer Science education running once addiction is controlled
+- protect your crime chain
+- avoid reckless targets that raise critical-failure risk
+
+ENDGAME
+=======
+Do not replace the old "Warehouse Arsons forever" myth with "Cracking forever."
+
+At high CE the correct philosophy becomes:
+Use the hardest SAFE high-CE work you can perform consistently.
+
+That may include:
+- Cracking
+- Disposal
+- Scamming
+- Forgery
+- Arson
+depending on your progression, skill, enhancers, education and current opportunity.
+
+PROGRESSION BONUSES
+===================
+Important permanent / persistent categories include:
+- Crime Progression merits
+- faction Criminality crime progression
+- Psychology Bachelor
+- Federal Judge permanent crime progression perk
+- crime-specific enhancer
+- matching company progression perks in some companies
+- crime-chain bonus
+
+Your own account dashboard should track these rather than assume generic values.
+
+NERVE THROUGHPUT
+================
+Natural regeneration is 1 nerve per 5 minutes while below maximum.
+
+With a displayed max of 36, a completely empty bar caps in:
+36 x 5 = 180 minutes = 3 hours.
+
+That means low maximum nerve can cause a lot of wasted regeneration if you are away for long stretches.
+
+Useful throughput sources can include:
+- natural regen
+- daily nerve refill
+- alcohol
+- company job-point nerve perks
+- faction nerve / alcohol perks
+- stock / event / newsletter sources when available
+
+Spend boosted nerve back below the bar when practical so natural regeneration resumes.
+
+YOUR CURRENT ADDICTION ISSUE
+============================
+Project-start addiction: -23%.
+
+At this addiction level, long education planning is unreliable because you can be removed from courses.
+
+Current strategy:
+- while below Level 15, do not center the plan around long education
+- reach Level 15
+- rehab in Switzerland
+- once addiction is controlled, resume education aggressively
+
+Education priority after rehab:
+1. Psychology progression path / Bachelor for crime progression
+2. Computer Science courses relevant to Cracking
+3. other account priorities as needed
+
+TRUE NNB CALCULATOR
+===================
+Displayed max nerve can include bonuses.
+
+Use Torn Commander's NNB tab:
+Displayed max nerve
+- faction flat nerve bonus
+- merit flat nerve bonus
+- company flat nerve bonus
+- other flat nerve bonus
+= natural value
+
+If the result is not a multiple of 5, at least one bonus input is missing/wrong.
+
+TRACKING
+========
+Record each NNB increase:
+date
+new true NNB
+displayed maximum
+approx nerve spent since prior increase
+main crimes
+critical fails / major changes
+new progression bonuses
+
+Over time, your own history becomes more useful than old forum averages.
+
+ORGANIZED CRIME
+===============
+Take appropriate OC2.0 participation whenever your faction can support it.
+Successful organized crime participation can contribute crime progression without using your normal nerve bar.
+
+TOOLS
+=====
+torn.report:
+Useful for nerve / crime history and chain-related tracking.
+
+YATA:
+Useful for faction / comparative tracking.
+
+Torn Commander:
+Your persistent browser, cap timer, phase guide, account ledger and notes.
+
+SOURCES / CURRENT REFERENCE PAGES
+=================================
+Official Torn API Swagger:
+https://www.torn.com/swagger.php
+
+Torn API wiki:
+https://wiki.torn.com/wiki/API
+
+Torn crime experience / crimes wiki:
+https://wiki.torn.com/wiki/Crime_experience
+https://wiki.torn.com/wiki/Crimes
+
+Current community Criminal Primer / Crimes 2.0 research:
+https://www.torn.com/forums.php?p=threads&t=16385729
+
+Torn scripting rules:
+https://www.torn.com/forums.php?p=threads&t=16037108
+
+Rule of thumb:
+When a forum guide conflicts with current wiki/API/game behavior, verify the date before trusting it.

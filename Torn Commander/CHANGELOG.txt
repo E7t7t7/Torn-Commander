@@ -1,0 +1,363 @@
+v0.6.7 (2026-10-12)
+- Fix GitHub and local ZIP updater to compare against real running assembly version, not hard-coded v0.6.3.
+- Default official GitHub update repository for new installations; legacy blank repository also checks official channel.
+- Treat a 404 latest-release response as "no published releases" rather than an unexplained error.
+- Validate GitHub release asset name matches tag version.
+- GitHub Actions Windows build/release channel prepared.
+
+v0.6.6 (2026-10-12) - Graffiti navigation/injection reliability
+- Correct the Graffiti action-page handoff: wait for the actual Crimes 2.0 Graffiti hash route, not merely a loaded generic Crimes page.
+- STOP after navigation timeout instead of invoking the helper on a wrong/unready page.
+- Extend bundled-helper readiness checks and perform at most one local helper-injection recovery if enabled but not loaded in an existing WebView tab.
+- Show clear STOPPED reasons for helper-disabled, route-not-ready, and helper-not-loaded states; preserve selected district/paint and one-action safety gates.
+- Verified with local simulated Graffiti controls: exactly one Spray when selection proof succeeds; zero Sprays when paint missing or district selection unverified. These are not live Torn tests.
+- All profile, Travel, updater, credential, and Loss Desk behavior retained from v0.6.5.
+
+v0.6.5 (2026-10-12)
+- FIX: Add missing AppSettings.LegacyExampleLabelsReviewed flag used by the privacy migration (fixes CS1061 compile failure).
+- Run the one-time legacy display-label review after successful startup; changes only labels after user confirmation.
+- Preserve existing profile IDs, local browser sessions, and Windows Credential Manager keys.
+- Update version identifiers and add a stable ASCII publisher sanity check for the migration property.
+
+v0.6.4 (2026-10-12) — Public Release Privacy Fix
+- Removed hard-coded personal account names and IDs from default profiles, user-agent and tailored guide.
+- New installs initialize a single neutral Player 1 profile; existing local settings are retained unchanged.
+- Existing separate browser sessions and Windows Credential Manager keys remain local and unaffected.
+- This is a privacy release; Windows startup and updater still require live verification.
+
+v0.6.3 (2026-10-12)
+- Travel: live Torn location/flight-status-aware rolling 24-hour itinerary. If flying back, the first leg waits for return plus turnaround; outbound/abroad/unavailable/unknown status prevents imaginary departures. Travel page timer improves return ETA where visible.
+- Travel: optional manual pause for self-directed trips; recheck status and auto-resume after arrival when unpaused. Keeps feed monitoring independent.
+- Settings: install from a compatible Commander ZIP or configure a public GitHub Releases repo and press Check GitHub for Update. Updates validate ZIP structure/version, optionally verify GitHub SHA-256, stage outside the running EXE, back up the source, close, replace and clean rebuild.
+- Layout: live travel state display, clearer controls, denser three-column itinerary summary for the actual split-pane width.
+- Preserves dual profiles, native Loss Desk, Graffiti helper, user scripts and existing %LOCALAPPDATA% state.
+
+v0.6.2 (2026-10-11) - Windows icon and startup shortcut
+- Added CREATE_DESKTOP_SHORTCUT.bat and CREATE_DESKTOP_SHORTCUT.ps1.
+- Generates a desktop .lnk pointing directly to the compiled dist\TornCommander.exe.
+- Shortcut uses the custom dark T icon rather than the generic CMD/BAT launcher icon.
+- Works with OneDrive-redirected desktops via the Windows Desktop special folder.
+- Prints exact shortcut, target and icon paths; validates shortcut after saving.
+- Retains the EXE ApplicationIcon setting and full source build process.
+- Clarified build vs EXE vs shortcut and kept v0.6.1 modules unchanged.
+
+v0.6.1 (2026-10-11)
+- Corrected the Graffiti helper's double-event risk: exactly one `.click()` for each explicitly selected district/paint/Spray control, and stop if the control disappears.
+- Added a short Spray click cooldown to block accidental duplicate Run Once requests.
+- Await the Graffiti guide promise in the Commander WebView bridge and report a failure rather than treating the action as merely "started".
+- Fixed the embedded helper-version diagnostic mismatch (had been reporting 1.5.2).
+- Unified build-version labels and the launcher source-version parameter; kept the dark T application icon.
+- Use SDK-default item metadata update for the asset bundle to avoid potentially duplicate packaging entries.
+- Preserves original profiles, credentials, Travel Planner, Loss Desk, Merits, Cart and scripts.
+
+v0.6.0 (2026-10-11)
+- New darker Torn Commander app icon with a T mark for the executable and window/taskbar branding.
+- Graffiti guided action hardened again: more robust Spray button detection, stronger synthetic click path, longer readiness checks, and clearer progress statuses so Run Once can show exactly where it stops.
+- Graffiti helper bundled-script generation bumped so existing installs receive the refreshed helper on launch.
+- Small reliability pass on window/app version labeling so current build numbers are easier to trust during testing.
+
+v0.5.9 (2026-10-10)
+- Added full Add, Rename, Remove and Switch profile actions to the modern dashboard top bar and Settings page.
+- New profiles receive random, non-reused IDs, preventing accidental reuse of removed profiles' backed-up login cookies.
+- New profiles automatically switch to a clean browser session ready for the actual player to sign in.
+- Keep up to 10 saved profiles; main browser loads one profile at a time, existing Loss Desk keeps 2 independent worker slots.
+- Profile removal requires confirmation, does NOT delete a Torn account, erases its saved Commander API key, and retains browser data as a local backup.
+- Block removal when unfinished Loss Desk orders reference the profile; otherwise stop/dispose any workers using it before removal.
+- Preserve Loss Desk profile selection by stable ID, instead of silently shifting account mapping on add/remove.
+- Original v0.5.8 24-hour travel itinerary, monitoring, and Graffiti features preserved.
+- Windows build and live Torn login behavior still require on-device testing.
+
+v0.5.7 - 2026-10-10
+- FIX: Modern dashboard Run Once now explicitly requests a supported Graffiti single action rather than obeying the default Open & Configure mode.
+- Classic Coach modes remain independent. Open Only remains non-submitting.
+- Persistent Graffiti action status in modern Overview and Crimes, including STOPPED, VERIFIED, CLICK_SENT result messages.
+- Added one-click Copy Graffiti Debug access on modern dashboard.
+- Bundled helper version 1.5.2, generation 7, preserving strict one-click/no-retry, positive target+paint verification.
+- Disambiguated client Spray click from a verified Torn result.
+
+0.5.6 - Startup diagnosis and launcher health checks
+- Stop detaching EXE blindly: check for a live GUI or early process exit, and
+  keep CMD open when something fails.
+- Persist build, launcher, startup and crash diagnostics in local app data.
+- Add foreground DIAGNOSE_STARTUP.bat for unexpected WinForms/WebView2 failure.
+- Log pre-window creation and WebView2 setup checkpoints.
+- Preserve v0.5.5 features, profiles, credentials, loss desk and Graffiti helper.
+
+0.5.5 - 2026-10-09 - Graffiti Reliability and Diagnostics
+- Preserved v0.5.4 features and backend without recreating project.
+- Paint overlay no longer repeatedly rewrites unchanged markup; ignores its own DOM mutations.
+- Guided selection only accepts a specific option's selected marker, not a generic active group wrapper.
+- Adds stable post-click district and paint verification, a short wait for paint options after a district update, and a unique exact Spray control requirement.
+- Guided action reports CHECKING / VERIFIED / STOPPED / SUBMITTED in its overlay and Commander status; native UI no longer misreports an optimistic success.
+- Adds Copy Graffiti Debug to Classic Coach and a restricted diagnostic capture that omits full game body/account text.
+- Bundled helper 1.5.1 auto-updates on startup (script generation 6). No other remote scripts are bundled.
+- Live Torn DOM cannot be reproduced in the build environment; if a control cannot be proved the guide stops instead of blindly clicking or spraying.
+
+0.5.3 - 2026-10-09
+- Repaired native window version strings left at 0.5.1 in the v0.5.2 build.
+- First-run forced rebuild, clean-rebuild launcher, build number badge and actual EXE path.
+- Eliminated mobile horizontal nav scrolling by adding a compact section selector.
+- Graffiti guide helper 1.5.0: unique explicit targets/paints, one click each,
+  strict on-page selected-marker verification, fails closed without spraying.
+- Percentage overlay scales with viewport, remains draggable, can collapse,
+  and clamps saved position after a window resize.
+- Travel stock fallback now tries public YATA export if DroqsDB fails; optional
+  market pricing is fetched separately and rows without prices are labelled.
+- No change to Loss Desk, profiles, credentials or other classic modules.
+
+0.5.3 - 2026-10-09
+- Version labels corrected in WinForms title, dashboard, and .NET assembly metadata; launcher now prints exact source/executable locations and version to prevent testing stale builds.
+- Replaced narrow dashboard horizontal-scroll navigation with collapsible responsive section menu.
+- Graffiti guided selection is now strictly limited to plausible controls in the crime content, with one click per step, positive district/paint verification and no submission on ambiguity. Added in-flight guard against duplicate actions and expanded debug capture.
+- Graffiti percentage overlay now scales with the Torn viewport, stays within resized windows, supports minimize, and has a scrollable body for narrow heights.
+- v0.5.2 Travel feed status/error improvements preserved. No claim of provider availability: HTTP 530 may still occur upstream.
+
+0.5.0
+- Added modern WebView2 Commander dashboard with responsive web-style navigation/cards.
+- Preserved all existing detailed WinForms tools under CLASSIC TOOLS.
+- Added Travel / foreign-stock module with free public forecast integration and local restock learning fallback.
+- Added capacity, flight type, market fee, horizon and confidence controls.
+- Dashboard surfaces live Cart, Loss Desk, Crime Coach and Merit Hunter summaries and actions.
+- Travel history/cache now persist under %LOCALAPPDATA%\TornCommander and are included in backups.
+- No TornTravel premium scraping/unlocking; prediction implementation is independent.
+
+TORN COMMANDER v0.4.2
+
+- Fixed the v0.4.1 build sanity check that falsely reported the integrated Loss Desk as missing because Windows findstr did not reliably match the Unicode em dash marker.
+- Integrated the old Loss Desk automatic loss-selling state machine into the Losses tab without relying on browser extensions.
+- Added two embedded WebView2 loss workers (Account A / Account B) that use each Commander's isolated profile cookies/session.
+- Auto Cycle flow: target lease -> attack page -> JOIN FIGHT -> Pillow turns -> visible loss detection -> exact one-loss commit -> First Aid Kit recovery -> repeat.
+- Added shared target leases and one-loss claims so Account A/B cannot attack the same buyer simultaneously or double-count/overshoot a shared order.
+- Added automatic final recovery before marking a completed order finished.
+- Added Pause A/B, Pause Both, Resume A/B, Stop A/B, and max First Aid Kits per recovery.
+- Auto Cycle fails closed on Cloudflare/verification pages, missing/ambiguous controls, wins, uncertain fight results, or uncertain healing.
+- Previous running auto-cycle state does not silently resume after an app/browser restart; explicit Resume is required.
+- Auto Cycle does not require re-teaching browser extension controls; it uses semantic Torn DOM matching and known Pillow/First Aid Kit item identities.
+
+TORN COMMANDER v0.4.1
+- Fixed Graffiti Guided Action using the currently-active location/paint instead of the Coach recommendation.
+- Guided Graffiti now always clicks the requested target and requested paint before a one-click submission.
+- The guided action no longer silently preserves an already-active spray can when the Coach explicitly recommends another color.
+- Uses the full target name Residential District to reduce ambiguous DOM matching.
+- Added fail-closed verification: if Torn still exposes a different selected target or active paint after Commander clicks the recommendation, Commander stops without spraying.
+- Fixed stale active-paint cache state so multiple paint colors cannot remain marked active locally.
+- Bundled Graffiti helper updated to 1.4.0.
+
+v0.4.0 — Account profiles + integrated Loss Desk
+- Added isolated Commander account profiles with separate WebView2 cookies/browser storage and separate Windows Credential Manager API keys.
+- Added toolbar profile switcher; default profiles were two named local placeholders, with add/rename/delete management in Settings.
+- Preserves the original main-account browser session under the legacy WebView2 profile path; alternate accounts get their own profile folders.
+- Rebuilt Losses tab into a two-account Loss Desk with shared orders, Account A/B assignment, combined progress, pause/resume, finish/complete, and per-account NEXT action controls.
+- Added a guided cycle state per account: confirmed loss -> NEXT opens Items for manual heal -> NEXT returns to the target for the next manual attack.
+- NEXT actions deliberately perform no unattended loop: they switch to the correct isolated account and open the target for one user-controlled Torn action.
+- Added Loss X-change as an on-demand author-hosted installer (Greasy Fork script 595106); the script is not redistributed in Commander.
+- Added native Commander GM_xmlhttpRequest bridge so userscripts such as Loss X-change can make their declared cross-origin requests without relying on page CORS.
+- Loss X-change storage/settings remain isolated per account because each browser profile has its own web storage.
+
+v0.3.7 — Crimes 2.0 route correction
+- Fixed Guided Action using the obsolete loader.php Crimes URL.
+- Graffiti now opens https://www.torn.com/page.php?sid=crimes#/graffiti.
+- Torn route normalization now migrates old loader.php SID links, including Crimes hash routes, to page.php.
+- Added a publisher sanity check so the Graffiti route cannot silently regress to loader.php again.
+
+v0.3.6
+- Fixed MeritHunter compile error: nullable tuple results from FindExactStat are now unpacked correctly before assigning numeric progress.
+- No cart or merit logic behavior changes beyond restoring a successful build.
+
+v0.3.5 — Cart chat exporter
+- Added "Copy cart for chat" to the Shopping Cart.
+- Exports only remaining quantities in clean plain text suitable for Torn faction/private chats.
+- Includes total wanted quantity and, when the cart has been scanned, the current market estimate.
+- Completed cart lines are omitted automatically so faction requests stay current.
+
+v0.3.4 — Cart usability + purchase workflow
+- Item entry no longer requires exact Torn punctuation/spelling. Added live catalog autocomplete and fuzzy/token matching (for example "green paint" -> "Spray Paint : Green").
+- Pasted rows are cleaned before matching so extra copied columns/totals do not become part of the item name.
+- "Open Next" renamed to "Prepare Next": it now opens the planned Buy flow and prefills the planned quantity, stopping before Torn's final purchase confirmation.
+- "Buy Next Once" retries while Torn's live market UI loads and submits at most one planned market purchase per user click.
+- Added bundled Item Market Cart Helper to detect final manual purchases made inside Commander and update the local cart.
+- Added "Record selected bought" fallback for manual purchases if Torn changes the live market UI.
+- Reworked buy limits with plain-language labels and persistent settings.
+- Added explicit "NUKE MY PILE" override to ignore Commander max-unit, max-cart-spend, and cash-reserve limits while retaining one-purchase-per-click behavior.
+- Cart summary now clearly identifies when limits are overridden.
+- Market debug now captures dialogs and more page context for future DOM fixes.
+
+Torn Commander v0.3.3
+- Rebuilt Merit Hunter progress logic around exact API mappings instead of fuzzy keyword matching.
+- Fixes false values like 1,024/1,000 Murder (overall crimes was incorrectly used as Murder) and 126/50 Bouncer (attacks won was incorrectly used as defend wins).
+- Removed artificial 99.9% cap. If a mapped counter is at/above a target but Torn does not report the award as earned, Commander now flags VERIFY instead of pretending 99.9%.
+- Reads Torn catalog crimes_version and the account's personalstats crime version. Crimes 1.0 awards are hidden/unavailable on a Crimes 2.0 account by default.
+- Added Show legacy/unavailable checkbox and Status column. Guide Next / Top 10 / Coach ignore unavailable and contradictory awards.
+- Added exact mappings for common attack/defend/critical-hit/rounds/bounty/bust/travel/medical/revive/racing counters and Crimes 2.0 offense-category medals.
+- Added torn/crimes to Full Sync for future availability logic.
+
+Torn Commander v0.3.2
+- Merit Hunter now shows Torn's exact requirement plus plain-English "What to do" instructions.
+- Added Explain Selected button for individual merits.
+- Fixed impossible referral progress such as 15/10: referral/legacy honors no longer borrow your own account level.
+- Social Butterfly / Pyramid Scheme / Zero Liability / The Socialist receive explicit current instructions.
+- Referral awards open Recruit Citizens; The Socialist opens Points Building.
+- Fixed API error 21 by requesting personalstats with a valid category (cat=all).
+
+0.3.0
+- Added live Merit Hunter tab.
+- Full Sync now reads user honors, user medals, personal stats, Torn honors, Torn medals, and Torn merit-upgrade catalog.
+- Compares achieved awards with the live game catalog and ranks all remaining awards by estimated effort.
+- Adds NNB Growth / Easiest First / Max Nerve priority modes.
+- Adds Guide Next, Open Awards, Copy Top 10, search, and Show Earned controls.
+- Uses API level, education, Crimes 2.0 stats, and high-confidence personal-stat matches for estimated progress; unknown progress remains explicitly unknown.
+- Adds merit-spend recommendation: Crime Progression first for long-term NNB, Nerve Bar first in Max Nerve mode.
+- Coach now surfaces the next merit candidate and count of high-priority awards.
+
+0.2.11
+- Fixed Guided Action opening the wrong Torn view from the Graffiti recommendation.
+- Graffiti guided actions now navigate directly to Torn's Crimes 2.0 deep link: loader.php?sid=crimes#/graffiti.
+- Route normalization preserves individual Crimes 2.0 loader.php hash routes while still migrating ordinary legacy loader.php pages to page.php.
+- Removed the helper's risky fallback that clicked a generic element named "Graffiti".
+- Graffiti target selection now rejects anchors/navigation controls that do not remain inside the Crimes page and fails closed before submitting anything.
+- Bundled Graffiti helper updated to 1.3.0.
+
+0.2.10
+- Fixed C# build failure in MainForm.cs caused by accidental literal newlines inside normal string literals in the Tools installer UI.
+- Recommended userscript pack result dialog now uses escaped newline sequences.
+- Updated Torn Commander HTTP user-agent version.
+- Added source sanity validation for multiline ordinary C# strings to the launcher.
+
+Torn Commander v0.2.8
+- Added live GUIDED ACTION controls to the Coach tab.
+- New action modes: Advice only, Open & Configure, and One-click single action.
+- Current NNB-foundation recommendation exposes Graffiti / Residential / Purple as a guided setup.
+- Graffiti guide button can open/select the recommended setup; One-click mode submits exactly one supported attempt per manual button press and never loops.
+- Graffiti helper now exposes a Commander action API, preserves an already allocated paint can when smarter, and reports action results back to the app status bar.
+- Added conservative final-action detection: if the Spray button cannot be identified unambiguously, Commander stops after configuring and submits nothing.
+- Bundled helper files are updated from the shipped build on launch, and a one-time bundle-generation bump enables the new/updated built-ins for existing users.
+- Added BrowserTab ExecuteScriptAsync + WebView message bridge for future guided helpers on Hustling, Cracking, Disposal, racing, trading, and other pages.
+
+Torn Commander v0.2.6
+- Fixed packaging error that included two complete copies of the source tree in v0.2.5.
+- The duplicate tree caused SDK-style recursive compilation to define every class twice (CS0101/CS0111).
+- ZIP now contains exactly one Torn Commander project folder.
+- Publisher now detects an accidentally nested duplicate source tree before restore/publish and explains the problem.
+
+Torn Commander v0.2.5
+
+- FIX: SplitContainer no longer assigns Panel1MinSize / Panel2MinSize while the control has a temporary zero width during startup.
+- FIX: Companion pane constraints are applied only after the form is shown and a valid splitter position is established.
+- UX: Reduced minimum window size to 850x600 and relaxed pane minimums so the browser/coach split is genuinely resizable.
+- Keeps v0.2.4 startup crash logging for any future startup exception.
+
+Torn Commander v0.2.4
+- Fixed startup crash introduced by the resizable companion splitter in v0.2.3.
+- Saved companion width is now applied only after the WinForms layout has a real size.
+- Added persistent startup/runtime crash logging to %LOCALAPPDATA%\TornCommander\startup-crash.log.
+- Crash dialog now shows the log location instead of silently disappearing.
+
+Torn Commander v0.2.3
+- Replaced the fixed 70/30 browser/companion layout with a draggable split pane.
+- Companion pane width is remembered between sessions.
+- Companion pages now reflow to the available width instead of forcing ~475px content and horizontal scrolling.
+- Long labels, grids, lists, settings rows, buttons, and text boxes resize/wrap with the pane.
+- Double-click the divider to reset the companion pane to a comfortable default width.
+
+TORN COMMANDER v0.2.2
+=====================
+
+API / LIVE COACH
+- Settings now provides a one-click Torn Full Access API-key creation link (type=4).
+- Added Paste + Save and Verify Full Access buttons.
+- Restricted-key error code 16 is converted into a clear fix instead of a wall of raw JSON warnings.
+- Live progression text/checklist now explicitly says when guidance is incomplete because API data is blocked.
+- Existing API keys cannot be upgraded in-place; create a replacement Full Access key and save it.
+- API keys remain stored in Windows Credential Manager and are never embedded in the app/backup.
+
+WINDOW / UX
+- Removed the old default-start-maximized behavior.
+- Commander now remembers its last normal window size and screen position.
+- If you close it maximized it remembers that state too; otherwise it returns at the same window size next launch.
+- New installations/upgrades without saved placement start windowed at 1500x900.
+
+USERSCRIPTS
+- Added Import userscript button.
+- Accepts .user.js, .js and .txt files.
+- A .txt userscript is copied into Commander's persistent Scripts folder as .user.js.
+- Imported scripts are enabled automatically.
+- Commander now honors common @match/@include/@exclude/@exclude-match metadata before running injected scripts.
+- @grant none scripts are the most compatible with the built-in runner; GM_* API scripts may still need a full extension runtime.
+- Bundled Torn Blackjack Assist v2.1 is included and enabled on first v0.2.2 launch.
+- Existing tabs need reload/reopen after userscript enable/import changes.
+
+v0.2.1
+- Fixed missing TornSnapshot.StockPerks model member that prevented v0.2.0 from compiling.
+
+0.2.7
+- Added bundled Graffiti Paint Helper userscript.
+- Displays discovered remaining charge percentages for all spray-paint colors without requiring the user to click through each paint entry when the data is available in the loaded page/client state.
+- Adds charge-aware paint advice and warns that paint percentage is remaining charge, not success chance.
+- Includes a one-click Debug capture so any Torn DOM/API layout mismatch can be fixed from real page data without guesswork.
+
+v0.2.9
+- Guided Graffiti target detection now scans visible labels, image alt/data attributes, and clickable card ancestors so Residential works with Torn's current rendered cards.
+- Tools page now distinguishes real installed modules from external dashboards.
+- Added one-click Install/Update/Enable/Disable for Lazy Crimes, Torn Racing Guide, and Simple Cracking Helper via official Greasy Fork update URLs.
+- Added Install / update recommended pack.
+- Added common GM userscript compatibility shims (GM_addStyle, values, openInTab, xmlHttpRequest/fetch) to Commander's native script runner.
+- Built-in Graffiti and Blackjack helpers now show actual installed/enabled status.
+
+v0.3.1 — Shopping Cart / Bulk Buy
+- Added Cart tab with persistent shopping targets.
+- Added Graffiti Paint preset for all 8 Spray Paint colors with configurable quantity per color.
+- Added generic item-name + quantity requests.
+- Added live Torn API v2 item catalog resolution and /market/{id}/itemmarket scanning.
+- Builds cheapest price-tier plan, estimated total, available quantity, best/average price.
+- Added max unit price, max total spend and cash-reserve safeguards.
+- Added Open Next to open/highlight/prefill the next planned market purchase.
+- Added Buy Next Once: one user press attempts at most one Torn market purchase; no loops/background buying.
+- Added Undo Last for Commander's local submitted-purchase count.
+- Added Market Debug clipboard capture for adapting to Torn Item Market DOM changes.
+- Shopping cart targets and submitted counts persist in %LOCALAPPDATA%\TornCommander\shopping_cart.json.
+
+0.5.1 - 2026-10-09
+- Major dashboard polish: 11 responsive sections, compact navigation, profile A/B
+  selector, per-profile API status, improved stock cards and small-pane layout.
+- Travel Planner calculates practical trip economics: carrying capacity, price,
+  units, stock, optional cash budget, market fee, ROI, flight duration, standard
+  round-trip airfare, and expected net profit per trip/hour.
+- Added Mailing Yourself Abroad (-25%) optional travel-time bonus.
+- Separate current stock from modelled restocks. Show confidence, stock age,
+  stale-data warnings and suggested departure where supplied.
+- Combine public stock snapshots with published public forecasts; on outages
+  use local restock observations or preserve the last cached results as stale.
+- Added destination, category, item and status filters in responsive travel UI.
+- Preserved original WebView2 sessions, native Loss Desk and all Classic Tools.
+- Browser/dashboard tests on 520px and 1100px without JS errors or horizontal page overflow.
+- Full native WinForms compilation still requires Windows/.NET 8 SDK.
+
+
+0.5.2 - 2026-10-09
+- Fixed Travel page horizontal overflow caused by long feed-warning text.
+- Travel provider failures are now summarized in plain English instead of raw exception spam.
+- Added browser-like headers for public travel requests to improve compatibility with third-party providers.
+- Travel dashboard now shows explicit feed status, data source, and whether Commander is using live, cached, or no travel data.
+- Improved empty-state guidance when live travel data is unavailable and no cache exists yet.
+- Minor responsive polish for the top bar and narrow-pane layout.
+
+0.5.4 - 2026-10-09
+- Uses the existing saved Torn API key (Torn endpoints only) to fill missing foreign-stock market valuations.
+- Reads estimated market_value from official Torn item catalog in a single request, cached for 20 minutes.
+- Falls back to a few bounded Torn Item Market listing lookups if the catalog omits a value.
+- Labels catalog figures as estimates and lowest listings as indicative, not guaranteed sale proceeds.
+- Recalculates cached trip net, ROI, units and hourly rate on capacity, cash-budget, flight and fee changes.
+- Resets derived economics before recalculation; stale cached stock is never silently refreshed.
+- Tracks approximate YATA price freshness instead of applying unrelated historical timestamps.
+- Retains v0.5.3 build-path reporting, Graffiti fail-closed selection and responsive paint overlay.
+- WinForms native compilation and third-party provider behavior remain Windows/live-test dependent.
+
+
+v0.5.8 (2026-10-10)
+- Added rolling estimated 24h Travel itinerary, with takeoff/arrival/return and every destination in sequence.
+- New planning controls: depart now/custom local date-time, transfer minutes, and copy itinerary to clipboard.
+- Added automatic Travel public-feed monitor (10/15/30/60 minute intervals) while Commander remains open.
+- Recomputes rolling 24h plan on a minute tick, and after settings/data changes.
+- Beam-search itinerary planning avoids reusing reported quantities past available units,
+  with separate uncertainty flags and risk-discounted planning score for future arrivals.
+- Preserved existing Travel rankings, Graffiti helper, accounts, Loss Desk, and Classic Tools.

@@ -1,0 +1,45 @@
+TORN COMMANDER — MONEY / TRADING GUIDE
+
+PURPOSE
+=======
+Make money without turning the app into a bot.
+
+Torn Commander should answer:
+- What did I actually pay?
+- What is my average cost?
+- What do I expect to receive?
+- What is the real profit?
+- Is the ROI worth tying up my cash?
+- How much cash must I keep untouched?
+
+Use the Money tab as the durable ledger.
+
+CORE RULES
+==========
+1. Record cost, not memory.
+2. Separate "listed value" from "realized sale value."
+3. Keep a minimum cash reserve.
+4. Prefer repeatable margins over one lucky flip.
+5. When comparing opportunities, consider ROI AND time-to-sell.
+6. Never let a helper auto-buy or auto-sell for you.
+
+YOUR EXISTING TRADING PREFERENCES
+=================================
+The project can later expose presets for:
+- maximum stock purchase
+- maximum item purchase
+- minimum cash reserve
+- minimum item profit per unit
+- minimum ROI
+
+These stay decision rules; purchase/sale clicks remain manual.
+
+NEXT MODULES TO ADD
+===================
+- item watch list
+- per-item average cost
+- realized vs unrealized profit
+- market-price snapshots from permitted Torn API market endpoints
+- stock-benefit tracker
+- company income tracker
+- weekly / monthly P&L chart

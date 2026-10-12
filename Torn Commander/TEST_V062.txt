@@ -1,0 +1,14 @@
+TORN COMMANDER v0.6.2 - ICON / DESKTOP SHORTCUT CHECK
+
+1. Extract this ZIP to a clean permanent folder. Do not relocate it later.
+2. Run REBUILD_AND_LAUNCH.bat once. This builds the WinForms EXE if needed.
+3. Close Commander after it opens.
+4. Run CREATE_DESKTOP_SHORTCUT.bat and confirm the SUCCESS message.
+5. Check the Windows Desktop for a shortcut called Torn Commander with the dark T icon.
+6. Right-click -> Properties -> Shortcut: Target should be the new folder's dist\TornCommander.exe.
+7. Launch through the Desktop shortcut. The app should open WITHOUT a CMD window.
+8. If you still see the old generic icon on the taskbar, unpin the old BAT/CMD shortcut,
+   then pin the new T shortcut. Windows icon caches can be stubborn.
+
+No account cookies, API keys, loss orders, or settings are changed by this installer.
+Native Windows compilation and live launch require a Windows test.

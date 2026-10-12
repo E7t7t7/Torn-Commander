@@ -1,0 +1,31 @@
+TORN COMMANDER — CASINO HELPER
+
+DESIGN RULE
+===========
+The casino module tracks and calculates. It does not bet.
+
+USE THE SESSION LEDGER
+======================
+Before a session:
+- choose game
+- choose starting bankroll
+- decide a stop point
+
+After:
+- enter ending bankroll
+- record result / notes
+
+The point is to see real profit/loss instead of remembering only wins.
+
+BLACKJACK
+=========
+Use normal basic-strategy decision making rather than loss chasing.
+
+Torn Commander can later include a static strategy reference / calculator, but it will never click Hit, Stand, Double or place wagers for you.
+
+KEEP IT BORING
+==============
+No auto-betting.
+No Martingale bot.
+No "recover my losses" mode.
+No unattended casino play.

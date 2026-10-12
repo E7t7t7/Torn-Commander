@@ -1,0 +1,9 @@
+Torn Commander v0.6.1 test notes
+1. Close all running Commander windows.
+2. Extract into a clean folder and run REBUILD_AND_LAUNCH.bat.
+3. Check build badge reads v0.6.1 and the dark T icon appears.
+4. Confirm profiles and Travel data still appear (do not clear browser data).
+5. On Graffiti, use Open & Configure first. Then try Run Once once.
+6. Dashboard should show VERIFY or STOPPED / CLICK_SENT. CLICK_SENT is not proof the crime succeeded.
+7. If Graffiti still fails: Copy Graffiti Debug from the dashboard or Classic Coach and share sanitized output.
+8. Try profile switching and 24h Travel Planner; confirm refresh interval and totals.

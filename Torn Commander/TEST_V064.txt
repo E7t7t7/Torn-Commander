@@ -1,0 +1,19 @@
+Torn Commander v0.6.4 — public-release privacy check
+
+NEW/FRIEND COMPUTER
+- Extract into a clean folder and run REBUILD_AND_LAUNCH.bat.
+- New profiles must say Profile 1 / Profile 2, never another player’s name.
+- No saved API credentials should appear; a Torn login is required on that computer.
+- Browser cookies and account data are saved locally under %LOCALAPPDATA%\TornCommander.
+
+UPGRADE FROM OLD RELEASE
+- Start v0.6.4 using the existing Windows account.
+- If asked about old example labels, choose No to keep custom names, or Yes to use generic labels.
+- Existing Torn login, API key and selected browser session should remain unchanged.
+
+GITHUB
+- Do not publish backup ZIPs, settings.json, browser profiles, account ledgers or logs.
+- Public repo: E7t7t7/Torn-Commander. Publish signed/trusted release ZIP assets for updater.
+- Before publishing, scan all sources for user IDs, API keys, real profile names or local paths.
+
+NOT VERIFIED HERE: native Windows compilation, login migration and updater restart.

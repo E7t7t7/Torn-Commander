@@ -1,0 +1,11 @@
+Torn Commander v0.6.3 — first bootstrap of updater / live travel planning
+
+1. Close existing Commander windows, extract to a new PERMANENT folder, then run REBUILD_AND_LAUNCH.bat.
+2. Confirm Build v0.6.3. The first install is manual. Future upgrades can use Settings > Update.
+3. While already flying, click Recheck Status. The planner must NOT show a takeoff earlier than your actual return; if no verified ETA, it must pause rather than invent one.
+4. When at Torn, Fast Sync then Rebuild Plan. The first takeoff should be now/your selected custom time. Selecting Pause recommendations should suppress routes until unchecked.
+5. In Settings, find the install-ZIP and GitHub update buttons. For GitHub updates enter a PUBLIC owner/repo with published vX.Y.Z releases; drafts or private repo releases are not supported.
+6. Test ZIP update only with a future v0.6.4+ release ZIP, not with the running version or old ZIP. Make a backup before first real update.
+7. Existing Torn cookies/credential profiles are in %LOCALAPPDATA% and must remain intact.
+
+Native .NET 8/WinForms build and live Torn page parsing have NOT been verified in this environment.

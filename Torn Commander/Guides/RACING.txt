@@ -1,0 +1,28 @@
+TORN COMMANDER — RACING GUIDE
+
+CURRENT DESIGN
+==============
+Racing helper = planner + history, not auto-entry.
+
+Track:
+- racing skill
+- car
+- track
+- upgrade setup
+- finishing position
+- race points
+- consistency
+
+Do not overreact to one win or one bad result. Compare enough races to see whether a setup is actually better.
+
+PLANNED FEATURES
+================
+- API race-history importer
+- per-track car ranking
+- upgrade planner
+- racing point budget
+- class progression
+- track notes
+- best-car reminder when a racing page is open
+
+All race entry remains manual.

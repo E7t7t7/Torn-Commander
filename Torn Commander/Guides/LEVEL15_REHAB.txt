@@ -1,0 +1,30 @@
+LEVEL 15 / REHAB CHECKPOINT
+
+Project-start situation:
+- Level 14
+- severe drug addiction around -23%
+- education courses are being interrupted / kicked out
+
+UNTIL LEVEL 15
+==============
+Do not make long education courses the backbone of the progression plan.
+
+Keep doing the safe crime / NNB route and normal account progression.
+
+WHEN LEVEL 15 HITS
+==================
+Priority:
+1. Travel access unlocked.
+2. Rehab in Switzerland.
+3. Get addiction under control.
+4. Run Full Sync. If the company API exposes your effectiveness penalty, Torn Commander will detect the addiction value automatically; otherwise update the fallback setting.
+5. Resume long education plan.
+
+THEN
+====
+Crime / NNB education priorities:
+- Psychology path toward the crime progression Bachelor
+- Computer Science courses that materially improve Cracking
+- other account needs after those are scheduled appropriately
+
+Torn Commander changes the Dashboard warning automatically when the API reports Level 15+. It prefers live API-detected company addiction when available and falls back to the saved manual value otherwise.

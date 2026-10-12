@@ -1,0 +1,16 @@
+Torn Commander v0.5.9 — Profile Manager Test
+
+1. CLOSE all old Commander windows and extract this ZIP to an empty folder.
+2. Run REBUILD_AND_LAUNCH.bat from inside Torn Commander. Verify Build v0.5.9 and the EXE path in Settings.
+3. Top bar: press + Add. Give a NEW display name, e.g. Test Member. Commander should switch to a NEW Torn sign-in session (not inherit the prior login).
+4. Log in only using that real player's account; each human player is allowed their own account under Torn rules. Do not create alt accounts for a single person.
+5. Switch back and forth between the existing profiles; each browser login and API key should remain separate.
+6. Rename the new profile: it should keep the same login data.
+7. Remove the test profile from Settings/top bar. Confirm removal doesn't delete an actual Torn game account. Saved Commander API key is cleared; local browser data is kept as a backup.
+8. Add a fresh profile with the SAME display name. It must receive a different ID and a clean session, not inherit the deleted profile's old cookies.
+9. Test Loss Desk A/B profile dropdown selections after profile add/rename/remove, and confirm they still point to the originally selected accounts.
+10. Existing Graffiti, Travel, and Classic Tools should remain available.
+
+Limit: 10 SAVED profiles in this release, not a Torn login limit. One main WebView login active in the Commander browser at a time; 2 Loss Desk worker slots max. Multiple isolated WebView processes may have meaningful RAM costs.
+
+Troubleshooting: %LOCALAPPDATA%\TornCommander\startup-diagnostic.log and launcher-last.log

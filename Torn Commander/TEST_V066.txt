@@ -1,0 +1,16 @@
+TORN COMMANDER v0.6.7 - GRAFFITI HANDOFF TEST
+
+1. Close all Commander windows. Extract v0.6.7 into a NEW folder.
+2. Run REBUILD_AND_LAUNCH.bat and confirm "Build v0.6.7".
+3. Open Torn Crimes > Graffiti in a Torn browser tab. Let the crime UI finish loading.
+4. Click the modern dashboard's Run Once ONE TIME. Do not click repeatedly.
+5. The persistent "Graffiti" status should show CHECKING -> either STOPPED or CLICK_SENT.
+   STOPPED: no Spray was submitted; read the exact stage/error.
+   CLICK_SENT: only one click was dispatched, not proof Torn accepted it.
+6. If STOPPED, leave the Graffiti page visible and press Copy Graffiti Debug
+   in Dashboard/Crimes. Paste the resulting text into ChatGPT.
+7. If the helper is disabled, enable it under Classic Tools > Scripts.
+8. Never retry unattended or guess default paint if selection remains unverified.
+
+Safety: zero click on wrong route; one click max per district/paint/Spray;
+no unverified spray; no double-click loops.
