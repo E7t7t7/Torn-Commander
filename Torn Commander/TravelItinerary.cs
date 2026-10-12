@@ -15,6 +15,7 @@ public sealed class TravelItineraryLeg
     public long EstimatedProfit { get; set; }
     public string Availability { get; set; } = "Projected";
     public double PlanningConfidence { get; set; }
+    public long RiskAdjustedProfit { get; set; }
 }
 
 public sealed class TravelItineraryPlan
@@ -24,6 +25,7 @@ public sealed class TravelItineraryPlan
     public DateTime EndUtc { get; set; }
     public long EstimatedProfit { get; set; }
     public double RiskWeightedScore { get; set; }
+    public int ProjectedLegCount { get; set; }
     public string Note { get; set; } = "";
     public List<TravelItineraryLeg> Legs { get; set; } = new();
 }
@@ -63,7 +65,8 @@ public static class TravelItineraryEngine
         if (availableMinutes < 20) { plan.Note = "Too little time remains for another round trip today."; return plan; }
         var candidates = source.Where(x => x.ItemId > 0 && x.FlightMinutesOneWay > 0 &&
                 x.ProfitPerItem > 0 && x.BuyPrice > 0 && x.MarketValue > 0 &&
-                (x.Stock is > 0 || x.RestockAtUtc.HasValue))
+                // Old stock is not an inventory guarantee and must have a real timestamp.
+                ((x.Stock is > 0 && x.StockUpdatedAtUtc.HasValue) || x.RestockAtUtc.HasValue))
             .Where(x => !settings.TravelInStockOnly || x.Stock is > 0)
             .OrderByDescending(x => x.ProfitPerHour)
             .ThenByDescending(x => x.TripProfit)
@@ -91,14 +94,19 @@ public static class TravelItineraryEngine
                     var returnMinute = slot * SlotMinutes + roundtrip;
                     if (returnMinute > availableMinutes) continue;
                     var arrive = depart.AddMinutes(item.FlightMinutesOneWay);
-                    var observed = item.Stock is > 0;
-                    // Do not build an itinerary from already-obsolete stock reports.
                     var stockAge = item.StockUpdatedAtUtc.HasValue
                         ? (nowUtc - item.StockUpdatedAtUtc.Value).TotalMinutes : double.PositiveInfinity;
-                    if (observed && (stockAge < -10 || stockAge > 180)) continue;
-                    if (!observed && (!item.RestockAtUtc.HasValue || item.Confidence < settings.TravelMinConfidence ||
-                        arrive < item.RestockAtUtc.Value.AddMinutes(-10) ||
-                        arrive > item.RestockAtUtc.Value.AddMinutes(75))) continue;
+                    // One observation can support a near-term candidate, not a whole day of
+                    // repeated trips. All later legs need separate restock timing evidence.
+                    var observed = item.Stock is > 0 && state.Legs.Count == 0 &&
+                        stockAge >= -10 && stockAge <= 60;
+                    var restockProjection = item.RestockAtUtc.HasValue &&
+                        item.Confidence >= settings.TravelMinConfidence &&
+                        arrive >= item.RestockAtUtc.Value.AddMinutes(-10) &&
+                        arrive <= item.RestockAtUtc.Value.AddMinutes(60);
+                    if (!observed && !restockProjection) continue;
+                    // No model may reuse a static shelf reading as a new replenishment.
+                    if (observed && arrive < nowUtc) continue;
                     var key = item.Country.ToUpperInvariant() + ":" + item.ItemId;
                     var used = state.Used.TryGetValue(key, out var count) ? count : 0;
                     var totalAvailable = observed ? Math.Max(0, item.Stock!.Value) : settings.TravelCapacity;
@@ -111,14 +119,15 @@ public static class TravelItineraryEngine
                         Math.Max(0L, item.ProfitPerItem * item.Units - item.TripProfit) : 0L;
                     var profit = item.ProfitPerItem * units - standardFare;
                     if (profit <= 0) continue;
-                    var elapsed = (arrive - nowUtc).TotalMinutes;
-                    var freshnessAtArrival = observed && item.StockUpdatedAtUtc.HasValue &&
-                        (arrive - item.StockUpdatedAtUtc.Value).TotalMinutes <= 45;
-                    var certainty = freshnessAtArrival ? 0.85 : observed
-                        ? Math.Max(0.22, 0.65 - Math.Max(0, elapsed - 45) / 2400.0)
-                        : Math.Clamp(item.Confidence, 0.2, 0.85) * 0.55;
-                    // Late-day opportunities remain visible, but are penalized for uncertainty.
-                    if (observed && elapsed > 180) certainty *= 0.75;
+                    // Time-to-arrival reduces observed-stock confidence sharply. A full
+                    // airplane trip can outlast a shelf snapshot; never label it certain.
+                    var minutesSinceReportAtArrival = item.StockUpdatedAtUtc.HasValue
+                        ? Math.Max(0, (arrive - item.StockUpdatedAtUtc.Value).TotalMinutes) : double.PositiveInfinity;
+                    var certainty = observed
+                        ? Math.Clamp(0.75 * Math.Exp(-minutesSinceReportAtArrival / 150.0), 0.08, 0.72)
+                        : Math.Clamp(item.Confidence, 0, 1) * 0.40;
+                    // Model confidence is a ranking heuristic, not a calibrated probability.
+                    if (!double.IsFinite(certainty)) continue;
                     var next = new State
                     {
                         Score = state.Score + profit * certainty,
@@ -133,7 +142,8 @@ public static class TravelItineraryEngine
                         Units = units, DepartUtc = depart, ArriveUtc = arrive,
                         ReturnUtc = depart.AddMinutes(roundtrip), CashRequired = units * item.BuyPrice,
                         EstimatedProfit = profit,
-                        Availability = freshnessAtArrival ? "Recent report (verify)" : "Projected — verify again",
+                        RiskAdjustedProfit = (long)Math.Round(profit * certainty),
+                        Availability = observed ? "Stock observed earlier — verify on arrival" : "Modeled restock — speculative",
                         PlanningConfidence = certainty
                     });
                     var nextMinutes = returnMinute + transfer;
@@ -147,9 +157,12 @@ public static class TravelItineraryEngine
         plan.Legs = best.Legs;
         plan.EstimatedProfit = best.Profit;
         plan.RiskWeightedScore = Math.Round(best.Score);
+        plan.ProjectedLegCount = plan.Legs.Count(x => x.Availability.StartsWith("Modeled", StringComparison.Ordinal));
         plan.Note = plan.Legs.Count == 0
-            ? "No complete profitable round trip fits the chosen 24-hour window. Try another flight method or await fresh stock."
-            : "Best modeled sequence found (beam-search estimate, not guaranteed maximum). Later legs assume stock remains available; recheck before every departure.";
+            ? "No supported profitable sequence right now. A stale shelf is not evidence of future stock; wait for fresh observations or a learned restock window."
+            : "Scenario upside is NOT a profit forecast. The risk-weighted value is a conservative ranking heuristic, not a calibrated expected payout. Confirm stock, selling prices and cash before each trip."
+              + (settings.TravelCashBudget == 0 ? " Cash budget is unlimited in settings: confirm you can actually afford these purchases." : "")
+              + (plan.ProjectedLegCount > 0 ? " Later trips use speculative replenishment timing." : "");
         return plan;
     }
 

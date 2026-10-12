@@ -35,8 +35,8 @@ public sealed partial class MainForm
         foreach (var leg in plan.Legs)
             lines.Add($"#{leg.Number} {leg.DepartUtc.ToLocalTime():ddd h:mm tt} Torn -> {leg.Country} " +
                 $"(arrive {leg.ArriveUtc.ToLocalTime():h:mm tt}) -> Torn by {leg.ReturnUtc.ToLocalTime():h:mm tt}; " +
-                $"{leg.Units}x {leg.Item}, budget ${leg.CashRequired:N0}, estimated net ${leg.EstimatedProfit:N0}, {leg.Availability}");
-        lines.Add($"24-hour modeled net: ${plan.EstimatedProfit:N0}. {plan.Note}");
+                $"{leg.Units}x {leg.Item}, budget ${leg.CashRequired:N0}, scenario upside ${leg.EstimatedProfit:N0}, model score ${leg.RiskAdjustedProfit:N0}, {leg.Availability}");
+        lines.Add($"Scenario upside: ${plan.EstimatedProfit:N0}; risk-weighted ranking score: ${plan.RiskWeightedScore:N0}. {plan.Note}");
         try { Clipboard.SetText(string.Join(Environment.NewLine, lines)); FlashStatus("24-hour travel itinerary copied."); }
         catch (Exception ex) { FlashStatus("Could not copy travel plan: " + ex.Message); }
     }

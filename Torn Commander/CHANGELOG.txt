@@ -1,3 +1,10 @@
+v0.6.13 (2026-10-12)
+- Travel itinerary no longer spends one current stock observation across multiple later flights.
+- Future legs require explicit restock-window evidence and carry speculative labels.
+- Conservative time-to-arrival discount; optimistic scenario and risk-weighted planning score separated.
+- Optional persisted route-line itinerary map with clickable legs and narrow-pane scrolling.
+- Improved warnings about unbounded user cash budget, stock risk, and unknown market outcomes.
+
 v0.6.12 (2026-10-12)
 - Added five selectable dark UI palettes: Midnight Blue, Obsidian, Emerald, Amethyst, and Ember.
 - Live appearance preview with a responsive, keyboard-accessible theme selector in the modern Settings page.

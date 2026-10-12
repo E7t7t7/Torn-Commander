@@ -1,0 +1,14 @@
+Torn Commander v0.6.13 — Travel itinerary fidelity + route line
+
+1. Install through Settings > Check GitHub for Update from a working v0.6.12.
+2. Verify Build v0.6.13; choose Travel > Rolling 24h itinerary.
+3. Enable 'Show route-line map (schematic)' and rebuild. Confirm Torn > destination > Torn for each listed round trip.
+4. Click a destination node. The matching itinerary card should scroll into view.
+5. Disable route map and reopen Commander: the preference should stay off.
+6. Set your cash budget to what you actually can spend; $0 means UNLIMITED, not $0 cash.
+7. Check that scenario upside and risk-weighted planning score are labeled differently.
+8. A shelf stock report without observed restock timing must not fund multiple later day trips.
+9. If a route disappears instead of showing exaggerated profit, refresh to obtain real stock/restock evidence.
+10. Watch that forecast routes are marked speculative and live Torn purchases are never automatic.
+
+Checks: source-only and browser layout tests locally; Windows build/release validated by GitHub Actions.
