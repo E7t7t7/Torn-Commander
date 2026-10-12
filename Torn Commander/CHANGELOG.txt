@@ -1,9 +1,9 @@
-v0.6.11 (2026-10-12)
+v0.6.12 (2026-10-12)
 - Added five selectable dark UI palettes: Midnight Blue, Obsidian, Emerald, Amethyst, and Ember.
 - Live appearance preview with a responsive, keyboard-accessible theme selector in the modern Settings page.
 - Theme selection persists per Windows installation via existing local AppSettings; fresh installs default to Midnight Blue.
 - Preserved local credentials, profiles, Travel Planner, Graffiti, Loss Desk, and v0.6.10 staged updater intact.
-- Test purpose: verify v0.6.10 -> v0.6.11 in-app GitHub update and restart.
+- Test purpose: verify v0.6.10 -> v0.6.12 in-app GitHub update and restart.
 
 v0.6.10 (2026-10-12)
 - Fix in-app updater lock failure: verify the complete .NET Windows build in a local staging folder, never build over a running dist directory.
