@@ -1,0 +1,102 @@
+name: Build and Publish Commander
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Torn Commander/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: commander-release
+  cancel-in-progress: false
+
+jobs:
+  windows-build-release:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verify source, version, and privacy
+        id: check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:GITHUB_WORKSPACE 'Torn Commander'
+          $project = Join-Path $root 'TornCommander.csproj'
+          if (!(Test-Path $project)) { throw 'Commander source has not been committed to Torn Commander/ yet.' }
+          $version = (Get-Content (Join-Path $root 'VERSION.txt') -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'VERSION.txt must be X.Y.Z.' }
+          [xml]$xml = Get-Content $project
+          if ($xml.Project.PropertyGroup.Version -ne $version) { throw 'Project and VERSION.txt disagree.' }
+          $tracked = @(git ls-files -- 'Torn Commander/')
+          $forbidden = '(?i)(^|/)(settings\.json|Profiles|WebView2Profile|User Data|bin|obj|dist|\.env|build-last\.log|startup-crash\.log)(/|$)|(^|/)[^/]*api[-_]?key[^/]*\.(txt|json)$'
+          foreach ($path in $tracked) {
+            if ($path -match $forbidden) { throw "Private/generated file tracked: $path" }
+          }
+          if ($tracked.Count -lt 25) { throw 'Source tree incomplete; refusing to publish.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Restore and compile on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet restore 'Torn Commander/TornCommander.csproj' -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw 'Restore failed.' }
+          dotnet publish 'Torn Commander/TornCommander.csproj' -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o "$env:RUNNER_TEMP\commander-publish"
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation failed; release withheld.' }
+          if (!(Test-Path "$env:RUNNER_TEMP\commander-publish\TornCommander.exe")) { throw 'EXE was not produced.' }
+      - name: Package tracked source only
+        id: package
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = Join-Path $env:RUNNER_TEMP 'commander-package'
+          $null = New-Item -ItemType Directory -Path $stage -Force
+          $tracked = @(git ls-files -- 'Torn Commander/')
+          foreach ($path in $tracked) {
+            if (!$path.StartsWith('Torn Commander/')) { continue }
+            if ($path -match '(?i)(^|/)(bin|obj|dist|Profiles|WebView2Profile)(/|$)') { throw "Unexpected file: $path" }
+            $source = Join-Path $env:GITHUB_WORKSPACE $path
+            $dest = Join-Path $stage $path
+            $null = New-Item -ItemType Directory -Path (Split-Path $dest -Parent) -Force
+            Copy-Item -LiteralPath $source -Destination $dest -Force
+          }
+          $zip = Join-Path $env:RUNNER_TEMP ('Torn_Commander_v' + $env:VERSION + '.zip')
+          Compress-Archive -Path (Join-Path $stage 'Torn Commander') -DestinationPath $zip -CompressionLevel Optimal -Force
+          Add-Type -AssemblyName System.IO.Compression
+          $a = [IO.Compression.ZipFile]::OpenRead($zip)
+          try {
+            $names = @($a.Entries | ForEach-Object { $_.FullName.Replace('\','/') })
+            foreach ($required in @('Torn Commander/VERSION.txt','Torn Commander/TornCommander.csproj','Torn Commander/CommanderUpdater.cs','Torn Commander/REBUILD_AND_LAUNCH.bat')) {
+              if ($names -notcontains $required) { throw "Release missing $required" }
+            }
+            if (@($names | Where-Object { $_ -like '*.csproj' }).Count -ne 1) { throw 'Release has duplicate projects.' }
+          } finally { $a.Dispose() }
+          $checksum = (Get-FileHash -Algorithm SHA256 $zip).Hash
+          "asset=$zip" >> $env:GITHUB_OUTPUT
+          "sha256=$checksum" >> $env:GITHUB_OUTPUT
+      - name: Publish new version to GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.check.outputs.version }}
+          ZIP: ${{ steps.package.outputs.asset }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v' + $env:VERSION
+          $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY 2>&1
+          if ($LASTEXITCODE -eq 0) { throw "Release $tag exists. Increment VERSION.txt for a new release." }
+          $notes = "Source release for Torn Commander $tag. Built successfully on Windows CI. Browser/login/game behavior still requires local verification. SHA256: $env:SHA256"
+          gh release create $tag $env:ZIP --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Torn Commander $tag" --notes $notes --latest
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }
