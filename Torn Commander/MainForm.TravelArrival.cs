@@ -42,7 +42,8 @@ public sealed partial class MainForm
         {
             // Only visible shop table fields and the public page's cash/capacity banner are read.
             // No chat messages, account name, cookies or login tokens are collected.
-            var raw = await tab.ExecuteScriptAsync("""(() => {
+            var raw = await tab.ExecuteScriptAsync("""
+              (() => {
               const out={country:'',cash:null,purchased:null,capacity:null,items:[]};
               const banner=[...document.querySelectorAll('div,span,p')].map(e=>e.textContent?.replace(/\s+/g,' ').trim()||'')
                 .find(t=>t.length<260 && /You are in .+ and have \$[\d,]+/i.test(t) && /purchased \d+\s*\/\s*\d+/i.test(t));
@@ -68,7 +69,8 @@ public sealed partial class MainForm
                 }
               }
               return out;
-            })()""");
+              })()
+              """);
             if (profile != CurrentProfileId) return;
             using var doc = JsonDocument.Parse(raw);
             if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
@@ -87,7 +89,8 @@ public sealed partial class MainForm
             }
             if (_arrivalSnapshot is not null && _arrivalSnapshot.Country.Equals(snapshot.Country, StringComparison.OrdinalIgnoreCase))
             {
-                var oldStock = _arrivalSnapshot.Items.ToDictionary(x => x.Name, x => x.Stock, StringComparer.OrdinalIgnoreCase);
+                var oldStock = _arrivalSnapshot.Items.GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.Sum(x => x.Stock), StringComparer.OrdinalIgnoreCase);
                 foreach (var item in snapshot.Items)
                 {
                     if (!oldStock.TryGetValue(item.Name, out var was) || item.Stock <= was) continue;
