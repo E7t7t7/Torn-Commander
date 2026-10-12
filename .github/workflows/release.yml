@@ -53,6 +53,12 @@ jobs:
           dotnet publish 'Torn Commander/TornCommander.csproj' -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o "$env:RUNNER_TEMP\commander-publish"
           if ($LASTEXITCODE -ne 0) { throw 'Compilation failed; release withheld.' }
           if (!(Test-Path "$env:RUNNER_TEMP\commander-publish\TornCommander.exe")) { throw 'EXE was not produced.' }
+      - name: Smoke-test updater using isolated Windows folders
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & 'Torn Commander/TEST_UPDATER_STAGING.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Updater smoke test failed; release withheld.' }
       - name: Package tracked source only
         id: package
         shell: pwsh
