@@ -50,3 +50,4 @@ if ((Get-Content (Join-Path $installed 'dist\VERSION.txt') -Raw).Trim() -ne '0.6
 if (!(Test-Path (Join-Path $installed 'old-marker.txt'))) { throw 'Old source files unexpectedly removed.' }
 if (@(Get-ChildItem -LiteralPath $installed -Filter 'dist-prior-*' -Directory).Count -lt 1) { throw 'Previous binary backup not retained.' }
 Write-Host 'TRANSACTIONAL UPDATE SMOKE TEST PASSED: spaced paths, staging build, dist swap, old-dist retention.'
+$global:LASTEXITCODE = 0
