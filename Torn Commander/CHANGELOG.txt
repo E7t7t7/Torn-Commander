@@ -1,3 +1,12 @@
+v0.6.15 (2026-10-12)
+- Company Intelligence module in the modern dashboard: personal company history, daily customers/income, star rating, advertising expense, and employee count via company/profile.
+- Limited/Full Access API permits ad budget; missing figures remain explicitly unknown.
+- Manual per-day payroll/stock/ad costs and company change notes stored locally per Torn profile.
+- Keep one observation per UTC day; re-sync replaces the observation without inflating statistical samples.
+- Advertising test guidance only after enough distinct daily samples and repeated budget levels. Comparisons are observational, not causal proof.
+- Distinguish gross revenue, income after ads and fully accounted margin; no unattended spending or changes to company settings.
+- Preserve v0.6.14 side-by-side updater and every existing Commander module.
+
 v0.6.14 (2026-10-12)
 - Install updated binaries to a separate versioned dist-v folder; never move or delete old dist.
 - Keep old EXEs available for recovery; no requirement to release a OneDrive/WebView2/cmd directory lock.

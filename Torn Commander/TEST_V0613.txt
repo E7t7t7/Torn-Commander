@@ -1,11 +1,12 @@
-Torn Commander v0.6.14 — Locked directory updater regression
+Torn Commander v0.6.15 — Company Intelligence
 
-1. If already running v0.6.10 or newer, click Settings > Check GitHub for Update.
-2. A new version should build in staging and install under a dist-v0.6.14-xxxxxxxx directory.
-3. No attempts to rename or delete the old dist should be logged.
-4. Check the active VERSION badge shows 0.6.14 and your accounts/sessions persist.
-5. Close and reopen using the dark T Desktop shortcut: it should target the new version.
-6. Torn Commander.bat from the source root should also launch the active version.
-7. A taskbar shortcut directly pinned to the old EXE may need to be re-pinned.
-8. If needed, the old dist remains intact for recovery.
-9. Windows CI uses a separate lock-holding process to verify that updates work while the old dist is in use.
+1. Update using the v0.6.14 in-app GitHub updater. Verify Build v0.6.15.
+2. Open Company in the Commander dashboard.
+3. Sync Company with the active profile's saved API key. No API key or insufficient permission should yield a readable error, not a crash.
+4. Verify company name/type/ratings, daily income/customer counts and ad budget (if permitted) match Torn.
+5. Enter advertising, payroll, and stock costs. Blank means unknown; 0 means zero. Save and verify Accounted Margin.
+6. Refresh: same UTC day's entry should update rather than create a second row. Manual cost fields must survive the API refresh.
+7. Switch to a different Commander profile: a separate local journal should appear. Switch back: previous journal preserved.
+8. With fewer than 7 daily advertising records, the advisor must say BASELINE or NO BASELINE; never claim ideal spend.
+9. Check the daily history and theme at a narrow dashboard width. Buttons and cards should not overflow horizontally.
+10. Confirm Travel, Graffiti, Cart, Loss Desk and the update panel still work.

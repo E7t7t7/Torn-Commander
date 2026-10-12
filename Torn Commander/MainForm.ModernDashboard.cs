@@ -62,6 +62,9 @@ public sealed partial class MainForm
                 case "openCrimes": NavigateActive(TornRoutes.Crimes); break;
                 case "openTravel": NavigateActive("https://www.torn.com/travelagency.php"); break;
                 case "travelRefresh": await RefreshTravelForecastAsync(true); break;
+                case "companySync": await SyncCompanyIntelligenceAsync(); break;
+                case "openCompany": NavigateActive("https://www.torn.com/companies.php"); break;
+                case "companyCosts": SaveCompanyCosts(root); break;
                 case "travelArrivalScan": await ScanTravelShopAsync(true); break;
                 case "travelArrivalReload": await RefreshTravelShopPageAsync(); break;
                 case "travelCopyPlan": CopyTravelPlanForChat(); break;
@@ -259,13 +262,14 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.14",
+                    version = "0.6.15",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
                     profileId = CurrentProfileId,
                     updateGithubRepo = _settings.UpdateGithubRepo,
                     theme = _settings.UiTheme,
+                    company = CompanyDashboardData(),
                     apiConnected = hasKey,
                     apiErrors = _snapshot.Errors.Count,
                     profile = CurrentProfile.Name,
@@ -458,17 +462,18 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="cart"><i>▤</i>Cart</button>
  <button class="nav" data-page="losses"><i>⊞</i>Loss Desk</button>
  <button class="nav" data-page="trading"><i>⇄</i>Trading</button>
+ <button class="nav" data-page="company"><i>▦</i>Company</button>
  <button class="nav" data-page="racing"><i>⚑</i>Racing</button>
  <button class="nav" data-page="casino"><i>♠</i>Casino</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.14</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.15</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.14</span><button class="btn small" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.15</span><button class="btn small" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <section class="page active" id="dashboard">
   <div class="top"><div><div class="eyebrow">Your command center</div><div class="bigtitle" id="player">Torn Commander</div><div class="sub" id="profileMeta">Account information appears after sync</div></div><span class="pill good">Local dashboard</span></div>
@@ -545,6 +550,40 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <section class="page" id="racing"><div class="top"><div><div class="eyebrow">Racing journal and tools</div><div class="bigtitle">Racing</div></div><div class="actions"><button class="btn primary" onclick="classic('Racing')">Racing Tools</button><button class="btn" onclick="send('openRacing')">Open Torn Racing</button></div></div><div class="card"><div class="section">Racing operations</div><div class="sub">Use the classic racing panel to manage your data, tips and current helper scripts. The Torn browser uses the correct page.php route.</div></div></section>
  <section class="page" id="casino"><div class="top"><div><div class="eyebrow">Session-based casino tools</div><div class="bigtitle">Casino</div></div><div class="actions"><button class="btn primary" onclick="classic('Casino')">Open Casino Tools</button></div></div><div class="grid"><div class="card span6"><div class="eyebrow">Tracked sessions</div><div class="metric" id="casinoSessions">—</div></div><div class="card span6"><div class="eyebrow">Recorded net P/L</div><div class="metric s money" id="casinoNet">—</div></div></div><div class="notice info" style="margin-top:12px">Assistance and session tracking only. No unattended gambling runs are started from this dashboard.</div></section>
  <section class="page" id="scripts"><div class="top"><div><div class="eyebrow">Native userscript engine</div><div class="bigtitle">Scripts & Helpers</div></div><div class="actions"><button class="btn primary" onclick="classic('Tools')">Manage Userscripts</button></div></div><div class="card"><div class="section">Installed assistants</div><div class="sub">Configure and enable/disable your Graffiti, Blackjack, Racing, Cracking, Cart and Loss X-change integrations in Classic Tools. Profile browser storage stays isolated.</div></div></section>
+ <section class="page" id="company">
+  <div class="top">
+   <div><div class="eyebrow">Local company intelligence</div><div class="bigtitle">Company Growth Advisor</div><div class="sub">Daily outcomes, advertising experiments and business trends — read-only recommendations</div></div>
+   <div class="actions"><button class="btn primary" id="coSync" onclick="send('companySync')">Sync Company</button><button class="btn" onclick="send('openCompany')">Open Torn Company</button></div>
+  </div>
+  <div class="notice info" id="coStatus">No history yet. Sync a saved Torn API key to start daily collection.</div>
+  <div class="grid" style="margin-top:12px">
+   <div class="card span6"><div class="eyebrow">CURRENT COMPANY</div><div class="metric s" id="coName">No company synced</div><div class="sub" id="coMeta">Star rating and employees appear after sync</div></div>
+   <div class="card span3"><div class="eyebrow">REPORTED DAILY INCOME</div><div class="metric s" id="coIncome">—</div><div class="sub">Gross income, not net profit</div></div>
+   <div class="card span3"><div class="eyebrow">DAILY CUSTOMERS</div><div class="metric s" id="coCustomers">—</div><div class="sub">API-reported daily customers</div></div>
+   <div class="card span4"><div class="eyebrow">DAILY ADVERTISING</div><div class="metric s" id="coAdvertising">—</div><div class="sub">Requires permitted key or manual entry</div></div>
+   <div class="card span4"><div class="eyebrow">INCOME AFTER ADS</div><div class="metric s" id="coAfterAds">—</div><div class="sub">Excludes payroll, stock and other expenses</div></div>
+   <div class="card span4"><div class="eyebrow">ACCOUNTED MARGIN</div><div class="metric s" id="coNet">—</div><div class="sub">Only when all entered costs are known; not audited profit</div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">ADVERTISING EXPERIMENT ADVISOR</div>
+   <div class="section" id="coAdviceState">Building baseline</div>
+   <div class="sub" id="coAdvice">A recommendation appears after enough comparable daily observations.</div>
+   <div class="statusline" id="coDays">0 recorded days</div>
+   <div class="statusline">Observational comparisons cannot isolate advertising from competition, staffing, price or inventory changes. Commander never changes your Torn advertising budget.</div>
+  </div>
+  <div class="card" style="margin-top:12px">
+   <div class="eyebrow">OPTIONAL ACCOUNTING</div><div class="section">Today's company costs</div>
+   <div class="sub">Enter costs for the UTC date shown below. Blank = unknown, not zero. Sync the company first; these figures stay on this PC and never go to Torn.</div>
+   <div class="statusline" id="coDate">No dated record yet</div>
+   <div class="flight-fields" style="margin:12px 0">
+    <label>Advertising $/day<input id="coAd" type="number" min="0" step="1" placeholder="Unknown" /></label>
+    <label>Payroll $/day<input id="coPay" type="number" min="0" step="1" placeholder="Unknown" /></label>
+    <label>Stock/supplies $/day<input id="coStock" type="number" min="0" step="1" placeholder="Unknown" /></label>
+    <label>Context / changes<input id="coNotes" type="text" maxlength="240" placeholder="e.g., changed prices or staffing" /></label>
+   </div>
+   <div class="actions"><button class="btn primary" id="coSave" onclick="saveCompanyCosts()">Save Today's Costs</button></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">DAILY HISTORY</div><div class="section">Most recent 30 observations</div><div class="sub">One snapshot per UTC day. Re-syncing the same day updates it; it does not create extra performance samples.</div><div id="coHistory" style="margin-top:12px" class="rows"><div class="empty">No company data yet.</div></div></div>
+ </section>
  <section class="page" id="settings"><div class="top"><div><div class="eyebrow">Profiles, privacy and sync</div><div class="bigtitle">Settings</div></div><div class="actions"><button class="btn primary" onclick="classic('Settings')">Open Full Settings</button></div></div><div class="card" id="themeSettingsCard"><div class="eyebrow">Appearance</div><div class="section">Commander color theme</div><div class="sub">Choose a dark palette. Changes preview immediately and save to this Windows installation; account credentials and game pages are unaffected.</div><div class="theme-options" role="group" aria-label="Color theme"><button type="button" class="theme-tile" data-choice="midnight" aria-pressed="true" onclick="chooseTheme('midnight')"><span class="theme-sample"><i></i><i></i></span><span class="theme-name">Midnight Blue</span><span class="theme-caption">Original Commander</span></button><button type="button" class="theme-tile" data-choice="obsidian" aria-pressed="false" onclick="chooseTheme('obsidian')"><span class="theme-sample"><i></i><i></i></span><span class="theme-name">Obsidian</span><span class="theme-caption">Graphite &amp; ice</span></button><button type="button" class="theme-tile" data-choice="emerald" aria-pressed="false" onclick="chooseTheme('emerald')"><span class="theme-sample"><i></i><i></i></span><span class="theme-name">Emerald</span><span class="theme-caption">Forest &amp; mint</span></button><button type="button" class="theme-tile" data-choice="violet" aria-pressed="false" onclick="chooseTheme('violet')"><span class="theme-sample"><i></i><i></i></span><span class="theme-name">Amethyst</span><span class="theme-caption">Purple &amp; lavender</span></button><button type="button" class="theme-tile" data-choice="ember" aria-pressed="false" onclick="chooseTheme('ember')"><span class="theme-sample"><i></i><i></i></span><span class="theme-name">Ember</span><span class="theme-caption">Copper &amp; charcoal</span></button></div><div class="statusline" id="themeStatus" role="status">Midnight Blue selected. Saved locally.</div></div><div class="card"><div class="section">Manage account profiles</div><div class="sub">Each saved profile has its own Torn login, cookies, and API key. New profiles switch immediately to a clean sign-in. Removing a profile never deletes the actual Torn game account.</div><div class="actions" style="margin-top:12px"><button class="btn primary" onclick="send('profileAdd')">+ Add Profile</button><button class="btn" onclick="send('profileRename')">Rename Selected</button><button class="btn" onclick="send('profileDelete')">Remove Selected</button></div><div class="statusline" style="margin-top:10px" id="profilesSummary">Loading profiles…</div><div class="profile-list" id="profilesList"></div><div class="divider"></div><div class="sub">Up to 10 saved profiles in this build; the main browsing window uses one at a time. Loss Desk still has two simultaneous worker slots, A and B. WebView2 has no fixed documented account count: RAM and active browser processes determine performance. One Torn game account per human player. Deleted profile browser files are retained as a local backup, but its Commander API key is removed.</div><div class="divider"></div><div class="sub">API keys stay in Windows Credential Manager. Travel stock data is public and does not require your Torn API key.</div><div class="divider"></div><div class="eyebrow">ACTUAL EXECUTABLE IN USE</div><div id="actualBuildPath" class="statusline">Waiting for app path</div><button class="btn small" onclick="copyPath()" style="margin-top:9px">Copy running EXE path</button></div><div class="card hero" style="margin-top:12px"><div class="eyebrow">In-app updates</div><div class="section">Update Torn Commander</div><div class="sub">No more merging ZIPs into old folders. Select a trusted Commander release ZIP, or configure a public GitHub Releases repository to check and install newer versions. The app closes and rebuilds; your local account data stays separate.</div><div class="actions" style="margin:12px 0"><button class="btn primary" onclick="send('updateFromZip')">Install from ZIP…</button><button class="btn" onclick="send('checkGithubUpdate')">Check GitHub for Update</button></div><div class="field"><label for="githubRepo">Public GitHub repository (owner/repo)</label><input type="text" id="githubRepo" placeholder="your-github-name/TornCommander"></div><button class="btn small" style="margin-top:9px" onclick="send('saveUpdateRepo',{repo:$('githubRepo').value})">Save Repository</button><div class="statusline">GitHub mode requires a published Release containing Torn_Commander_vX.Y.Z.zip. The first upgrade to this updater still requires one manual extraction. Only install releases you trust.</div></div></section>
 </div>
 </div>
@@ -588,7 +627,57 @@ function badge(x){if(x.isStale||x.status==='Stale')return '<span class="pill bad
 function renderTravelRows(){const t=S.travel||{},rows=t.rows||[];const q=$('tSearch').value.trim().toLowerCase(),country=$('tCountry').value,cat=$('tCategory').value,status=$('tStatus').value;const filtered=rows.filter(x=>(!q||[x.item,x.country,x.category].join(' ').toLowerCase().includes(q))&&(!country||x.country===country)&&(!cat||x.category===cat)&&(!status||(status==='Stale'?(x.isStale||x.status==='Unverified'):x.status===status&&!x.isStale)));const priced=filtered.filter(x=>x.priceKnown&&Number(x.profitHr)>0);const best=priced.length?priced.reduce((a,b)=>b.profitHr>a.profitHr?b:a):null;$('resultCount').textContent=filtered.length+' of '+rows.length+' results';$('travelCount').textContent=rows.length.toLocaleString();$('travelCountDetail').textContent=rows.filter(x=>x.status==='In stock'&&!x.isStale).length+' in stock • '+rows.filter(x=>!x.priceKnown).length+' missing market price • '+rows.filter(x=>x.status==='Predicted').length+' predicted';$('bestHour').textContent=best&&best.priceKnown?money(best.profitHr)+'/hr':'—';const biggest=priced.reduce((a,b)=>(!a||b.trip>a.trip)?b:a,null);$('bestTrip').textContent=biggest?money(biggest.trip):'—';$('bestTripItem').textContent=biggest?(biggest.item+' · '+biggest.country):'No matching route';
 const emptyMsg=t.hasError&&!rows.length?'The live travel provider is unavailable and Commander has no saved stock history yet. Refresh again later, or open Torn Travel Agency and build local observations over time.':t.hasError?'No routes match the current filters. Live provider data is unavailable, so Commander is only using cached/local observations right now.':(!rows.length?'No travel data yet. Press Save + Refresh to load opportunities.':'No matching viable travel opportunities. Try a different filter, budget, flight method, or refresh the feed.');$('travelRows').innerHTML=filtered.length?filtered.slice(0,70).map(x=>`<article class="opportunity"><div class="tleft"><div class="name">${esc(x.item)}</div><div class="sub">${esc(x.country)} · ${esc(x.category||'Item')} · ${esc(x.source)}</div><div style="margin-top:7px">${badge(x)}</div></div><div class="right"><div class="moneybig money">${x.priceKnown?money(x.profitHr)+'/hr':'Price unknown'}</div><div class="sub">${x.priceKnown?money(x.trip)+' net / trip · '+Number(x.roi).toFixed(1)+'% ROI':'No market valuation — stock only'}</div></div><div class="details"><span><strong>${Number(x.units||0).toLocaleString()}</strong> units planned</span><span>Cash <strong>${money(x.cash)}</strong></span><span>${x.flight}m flight each way</span><span>Stock <strong>${x.stock==null?'unknown':Number(x.stock).toLocaleString()}</strong></span>${x.stockAgeMinutes!=null?`<span>Stock age <strong>${x.stockAgeMinutes}m</strong></span>`:''}${x.priceAgeMinutes!=null?`<span>Valuation retrieved <strong>${x.priceAgeMinutes}m ago</strong></span>`:''}${x.restock?`<span>Restock est. <strong>${esc(x.restock)}</strong></span>`:''}${x.leave?`<span>Fly out ~ <strong>${esc(x.leave)}</strong></span>`:''}${x.note?`<span title="${esc(x.note)}">${esc(x.note)}</span>`:''}</div></article>`).join('')+(filtered.length>70?`<div class="statusline">Showing first 70 matching routes. Use filters to narrow the list.</div>`:''):`<div class="empty">${esc(emptyMsg)}</div>`;}
 ['tSearch','tCountry','tCategory','tStatus'].forEach(id=>$(id).addEventListener(id==='tSearch'?'input':'change',renderTravelRows));
-function render(d){if(!d)return;const previous=S.profileId;S=d;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.14';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';$('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');$('apiBadge').textContent=d.apiConnected?(d.apiErrors?'API partial':'API configured'):'API key needed';$('apiBadge').className='pill '+(!d.apiConnected?'warn':d.apiErrors?'warn':'good');$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!d.guide||d.guide.crime!=='Graffiti';$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
+
+let coRecordIdentity='';
+function saveCompanyCosts(){
+ const parse=id=>{
+   const s=$(id).value.trim();
+   if(s==='')return null;
+   if(!/^\d+$/.test(s))return NaN;
+   const n=Number(s);
+   return Number.isSafeInteger(n)&&n>=0?n:NaN;
+ };
+ const values={advertising:parse('coAd'),payroll:parse('coPay'),stock:parse('coStock'),notes:$('coNotes').value.slice(0,240)};
+ if([values.advertising,values.payroll,values.stock].some(x=>Number.isNaN(x))){
+   $('coStatus').textContent='Costs must be whole nonnegative numbers or left blank.';
+   return;
+ }
+ send('companyCosts',values);
+}
+function renderCompany(c,profile){
+ c=c||{};
+ $('coStatus').textContent=c.status||'Company history not loaded.';
+ $('coName').textContent=c.name||'No company synced';
+ $('coMeta').textContent=(c.type||'')+' · Stars: '+(c.rating??'—')+' · Employees: '+(c.staff??'—');
+ $('coIncome').textContent=c.income==null?'—':money(c.income);
+ $('coCustomers').textContent=c.customers==null?'—':Number(c.customers).toLocaleString();
+ $('coAdvertising').textContent=c.ad==null?'Unknown':money(c.ad);
+ $('coAfterAds').textContent=c.afterAd==null?'Unknown':money(c.afterAd);
+ $('coNet').textContent=c.net==null?'Unknown':money(c.net);
+ $('coAdviceState').textContent=c.state||'NO BASELINE';
+ $('coAdvice').textContent=c.advice||'Collect daily observations first.';
+ $('coDays').textContent=(c.samples||0)+' daily records with recorded advertising · Suggested experimental level: '+(c.suggested?money(c.suggested):'Not established');
+ $('coSync').disabled=!!c.syncing;
+ $('coSync').textContent=c.syncing?'Syncing…':'Sync Company';
+ $('coSave').disabled=!c.day;
+ $('coDate').textContent=c.day?'Editing UTC date '+c.day:'Sync Company before entering costs';
+ const identity=String(profile)+'|'+String(c.id||0)+'|'+(c.day||'');
+ if(identity!==coRecordIdentity){
+   coRecordIdentity=identity;
+   for(const [id,value] of [['coAd',c.ad],['coPay',c.payroll],['coStock',c.stock]]){
+     $(id).value=value==null?'':String(value);
+   }
+   $('coNotes').value=c.notes||'';
+ }
+ const rows=c.rows||[];
+ $('coHistory').innerHTML=rows.length?rows.map(x=>
+   '<div class="minirow" style="gap:12px;flex-wrap:wrap"><div style="flex:1 1 160px"><b>'+esc(x.day)+'</b><div class="sub">'+Number(x.customers||0).toLocaleString()+' customers · '+Number(x.staff||0)+' staff · '+Number(x.rating||0)+' stars</div>'+
+   (x.notes?'<div class="sub">'+esc(x.notes)+'</div>':'')+'</div><div style="text-align:right">'+
+   '<div>Income '+money(x.income)+'</div><div class="sub">Ads '+(x.ad==null?'unknown':money(x.ad))+' · After ads '+(x.afterAd==null?'unknown':money(x.afterAd))+'</div>'+
+   '<div class="sub">Accounted margin '+(x.net==null?'unknown':money(x.net))+'</div></div></div>').join('')
+   :'<div class="empty">Sync Company to start storing dated observations locally.</div>';
+}
+function render(d){if(!d)return;const previous=S.profileId;S=d;renderCompany(d.company,d.profileId);applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.15';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';$('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');$('apiBadge').textContent=d.apiConnected?(d.apiErrors?'API partial':'API configured'):'API key needed';$('apiBadge').className='pill '+(!d.apiConnected?'warn':d.apiErrors?'warn':'good');$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!d.guide||d.guide.crime!=='Graffiti';$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 $('lossCard').innerHTML=d.loss?`<div class="section">${esc(d.loss.buyer)} · target ${esc(d.loss.target)}</div><div class="metric">${d.loss.completed} / ${d.loss.requested} confirmed losses</div><div class="sub">${d.loss.remaining} remaining · ${money(d.loss.gross)} tracked · ${esc(d.loss.status)}</div>`:'<div class="empty">No active loss order. Create and configure it in the Full Loss Desk.</div>';
 $('tradeCount').textContent=d.trading?.entries??0;$('tradeProfit').textContent=money(d.trading?.profit);$('casinoSessions').textContent=d.casino?.sessions??0;$('casinoNet').textContent=money(d.casino?.net);
