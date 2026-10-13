@@ -57,7 +57,7 @@ const CasinoCoach=(()=>{
   for(let a=0;a<cards.length-4;a++)for(let b=a+1;b<cards.length-3;b++)for(let c=b+1;c<cards.length-2;c++)for(let d=c+1;d<cards.length-1;d++)for(let e=d+1;e<cards.length;e++)score=Math.max(score,five([cards[a],cards[b],cards[c],cards[d],cards[e]]));
   return score;
  }
- async function poker(holeText,boardText,opponents,pot,call,samples=1200){
+ async function poker(holeText,boardText,opponents,pot,call,samples=1200,cancelled=()=>false){
   const hole=parseCards(holeText),board=parseCards(boardText),known=[...hole,...board];
   if(hole.length!==2||![0,3,4,5].includes(board.length)||new Set(known).size!==known.length)throw Error('Enter two unique hole cards and 0, 3, 4 or 5 unique board cards.');
   if(!Number.isInteger(opponents)||opponents<1||opponents>8||!Number.isFinite(pot)||pot<0||!Number.isFinite(call)||call<0)throw Error('Use 1-8 opponents and nonnegative pot/call amounts.');
@@ -70,7 +70,7 @@ const CasinoCoach=(()=>{
    const hero=best([...hole,...full]);let ties=1,won=true;
    for(let p=0;p<opponents;p++){const villain=best([take(),take(),...full]);if(villain>hero)won=false;else if(villain===hero)ties++}
    if(won)equity+=1/ties;
-   if(n%100===99)await new Promise(resolve=>setTimeout(resolve,0));
+   if(n%100===99){await new Promise(resolve=>setTimeout(resolve,0));if(cancelled())throw Error("Hand changed; calculation cancelled.");}
   }
   equity/=samples;
   const needed=pot+call>0?call/(pot+call):0,uncertainty=1/Math.sqrt(samples);

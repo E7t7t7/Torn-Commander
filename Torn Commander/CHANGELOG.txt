@@ -1,3 +1,16 @@
+v0.6.32 (2026-10-13) — Live trading scanner and adviser
+- Scan up to eight selected item names or IDs through the existing shared Torn API queue.
+- Keep watchlists, limits and seven days of bounded quote history separately per profile; cancel scans on profile changes.
+- Rank conditional resale candidates using returned price tiers, entered fees and minimum return, with one shared capital budget.
+- Require capital to clear the returned cheaper listings; do not recommend tiny partial purchases that leave cheaper competition.
+- Cap capital by fresh wallet minus reserve when available; identify manually entered capital when wallet data is stale.
+- Add cost-based sell-now/target comparisons and observed asking-price trends, without forecasting a guaranteed recovery or buyer.
+- Expire quotes after ten minutes, retain earlier observations on failed scans, and expose Open item market controls.
+- Show only the active profile's assigned trades in the Trading ledger summary.
+- Test fees, rounding, budget allocation, stale/future quotes, competitive depth, sell basis and isolated journals.
+- Correct the old live Blackjack dealer-column mapping; suppress unknown cards, ambiguous hands and completed six-card hands.
+- Cancel obsolete poker calculations when the hand/profile changes.
+
 v0.6.31 (2026-10-13) — Casino hand advisers
 - Add blackjack move advice with available-action controls and explicit eight-deck S17 baseline assumptions.
 - Add poker hand evaluation, sampled equity versus random opponents, tie sharing and pot-odds call/fold comparisons.

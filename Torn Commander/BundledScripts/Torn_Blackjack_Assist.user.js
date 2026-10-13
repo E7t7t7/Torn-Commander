@@ -16,43 +16,6 @@
     'use strict';
 
     const A = { HIT: 'Hit', STAND: 'Stand', DOUBLE: 'Double', SPLIT: 'Split' };
-    const strategy = {
-        hard: {
-            8: [A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            9: [A.HIT, A.HIT, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            10: [A.HIT, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT],
-            11: [A.HIT, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.HIT],
-            12: [A.HIT, A.HIT, A.STAND, A.STAND, A.STAND, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            13: [A.HIT, A.STAND, A.STAND, A.STAND, A.STAND, A.STAND, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            14: [A.HIT, A.STAND, A.STAND, A.STAND, A.STAND, A.STAND, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            15: [A.HIT, A.STAND, A.STAND, A.STAND, A.STAND, A.STAND, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            16: [A.HIT, A.STAND, A.STAND, A.STAND, A.STAND, A.STAND, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            17: Array(11).fill(A.STAND), 18: Array(11).fill(A.STAND),
-            19: Array(11).fill(A.STAND), 20: Array(11).fill(A.STAND), 21: Array(11).fill(A.STAND),
-        },
-        soft: {
-            13: [A.HIT, A.HIT, A.HIT, A.HIT, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            14: [A.HIT, A.HIT, A.HIT, A.HIT, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            15: [A.HIT, A.HIT, A.HIT, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            16: [A.HIT, A.HIT, A.HIT, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            17: [A.HIT, A.HIT, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT, A.HIT, A.HIT],
-            18: [A.STAND, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.STAND, A.STAND, A.HIT, A.HIT, A.STAND, A.STAND],
-            19: Array(11).fill(A.STAND), 20: Array(11).fill(A.STAND),
-        },
-        pair: {
-            2: [A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            3: [A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            4: [A.HIT, A.HIT, A.HIT, A.SPLIT, A.SPLIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            5: [A.HIT, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.DOUBLE, A.HIT, A.HIT],
-            6: [A.HIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.HIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            7: [A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.HIT, A.HIT, A.HIT, A.HIT],
-            8: Array(11).fill(A.SPLIT),
-            9: [A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.SPLIT, A.STAND, A.SPLIT, A.SPLIT, A.STAND, A.STAND, A.STAND],
-            10: Array(11).fill(A.STAND),
-            11: Array(11).fill(A.SPLIT),
-        }
-    };
-
     function getCardValue(cardElement) {
         if (!cardElement) return 0;
         const match = cardElement.className.match(/card-\w+-(\w+)/);
@@ -66,6 +29,7 @@
     function getHandInfo(cardContainerSelector) {
         const cardElements = document.querySelectorAll(`${cardContainerSelector} div[class*="card-"]`);
         const cards = Array.from(cardElements).map(getCardValue);
+        if(cards.some(v=>!Number.isFinite(v)||v<2||v>11))return {cards:[],total:0,isSoft:false,isPair:false};
         let sum = cards.reduce((a, b) => a + b, 0);
         let aces = cards.filter(v => v === 11).length;
         while (sum > 21 && aces-- > 0) sum -= 10;
@@ -73,27 +37,30 @@
         return { cards, total: sum, isSoft: aces > 0 && sum <= 21, isPair };
     }
 
-    function getDecision(dealerCardValue, playerHand) {
-        // *** THE FINAL FIX *** A dealer Ace (11) maps to index 1 in our tables.
-        const dealerIndex = dealerCardValue === 11 ? 1 : dealerCardValue;
-
-        if (playerHand.isPair) {
-            const pairValue = playerHand.cards[0] === 11 ? 11 : playerHand.cards[0];
-            return strategy.pair[pairValue]?.[dealerIndex] || A.HIT;
+    function getDecision(d,hand) {
+        const t=hand.total,p=hand.cards[0];
+        if(hand.isPair && (p===11||p===8||(p===9&&[2,3,4,5,6,8,9].includes(d))||(p===7&&d<=7)||(p===6&&d<=6)||(p===4&&[5,6].includes(d))||([2,3].includes(p)&&d<=7)))return A.SPLIT;
+        if(hand.cards.length===5&&t<=11)return A.HIT;
+        if(hand.isSoft){
+            if(t>=19)return A.STAND;
+            if(t===18)return [3,4,5,6].includes(d)?A.DOUBLE:d>=9?A.HIT:A.STAND;
+            if((t===17&&d>=3&&d<=6)||(t>=15&&t<=16&&d>=4&&d<=6)||(t>=13&&t<=14&&d>=5&&d<=6))return A.DOUBLE;
+            return A.HIT;
         }
-        if (playerHand.isSoft) {
-            return strategy.soft[playerHand.total]?.[dealerIndex] || (playerHand.total<18?A.HIT:A.STAND);
-        }
-        return strategy.hard[playerHand.total]?.[dealerIndex] || A.STAND;
+        if(t>=17)return A.STAND;
+        if(t>=13&&d<=6||t===12&&d>=4&&d<=6)return A.STAND;
+        if(t===11&&d!==11||t===10&&d<=9||t===9&&d>=3&&d<=6)return A.DOUBLE;
+        return A.HIT;
     }
 
     function mainObserverCallback() {
+        if(document.querySelectorAll(".player-cards").length!==1){updateOverlay("---");return;}
         const dealerCardEl = document.querySelector('.dealer-cards div[class*="card-"]');
         const dealerCardValue = getCardValue(dealerCardEl);
         const playerHand = getHandInfo('.player-cards');
-        const canTakeAction = document.querySelector('#hit, #stand');
+        const canTakeAction = [...document.querySelectorAll('#hit, #stand')].some(el=>!el.disabled && el.getAttribute('aria-disabled')!=='true' && el.getClientRects().length);
 
-        if (!dealerCardValue || playerHand.cards.length < 2 || !canTakeAction || playerHand.total >= 21) {
+        if (!dealerCardValue || playerHand.cards.length < 2 || !canTakeAction || playerHand.total >= 21 || playerHand.cards.length >= 6) {
             updateOverlay('---');
             return;
         }
