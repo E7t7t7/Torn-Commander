@@ -1,12 +1,12 @@
-Torn Commander v0.6.17 — Version manager and rollback
+Torn Commander v0.6.18 — Travel itinerary usability regression
 
-1. Update from v0.6.16 to v0.6.17 through Settings > Check GitHub for Update.
-2. The new executable must run inside Torn_Commander_v0.6.17/Torn Commander/dist.
-3. The dark T desktop shortcut must point at the active v0.6.17 EXE automatically.
-4. Older app folders should be retired automatically when Windows unlocks them; if Windows keeps a file open they are preserved for safe manual cleanup.
-5. In Settings > In-app Updates, the saved version dropdown should offer v0.6.16 once the update has succeeded.
-6. Confirm the restore prompt and switch to v0.6.16; the current v0.6.17 must be saved in the rollback library.
-7. Verify login profiles and API credentials are unchanged under LOCALAPPDATA.
-8. Rolling back intentionally removes later v0.6.17-only UI features until the next upgrade.
-9. If rollback fails, do not repeatedly retry. Send update-last.log and update-build-last.log.
-10. CI checks the versioned-folder install/restore using locked prior executables on a disposable Windows test fixture.
+1. With Torn status OUTBOUND or ABROAD, inspect the Travel planner. There should be no physically impossible real departure from Torn.
+2. A new After-Return Route Preview must be visible while abroad, with up to five priced candidates if provider data allows it.
+3. Schematic route map shows conditional preview nodes instead of a blank unsupported route when those candidates exist.
+4. Route preview plainly indicates no known return time, last-known stock, resale model, and required spending; no guaranteed inventory.
+5. If both providers are unavailable, the diagnostics must say 'No stock observations' instead of silently showing 0 trips.
+6. If public stock exists but quotes are missing, diagnostics identify missing purchase/market prices.
+7. With a confirmed inbound flight ETA, an actual timed itinerary may begin after return + configured turnaround time.
+8. Once home, the live itinerary resumes using the existing strict profitability and stock constraints.
+9. Verify Company, Settings color theme, version rollback and Graffiti features still load.
+10. GitHub runs a standalone travel preview C# test and checks dashboard JavaScript with node before publishing.

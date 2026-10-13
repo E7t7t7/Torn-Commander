@@ -1,3 +1,13 @@
+v0.6.18 (2026-10-13)
+- Restore useful travel information during outbound flights and time abroad.
+- Display conditional After-Return Route Preview even when no return ETA is confirmed.
+- Separate real timed 24-hour itineraries from hypothetical route comparisons to avoid inventing departure times.
+- Explain empty itinerary cause via feed row/price/margin/recent stock diagnostics.
+- Provide evidence-qualified route cards and a labeled schematic preview map rather than a blank route box.
+- Never claim third-party shelf reports are guaranteed stock or modeled profits are guaranteed.
+- Add Windows CI tests for empty-price/stale/fresh-data travel preview and modern dashboard JavaScript syntax.
+- Preserve updater, company intelligence, current Torn account/profile data and all existing features.
+
 v0.6.17 (2026-10-13)
 - Settings includes a saved-version rollback selector next to GitHub update controls. Confirmation is required before switching.
 - Save verified prior-version source ZIPs under LOCALAPPDATA\TornCommander\VersionBackups (maximum five other versions).
