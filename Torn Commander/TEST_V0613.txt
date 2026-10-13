@@ -1,14 +1,12 @@
-Torn Commander v0.6.16 — Shortcut and versioned install repairs
+Torn Commander v0.6.17 — Version manager and rollback
 
-1. Extract the v0.6.16 source ZIP into a freshly named Torn_Commander_v0.6.16 folder, or use the installed updater once.
-2. Run REBUILD_AND_LAUNCH.bat and verify Build v0.6.16.
-3. Close Commander and run CREATE_DESKTOP_SHORTCUT.bat. It must create a valid T-branded Windows shortcut without a parser error.
-4. Verify the desktop shortcut points to the NEW v0.6.16 EXE, not a v0.6.14 or earlier folder.
-5. Test Torn Commander.bat to confirm launching the active EXE.
-6. Existing profiles, cookies, API keys and themes must still load from %LOCALAPPDATA%.
-7. The version-folder feature affects updates STARTING FROM a v0.6.16 app. If an old updater was used to install v0.6.16, its parent folder may still have the older version name. A fresh v0.6.16 installation avoids that mismatch.
-8. Next future v0.6.17+ update should create Torn_Commander_vX.Y.Z/Torn Commander as a version-named sibling, leave the old folder in place, and open the new EXE.
-9. Check the updated desktop shortcut points at the new versioned folder.
-10. If updating fails, send %LOCALAPPDATA%\TornCommander\update-last.log (not private data).
-
-GitHub CI verifies PowerShell syntax, T .lnk creation and a simulated versioned update with locked old EXE directory.
+1. Update from v0.6.16 to v0.6.17 through Settings > Check GitHub for Update.
+2. The new executable must run inside Torn_Commander_v0.6.17/Torn Commander/dist.
+3. The dark T desktop shortcut must point at the active v0.6.17 EXE automatically.
+4. Older app folders should be retired automatically when Windows unlocks them; if Windows keeps a file open they are preserved for safe manual cleanup.
+5. In Settings > In-app Updates, the saved version dropdown should offer v0.6.16 once the update has succeeded.
+6. Confirm the restore prompt and switch to v0.6.16; the current v0.6.17 must be saved in the rollback library.
+7. Verify login profiles and API credentials are unchanged under LOCALAPPDATA.
+8. Rolling back intentionally removes later v0.6.17-only UI features until the next upgrade.
+9. If rollback fails, do not repeatedly retry. Send update-last.log and update-build-last.log.
+10. CI checks the versioned-folder install/restore using locked prior executables on a disposable Windows test fixture.

@@ -1,96 +1,94 @@
-# Windows release gate: an actual update must work with old dist locked,
-# and install into the new versioned sibling folder without touching old EXE.
-$ErrorActionPreference = 'Stop'
-$work = Join-Path $env:RUNNER_TEMP ('Commander Versioned Update Test ' + [guid]::NewGuid().ToString('N'))
-$installed = Join-Path $work 'Torn_Commander_v0.6.15\Torn Commander'
-$package = Join-Path $work 'Update ZIP Source\Torn Commander'
-$newInstall = Join-Path $work 'Torn_Commander_v0.6.16\Torn Commander'
+# Windows CI: versioned upgrade, saved rollback, folder cleanup and old-dist lock.
+# All fixtures are fake Commander projects. Never reads actual player/account data.
+$ErrorActionPreference='Stop'
+$work=Join-Path $env:RUNNER_TEMP ('Commander Rollback Test '+[guid]::NewGuid().ToString('N'))
+$installed=Join-Path $work 'Torn_Commander_v0.6.16\Torn Commander'
+$next=Join-Path $work 'Torn_Commander_v0.6.17\Torn Commander'
+$source=Join-Path $work 'Release\Torn Commander'
 New-Item -ItemType Directory -Path (Join-Path $installed 'dist') -Force | Out-Null
-New-Item -ItemType Directory -Path $package -Force | Out-Null
+New-Item -ItemType Directory -Path $source -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $installed 'VERSION.txt') -Value '0.6.16'
 Set-Content -LiteralPath (Join-Path $installed 'TornCommander.csproj') -Value '<Project />'
-Set-Content -LiteralPath (Join-Path $installed 'VERSION.txt') -Value '0.6.15'
 Set-Content -LiteralPath (Join-Path $installed 'old-marker.txt') -Value 'keep'
-Copy-Item -LiteralPath "$env:SystemRoot\System32\notepad.exe" -Destination (Join-Path $installed 'dist\TornCommander.exe')
-Set-Content -LiteralPath (Join-Path $installed 'dist\VERSION.txt') -Value '0.6.15'
-foreach ($name in @('TornCommander.csproj','REBUILD_AND_LAUNCH.bat','CommanderUpdater.cs',
-                    'APPLY_COMMANDER_UPDATE.ps1','CREATE_DESKTOP_SHORTCUT.ps1')) {
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $package -Force
+Copy-Item "$env:SystemRoot\System32\notepad.exe" (Join-Path $installed 'dist\TornCommander.exe')
+Set-Content -LiteralPath (Join-Path $installed 'dist\VERSION.txt') -Value '0.6.16'
+foreach($scriptName in @('APPLY_COMMANDER_UPDATE.ps1','CREATE_DESKTOP_SHORTCUT.ps1','CommanderUpdater.cs','REBUILD_AND_LAUNCH.bat')){
+ Copy-Item -LiteralPath (Join-Path $PSScriptRoot $scriptName) -Destination $installed -Force
+ Copy-Item -LiteralPath (Join-Path $PSScriptRoot $scriptName) -Destination $source -Force
 }
-Set-Content -LiteralPath (Join-Path $package 'VERSION.txt') -Value '0.6.16'
-$publisher = @'
+Set-Content -LiteralPath (Join-Path $source 'VERSION.txt') -Value '0.6.17'
+Set-Content -LiteralPath (Join-Path $source 'TornCommander.csproj') -Value '<Project />'
+New-Item -ItemType Directory -Path (Join-Path $source 'Assets') -Force | Out-Null
+Copy-Item (Join-Path $PSScriptRoot 'Assets\TornCommander_T_Icon.ico') (Join-Path $source 'Assets')
+$publisher=@'
 @echo off
 if not exist "%~dp0dist" mkdir "%~dp0dist"
 copy /y "%SystemRoot%\System32\notepad.exe" "%~dp0dist\TornCommander.exe" >nul
 copy /y "%~dp0VERSION.txt" "%~dp0dist\VERSION.txt" >nul
 exit /b 0
 '@
-Set-Content -LiteralPath (Join-Path $package 'PUBLISH_EXE.bat') -Value $publisher -Encoding Ascii
-$zip = Join-Path $work 'Torn_Commander_v0.6.16.zip'
-Compress-Archive -Path $package -DestinationPath $zip -Force
-foreach ($script in @('APPLY_COMMANDER_UPDATE.ps1','CREATE_DESKTOP_SHORTCUT.ps1')) {
-    $tokens = $null; $errors = $null
-    [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $script),
-        [ref]$tokens, [ref]$errors) | Out-Null
-    if ($errors.Count -gt 0) { throw "$script has syntax errors: $($errors[0].Message)" }
+Set-Content -LiteralPath (Join-Path $source 'PUBLISH_EXE.bat') -Value $publisher -Encoding Ascii
+Set-Content -LiteralPath (Join-Path $installed 'PUBLISH_EXE.bat') -Value $publisher -Encoding Ascii
+$zip=Join-Path $work 'Torn_Commander_v0.6.17.zip'
+Compress-Archive -Path $source -DestinationPath $zip -Force
+
+foreach($name in @('APPLY_COMMANDER_UPDATE.ps1','CREATE_DESKTOP_SHORTCUT.ps1')){
+ $tokens=$null;$errors=$null
+ [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $name),[ref]$tokens,[ref]$errors)|Out-Null
+ if($errors.Count -gt 0){throw "$name parse failure: $($errors[0].Message)"}
 }
 
-# Deliberately leave a process in old dist to reproduce the original file lock.
-$lockInfo = [Diagnostics.ProcessStartInfo]::new('cmd.exe')
-$lockInfo.UseShellExecute = $false
-$lockInfo.CreateNoWindow = $true
-$lockInfo.WorkingDirectory = Join-Path $installed 'dist'
-[void]$lockInfo.ArgumentList.Add('/c')
-[void]$lockInfo.ArgumentList.Add('ping -n 25 127.0.0.1 >nul')
-$holder = [Diagnostics.Process]::Start($lockInfo)
-try {
-    Start-Sleep -Milliseconds 250
-    if ($holder.HasExited) { throw 'Lock fixture did not start.' }
-    $psi = [Diagnostics.ProcessStartInfo]::new('powershell.exe')
-    $psi.UseShellExecute = $false
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.RedirectStandardInput = $true
-    $psi.WorkingDirectory = Join-Path $installed 'dist'
-    foreach ($arg in @('-NoProfile','-ExecutionPolicy','Bypass','-File',
-        (Join-Path $PSScriptRoot 'APPLY_COMMANDER_UPDATE.ps1'),
-        '-ZipPath',$zip,'-ProjectRoot',$installed,'-WaitPid','2147483647','-NoLaunch')) {
-        [void]$psi.ArgumentList.Add($arg)
-    }
-    $proc = [Diagnostics.Process]::Start($psi)
-    $proc.StandardInput.Close()
-    $output = $proc.StandardOutput.ReadToEnd()
-    $errorOutput = $proc.StandardError.ReadToEnd()
-    $proc.WaitForExit()
-    Write-Host $output
-    if ($proc.ExitCode -ne 0) {
-        throw "New updater failed: $errorOutput" + [Environment]::NewLine + $output
-    }
-    foreach ($required in @('TornCommander.csproj','VERSION.txt','dist\TornCommander.exe',
-        'dist\VERSION.txt','CREATE_DESKTOP_SHORTCUT.ps1')) {
-        if (!(Test-Path -LiteralPath (Join-Path $newInstall $required) -PathType Leaf)) {
-            throw "New version installation missing: $required"
-        }
-    }
-    if ((Get-Content -LiteralPath (Join-Path $newInstall 'VERSION.txt') -Raw).Trim() -ne '0.6.16') {
-        throw 'New version folder has wrong source version.'
-    }
-    if ((Get-Content -LiteralPath (Join-Path $newInstall 'dist\VERSION.txt') -Raw).Trim() -ne '0.6.16') {
-        throw 'New version folder has wrong binary version.'
-    }
-    if ((Get-Content -LiteralPath (Join-Path $installed 'dist\VERSION.txt') -Raw).Trim() -ne '0.6.15') {
-        throw 'Old locked dist was modified.'
-    }
-    if ((Get-Content -LiteralPath (Join-Path $installed 'VERSION.txt') -Raw).Trim() -ne '0.6.15') {
-        throw 'Old installation source was modified.'
-    }
-    if (!(Test-Path -LiteralPath (Join-Path $installed 'old-marker.txt'))) {
-        throw 'Old local source marker disappeared.'
-    }
-    if ($holder.HasExited) { throw 'Lock fixture exited before validation.' }
-    Write-Host 'VERSIONED UPDATE PASSED: new sibling folder, old locked dist and source untouched.'
+function Invoke-Updater([string]$archive,[string]$origin){
+ $psi=[Diagnostics.ProcessStartInfo]::new('powershell.exe')
+ $psi.UseShellExecute=$false
+ $psi.RedirectStandardOutput=$true
+ $psi.RedirectStandardError=$true
+ $psi.RedirectStandardInput=$true
+ $psi.WorkingDirectory=Join-Path $origin 'dist'
+ foreach($arg in @('-NoProfile','-ExecutionPolicy','Bypass','-File',
+     (Join-Path $PSScriptRoot 'APPLY_COMMANDER_UPDATE.ps1'),
+     '-ZipPath',$archive,'-ProjectRoot',$origin,'-WaitPid','2147483647','-NoLaunch')){
+  [void]$psi.ArgumentList.Add($arg)
+ }
+ $proc=[Diagnostics.Process]::Start($psi)
+ $proc.StandardInput.Close()
+ $stdout=$proc.StandardOutput.ReadToEnd()
+ $stderr=$proc.StandardError.ReadToEnd()
+ $proc.WaitForExit()
+ Write-Host $stdout
+ if($proc.ExitCode -ne 0){throw "Updater exit $($proc.ExitCode): $stderr $stdout"}
 }
-finally {
-    if ($holder -and -not $holder.HasExited) { $holder.Kill() }
-    if ($holder) { $holder.Dispose() }
+
+# Hold old installation open to simulate a real OneDrive/WebView2 directory lock.
+$lock=[Diagnostics.ProcessStartInfo]::new('cmd.exe')
+$lock.UseShellExecute=$false
+$lock.CreateNoWindow=$true
+$lock.WorkingDirectory=Join-Path $installed 'dist'
+[void]$lock.ArgumentList.Add('/c')
+[void]$lock.ArgumentList.Add('ping -n 50 127.0.0.1 >nul')
+$holder=[Diagnostics.Process]::Start($lock)
+try{
+ Start-Sleep -Milliseconds 150
+ if($holder.HasExited){throw 'Lock fixture exited too soon.'}
+ Invoke-Updater $zip $installed
+ if(!(Test-Path (Join-Path $next 'dist\TornCommander.exe'))){throw 'New executable not installed.'}
+ if((Get-Content (Join-Path $next 'VERSION.txt') -Raw).Trim() -ne '0.6.17'){throw 'New folder VERSION mismatch.'}
+ if((Get-Content (Join-Path $installed 'VERSION.txt') -Raw).Trim() -ne '0.6.16'){throw 'Old locked installation altered.'}
+ if(!(Test-Path (Join-Path $installed 'old-marker.txt'))){throw 'Old local file missing.'}
+ $vault=Join-Path $env:LOCALAPPDATA 'TornCommander\VersionBackups'
+ $rollback=Join-Path $vault 'Torn_Commander_v0.6.16.zip'
+ if(!(Test-Path $rollback)){throw 'Old version was not saved for rollback.'}
+ # Revert from 17 -> 16 while old v16 folder still exists/locked.
+ # The updater must verify and activate that exact folder, never overwrite it.
+ Invoke-Updater $rollback $next
+ if((Get-Content (Join-Path $installed 'VERSION.txt') -Raw).Trim() -ne '0.6.16'){throw 'Rollback did not activate old source.'}
+ if(!(Test-Path (Join-Path $installed 'dist\TornCommander.exe'))){throw 'Rollback executable missing.'}
+ $future=Join-Path $vault 'Torn_Commander_v0.6.17.zip'
+ if(!(Test-Path $future)){throw 'Current release was not saved for later switching.'}
+ if($holder.HasExited){throw 'The old directory lock was not maintained.'}
+ Write-Host 'ROLLBACK/UPGRADE SMOKE TEST PASSED: v16 to v17 to v16; rollback ZIPs and folder naming checked.'
+}finally{
+ if($holder -and -not $holder.HasExited){$holder.Kill()}
+ if($holder){$holder.Dispose()}
 }
-$global:LASTEXITCODE = 0
+$global:LASTEXITCODE=0

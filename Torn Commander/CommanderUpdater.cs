@@ -47,7 +47,7 @@ public sealed partial class MainForm
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander-Updater/0.6.11");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander-Updater/0.6.17");
             http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             using var response = await http.GetAsync("https://api.github.com/repos/" + repo + "/releases/latest");
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -124,6 +124,61 @@ public sealed partial class MainForm
         finally { _updatingCommander = false; }
     }
 
+    // Only locally verified, previously saved source packages appear in the
+    // rollback menu. Nothing is uploaded, and a disabled control means no
+    // history has been saved yet (initial v0.6.17 install).
+    private sealed record SavedCommanderVersion(Version Parsed, string Version, string ZipPath);
+    private static string RollbackVault =>
+        Path.Combine(Storage.Root, "VersionBackups");
+
+    private static List<SavedCommanderVersion> GetSavedCommanderVersions()
+    {
+        var available = new List<SavedCommanderVersion>();
+        try
+        {
+            if (!Directory.Exists(RollbackVault)) return available;
+            foreach (var filename in Directory.EnumerateFiles(RollbackVault, "Torn_Commander_v*.zip"))
+            {
+                if (!Regex.IsMatch(Path.GetFileName(filename),
+                    @"^Torn_Commander_v\d+\.\d+\.\d+\.zip$", RegexOptions.IgnoreCase)) continue;
+                var v = Path.GetFileNameWithoutExtension(filename)["Torn_Commander_v".Length..];
+                if (Version.TryParse(v, out var parsed) && parsed != RunningCommanderVersion &&
+                    new FileInfo(filename).Length is > 100 and < 80_000_000)
+                {
+                    available.Add(new SavedCommanderVersion(parsed, v, filename));
+                }
+            }
+        }
+        catch { /* A damaged vault must not prevent the rest of Commander opening. */ }
+        return available.OrderByDescending(x => x.Parsed).Take(5).ToList();
+    }
+
+    private void RestoreSavedCommanderVersion(string version)
+    {
+        var saved = GetSavedCommanderVersions().FirstOrDefault(x =>
+            x.Version.Equals(version, StringComparison.OrdinalIgnoreCase));
+        if (saved is null)
+        {
+            MessageBox.Show("That version is not in your local rollback library. Only saved versions can be restored.",
+                "Version not available", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var action = saved.Parsed < RunningCommanderVersion ? "revert" : "switch";
+        if (MessageBox.Show(
+            $"Do you want to {action} to Torn Commander v{saved.Version}?\n\n" +
+            "Commander will close and rebuild from the locally saved source ZIP. " +
+            "The current version will be saved for recovery. Your saved account profiles, browser cookies and credentials are not intentionally changed.\n\n" +
+            "Older versions might not include newer features or understand their stored settings.",
+            "Confirm version restore", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        try { BeginCommanderUpdate(saved.ZipPath, allowOlderVersion: true); }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Could not restore saved version:\n" + ex.Message,
+                "Version restore", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
     private void PickCommanderZipUpdate()
     {
         using var picker = new OpenFileDialog
@@ -137,7 +192,7 @@ public sealed partial class MainForm
         catch (Exception ex) { MessageBox.Show("Update package rejected:\n" + ex.Message, "Commander updater", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
 
-    private void BeginCommanderUpdate(string sourceZip)
+    private void BeginCommanderUpdate(string sourceZip, bool allowOlderVersion = false)
     {
         // Reject archives with traversal, duplicate/collision paths, missing source
         // project, executable payloads, excessive decompressed size or a wrong prefix.
@@ -173,10 +228,10 @@ public sealed partial class MainForm
             using var sr = new StreamReader(zip.GetEntry("Torn Commander/VERSION.txt")!.Open());
             version = sr.ReadToEnd().Trim();
             if (!Version.TryParse(version, out var targetVersion) ||
-                targetVersion <= RunningCommanderVersion)
+                (allowOlderVersion ? targetVersion == RunningCommanderVersion : targetVersion <= RunningCommanderVersion))
                 throw new InvalidDataException("Archive is not newer than the running Commander v" + RunningCommanderVersion.ToString(3) + ".");
         }
-        if (MessageBox.Show($"Ready to install v{version}. Commander will close, back up source files, replace them and rebuild. Saved account data is not touched. Continue?",
+        if (MessageBox.Show($"Switch to v{version}? Commander will close, build in staging, save rollback source packages, and activate a version-named installation folder. Local account data remains separate. Continue?",
             "Install update", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
         var exeDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         var project = Path.GetFullPath(Path.Combine(exeDir, ".."));

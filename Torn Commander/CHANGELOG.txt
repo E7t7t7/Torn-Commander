@@ -1,3 +1,13 @@
+v0.6.17 (2026-10-13)
+- Settings includes a saved-version rollback selector next to GitHub update controls. Confirmation is required before switching.
+- Save verified prior-version source ZIPs under LOCALAPPDATA\TornCommander\VersionBackups (maximum five other versions).
+- Automatically name the active installation folder Torn_Commander_vX.Y.Z.
+- After verifying the next release, retire and clean the old application folder when Windows unlocks it. Never force-delete locked files.
+- Keep the dark T desktop shortcut automatically pointed at the active version, preserving unrelated shortcuts.
+- Rollback builds in isolated staging and preserves local profiles/cookies/API credentials.
+- Windows CI exercises a real simulated upgrade, local saved-source archive, then downgrade under an old-dist lock.
+- Keep company intelligence, Travel, Graffiti, and existing Commander modules unchanged.
+
 v0.6.16 (2026-10-12)
 - Fix PowerShell shortcut creator parser failures caused by truncated/duplicated source.
 - Test real Windows .lnk creation, T icon, spaces in paths and optional active version pointer in CI.
