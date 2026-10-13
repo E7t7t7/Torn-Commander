@@ -96,8 +96,13 @@ try {
     # Clean binaries previously retired from locked installation folders.
     $retiredStore = Join-Path $root 'RetiredInstallations'
     if (Test-Path -LiteralPath $retiredStore -PathType Container) {
-        foreach($folder in (Get-ChildItem -LiteralPath $retiredStore -Directory |
-            Where-Object { $_.Name -match '^Torn_Commander_v\d+\.\d+\.\d+-[a-f0-9]{8}    $oldProject = [IO.Path]::GetFullPath($ProjectRoot).TrimEnd('\')
+        foreach($folder in (Get-ChildItem -LiteralPath $retiredStore -Directory)) {
+            if ($folder.Name -notmatch '^Torn_Commander_v[0-9]+[.][0-9]+[.][0-9]+-[a-f0-9]{8}$') { continue }
+            try { Remove-Item -LiteralPath $folder.FullName -Recurse -Force -ErrorAction Stop }
+            catch { Log ("Retired installation remains locked: " + $folder.Name) }
+        }
+    }
+    $oldProject = [IO.Path]::GetFullPath($ProjectRoot).TrimEnd('\')
     $oldOuter = Split-Path -Parent $oldProject
     $oldVersion = (Get-Content -LiteralPath (Join-Path $oldProject 'VERSION.txt') -Raw).Trim()
     if ($oldVersion -notmatch '^\d+\.\d+\.\d+$') { throw 'The installed version marker is invalid.' }
