@@ -1,3 +1,11 @@
+NEW CONTROLS (v0.6.34)
+- Loss Desk: Start A runs A only; Start B runs B only; Start Both needs two distinct profiles. Either solo slot can complete the full requested total.
+- Scripts & Helpers: Open helper enables an installed script and opens its Torn page. On the game page, use Commander helpers for script commands such as Open Loss X-change and its API-key setup.
+- Casino: enter the visible hand for move/equity advice. Poker assumes random opponents and needs pot/call amounts; it is not an opponent-reading solver.
+- Trading: enter up to eight items, one total budget, cash reserve, selling fee and minimum return. Use one item plus cost each for sell advice. Candidates are conditional on returned quotes and a buyer, not guaranteed profit.
+- Helper installation refreshes open tabs. Use the selected account profile's own script registration/settings.
+- Update in Settings using Check GitHub for Update. Read the release changelog and test one small workflow first.
+
 TORN COMMANDER v0.6.5 - BUILD FIX
 =================================
 This hotfix resolves the CS1061 errors in MainForm.Privacy.cs reported on v0.6.4.
