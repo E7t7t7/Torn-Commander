@@ -14,7 +14,7 @@ internal static class InstallationMaintenance
    var script=Path.Combine(project,"SYNC_COMMANDER_INSTALL.ps1");
    if(!File.Exists(script))return;
    var start=new ProcessStartInfo("powershell.exe"){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Path.GetTempPath(),RedirectStandardOutput=true,RedirectStandardError=true};
-   foreach(var argument in new[]{"-NoProfile","-ExecutionPolicy","Bypass","-File",script,"-ProjectRoot",project})start.ArgumentList.Add(argument);
+   foreach(var argument in new[]{"-NoProfile","-ExecutionPolicy","Bypass","-File",script,"-ProjectRoot",project,"-CompactAllPrevious"})start.ArgumentList.Add(argument);
    using var process=Process.Start(start);
    if(process is null)return;
    var output=process.StandardOutput.ReadToEndAsync();var error=process.StandardError.ReadToEndAsync();

@@ -1,4 +1,10 @@
-﻿v0.6.19 (2026-10-12)
+﻿v0.6.20 (2026-10-12)
+- Apply the requested ZIP-only older-version policy when the active app starts, including after an update installed by an older updater.
+- Keep only the active version unzipped once all older folders have verified archives and are no longer in use.
+- Continue to preserve running, locked, linked or private-data folders and provide rollback archives both beside installations and in the app's rollback library.
+- Retain all stable launcher, pinned shortcut and isolated updater test fixes from v0.6.19.
+
+v0.6.19 (2026-10-12)
 - Stable per-user launcher keeps desktop and matching taskbar shortcuts connected to the active version across upgrades and rollback.
 - Startup repairs version-specific pinned shortcuts, including the first update installed by v0.6.18's older updater.
 - Discover previously installed folders instead of relying only on a pending-cleanup list.
