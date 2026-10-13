@@ -114,6 +114,11 @@ jobs:
         run: |
           & 'Torn Commander/TEST_API_PACING.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'API pacing regression failed; release withheld.' }
+      - name: Check cash-and-growth progression plan
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_PROGRESSION.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Progression regression failed; release withheld.' }
       - name: Package tracked source only
         id: package
         shell: pwsh

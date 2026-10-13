@@ -1,3 +1,15 @@
+v0.6.27 (2026-10-13) — Cash while growing daily adviser
+- Add a Home dashboard plan for training, education, sustainable income and nerve.
+- Save configurable training share, cash reserve and recorded trading-margin target separately for each profile.
+- Prioritize capped energy/nerve and education needing attention; qualify stale or missing API data.
+- Use actual course completion timestamps rather than a frozen remaining-time estimate.
+- Suggest only fresh, price-known travel routes that fit the last wallet balance above the reserve.
+- Respect current flights, unavailable status and the level-15 travel requirement.
+- Add local daily check-ins; they are manual records and do not claim game actions were performed.
+- Tag newly logged trades with the active profile; exclude unassigned legacy entries and other accounts from daily margin.
+- Save goals/check-ins atomically, without extra API requests or automatic training/purchases.
+- Test profile separation, local date rollover, reserve/allocation math, stale data and real dashboard rendering.
+
 v0.6.26 (2026-10-13) — Shared API pacing and cooldown
 - Pace native Torn API reads and userscript bridge API requests through one process-wide queue.
 - Space requests by at least 1.25 seconds, leaving headroom for other account tools.

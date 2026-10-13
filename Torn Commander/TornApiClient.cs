@@ -414,22 +414,14 @@ internal sealed class TornApiClient
     private static void ParseEducation(TornSnapshot s)
     {
         if (!s.RawJson.TryGetValue("education", out var json)) return;
-        using var doc = JsonDocument.Parse(json);
-        if (!TryGet(doc.RootElement, "education", out var ed) || ed.ValueKind != JsonValueKind.Object) return;
-
-        if (TryGet(ed, "complete", out var complete) && complete.ValueKind == JsonValueKind.Array)
-            s.CompletedEducationIds = complete.EnumerateArray()
-                .Where(x => x.ValueKind == JsonValueKind.Number && x.TryGetInt32(out _))
-                .Select(x => x.GetInt32()).ToList();
-
-        if (TryGet(ed, "current", out var current) && current.ValueKind == JsonValueKind.Object)
-        {
-            var id = DirectInt(current, "id");
-            var until = DirectInt(current, "until");
-            if (id is not null) s.CurrentEducationName = $"Education #{id}";
-            if (until is not null)
-                s.CurrentEducationTimeLeft = Math.Max(0, until.Value - (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-        }
+        var education = EducationReader.Read(json);
+        if (education is null) return;
+        s.EducationDataKnown = true;
+        s.CompletedEducationIds = education.Completed;
+        s.CurrentEducationName = education.HasCurrent ? education.CourseId is { } id ? $"Education #{id}" : "Current course" : null;
+        s.EducationEndsUtc = education.EndsUtc;
+        if (education.EndsUtc.HasValue)
+            s.CurrentEducationTimeLeft = (int)Math.Clamp((education.EndsUtc.Value - DateTime.UtcNow).TotalSeconds, 0, int.MaxValue);
     }
 
     private static void ParseOrganizedCrime(TornSnapshot s)

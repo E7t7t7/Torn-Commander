@@ -75,6 +75,7 @@ public sealed class CustomLink
 
 public sealed class TradeEntry
 {
+    public string ProfileId { get; set; } = ""; // Untagged legacy entries are not assigned to either account.
     public DateTime Date { get; set; } = DateTime.Now;
     public string Item { get; set; } = "";
     public int Quantity { get; set; }
@@ -275,6 +276,8 @@ public sealed class TornSnapshot
     public List<int> CompletedEducationIds { get; set; } = new();
     public string? CurrentEducationName { get; set; }
     public int? CurrentEducationTimeLeft { get; set; }
+    public bool EducationDataKnown { get; set; }
+    public DateTime? EducationEndsUtc { get; set; }
 
     public List<CrimeProgress> Crimes { get; set; } = new();
     public List<MeritAward> Awards { get; set; } = new();

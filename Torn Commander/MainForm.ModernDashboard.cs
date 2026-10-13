@@ -54,6 +54,10 @@ public sealed partial class MainForm
             var cmd = root.TryGetProperty("cmd", out var c) ? c.GetString() ?? "" : "";
             switch (cmd)
             {
+                case "progressionGoals": SaveProgressionGoals(root); break;
+                case "progressionDone": MarkProgressionTask(root); break;
+                case "openGym": NavigateActive(TornRoutes.Gym); break;
+                case "openEducation": NavigateActive(TornRoutes.Education); break;
                 case "fullSync": await RefreshFullAsync(true); break;
                 case "fastSync": await RefreshFastAsync(true); break;
                 case "runGuide": await ExecuteRecommendedActionAsync(false, dashboardRunOnce: true); break;
@@ -270,7 +274,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.26",
+                    version = "0.6.27",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -282,6 +286,7 @@ public sealed partial class MainForm
                         .ToList(),
                     theme = _settings.UiTheme,
                     company = CompanyDashboardData(),
+                    progression = ProgressionDashboardData(),
                     apiActivity = new { syncing = _syncing, queued = TornRequestCoordinator.Shared.Queued, cooldownSeconds = TornRequestCoordinator.Shared.CooldownSeconds, cooldownUntil = TornRequestCoordinator.Shared.CooldownUntil.ToString("O") },
                     apiConnected = hasKey,
                     apiErrors = _snapshot.Errors.Count,
@@ -485,13 +490,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="casino"><i>♠</i>Casino</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.26</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.27</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.26</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.27</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <section class="page active" id="dashboard">
   <div class="top"><div><div class="eyebrow">Your command center</div><div class="bigtitle" id="player">Torn Commander</div><div class="sub" id="profileMeta">Account information appears after sync</div></div><span class="pill good">Local dashboard</span></div>
@@ -500,6 +505,19 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
    <div class="card span3"><div class="eyebrow">Energy</div><div class="metric" id="energy">—</div><div class="sub">Current / maximum</div></div>
    <div class="card span3"><div class="eyebrow">Cash</div><div class="metric s money" id="wallet">—</div><div class="sub">API wallet</div></div>
    <div class="card span3"><div class="eyebrow">Awards</div><div class="metric" id="merits">—</div><div class="sub" id="meritAvailable">—</div></div>
+   <div class="card span12 hero" id="progressionCard">
+    <div class="eyebrow">Your daily path</div><div class="section">Cash while growing</div>
+    <div class="sub" id="progressionNote">Sync to build your plan.</div>
+    <div class="statusline" id="progressionMetrics"></div>
+    <div class="list" id="progressionSteps" style="margin-top:12px"></div>
+    <details style="margin-top:12px"><summary>Adjust this profile's goals</summary>
+     <div class="formgrid" style="margin:12px 0">
+      <label>Training share of current energy (%)<input id="goalTraining" type="number" min="0" max="100" value="70"></label>
+      <label>Cash reserve ($)<input id="goalReserve" type="number" min="0" max="1000000000000" value="100000"></label>
+      <label>Daily recorded trading-margin target ($)<input id="goalTarget" type="number" min="1" max="1000000000000" value="500000"></label>
+     </div><button class="btn small" onclick="saveProgressionGoals()">Save goals</button>
+    </details>
+   </div>
    <div class="card span8 hero"><div class="eyebrow" style="color:var(--blue)" id="phase">Crime Coach</div><div class="section" id="headline" style="margin-top:8px;font-size:19px">Run Full Sync to build your plan</div><div class="sub" id="why"></div><div class="notice info" style="margin:12px 0" id="guide">No guided action yet.</div><div class="notice info" style="margin:10px 0" id="graffitiStatus" aria-live="polite">Idle</div><div class="actions"><button class="btn primary" id="runGuideButton" onclick="send('runGuide')">Run Once</button><button class="btn" onclick="send('openGuide')">Open Only</button><button class="btn" onclick="send('graffitiDebug')">Copy Graffiti Debug</button><button class="btn" onclick="classic('Coach')">Detailed Coach</button></div></div>
    <div class="card span4"><div class="section">At a glance</div><div class="list"><div class="minirow"><b>Shopping</b><span class="sub" id="cartMini">—</span><button class="btn small" onclick="page('cart')">View</button></div><div class="minirow"><b>Loss Desk</b><span class="sub" id="lossMini">—</span><button class="btn small" onclick="page('losses')">View</button></div><div class="minirow"><b>Travel</b><span class="sub" id="travelMini">—</span><button class="btn small primary" onclick="page('travel')">View</button></div></div></div>
   </div>
@@ -751,6 +769,26 @@ function renderCompany(c,profile){
    '<div class="sub">Accounted margin '+(x.net==null?'unknown':money(x.net))+'</div></div></div>').join('')
    :'<div class="empty">Sync Company to start storing dated observations locally.</div>';
 }
+let progressionIdentity='';
+function saveProgressionGoals(){
+ const values=['goalTraining','goalReserve','goalTarget'].map(id=>Number($(id).value));
+ if(values.some(x=>!Number.isSafeInteger(x))||values[0]<0||values[0]>100||values[1]<0||values[1]>1e12||values[2]<1||values[2]>1e12){alert('Enter a training share from 0 to 100, a nonnegative reserve, and a positive trading target.');return}
+ send('progressionGoals',{training:values[0],reserve:values[1],target:values[2]});
+}
+function renderProgression(p,profile){
+ p=p||{};const r=p.report||{},g=p.goals||{};
+ $('progressionNote').textContent=r.note||'Sync to build your plan.';
+ $('progressionMetrics').textContent=(r.day||'Today')+' · Recorded trading margin '+money(r.recordedMargin||0)+' / '+money(r.target||0)+
+  ' across '+Number(r.trades||0)+' entries (fees excluded) · Wallet above reserve: '+(r.spendableCash==null?'needs sync':money(r.spendableCash))+
+  (r.legacyTradesExcluded?' · '+r.legacyTradesExcluded+' unassigned older trade(s) excluded.':'');
+ const actions={training:['openGym','Open gym'],education:['openEducation','Open education'],nerve:['openCrimes','Open crimes']};
+ $('progressionSteps').innerHTML=(r.steps||[]).map(x=>{
+  const action=actions[x.id];const button=action?'<button class="btn small" data-cmd="'+esc(action[0])+'" onclick="send(this.dataset.cmd)">'+action[1]+'</button>':'<button class="btn small" onclick="page(\'travel\')">View travel</button><button class="btn small" onclick="classic(\'Trading\')">Log trade</button>';
+  return '<div class="minirow" style="align-items:flex-start;flex-wrap:wrap"><label style="flex:1 1 220px"><input type="checkbox" data-task="'+esc(x.id)+'" '+(x.done?'checked':'')+' onchange="send(\'progressionDone\',{id:this.dataset.task,done:this.checked})"> <b>'+esc(x.title)+'</b><div class="sub">'+esc(x.detail)+'</div></label><div class="actions">'+button+'</div></div>';
+ }).join('');
+ const identity=profile+'|'+r.day;
+ if(identity!==progressionIdentity){progressionIdentity=identity;for(const [id,value] of [['goalTraining',g.training],['goalReserve',g.reserve],['goalTarget',g.target]])$(id).value=value??'';}
+}
 function renderApiActivity(d){
  const a=d?.apiActivity||{};
  const seconds=Math.max(0,Math.ceil((Date.parse(a.cooldownUntil||'')-Date.now())/1000)||0);
@@ -761,7 +799,7 @@ function renderApiActivity(d){
  $('apiBadge').title='Commander paces Torn API reads; '+Number(a.queued||0)+' waiting at last refresh.';
 }
 setInterval(()=>renderApiActivity(S),1000);
-function render(d){if(!d)return;const previous=S.profileId;S=d;renderCompany(d.company,d.profileId);applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.26';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+function render(d){if(!d)return;const previous=S.profileId;S=d;renderCompany(d.company,d.profileId);renderProgression(d.progression,d.profileId);applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.27';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -769,7 +807,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.26 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.27 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 $('lossCard').innerHTML=d.loss?`<div class="section">${esc(d.loss.buyer)} · target ${esc(d.loss.target)}</div><div class="metric">${d.loss.completed} / ${d.loss.requested} confirmed losses</div><div class="sub">${d.loss.remaining} remaining · ${money(d.loss.gross)} tracked · ${esc(d.loss.status)}</div>`:'<div class="empty">No active loss order. Create and configure it in the Full Loss Desk.</div>';
