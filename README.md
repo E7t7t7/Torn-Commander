@@ -19,7 +19,15 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings → Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Latest published release:** [v0.6.7](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings → Update Commander → Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.19. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings → Update Commander → Check GitHub for Update button uses that release channel.
+
+### Stable shortcuts and saved versions
+
+v0.6.19 migrates matching Commander desktop/taskbar shortcuts to a stable launcher under %LOCALAPPDATA%\TornCommander\Launcher. Its active-version pointer changes on update/rollback, so the pin no longer depends on a removed version folder. Startup also handles the first update installed by an older updater. Unrelated shortcuts are not changed; Explorer is notified without restarting it or changing pin order. Windows taskbar caching still requires a real pin-click check.
+
+Older source versions are verified and archived as Torn_Commander_vX.Y.Z.zip beside the version folders and registered in the per-user rollback library. Automatic maintenance keeps the immediately previous folder for recovery; explicit complete compaction may remove every unused older folder after verifying its archives. Running, locked, linked or private-data folders are retained. Rollback rebuilds the source ZIP with .NET 8 and preserves WebView2 sessions and credentials.
+
+Updater/maintenance tests use fake installations, test shortcut directories and an isolated application-data root. They never use the real player's rollback vault.
 
 ## Source organization
 

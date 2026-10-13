@@ -1,3 +1,13 @@
+﻿v0.6.19 (2026-10-12)
+- Stable per-user launcher keeps desktop and matching taskbar shortcuts connected to the active version across upgrades and rollback.
+- Startup repairs version-specific pinned shortcuts, including the first update installed by v0.6.18's older updater.
+- Discover previously installed folders instead of relying only on a pending-cleanup list.
+- Verify complete source ZIPs before cleanup; expose version ZIPs beside installations and keep copies in the rollback library.
+- Retain the immediate previous folder automatically; explicit complete compaction removes verified unused older folders. Running, locked, linked or private-data folders remain protected.
+- Isolate updater regression fixtures from real LOCALAPPDATA, logs and rollback data.
+- Windows CI tests pin/desktop migration, unrelated shortcuts, ZIP compaction and rollback launcher identity.
+- Preserve WebView2 sessions, credentials and game modules. Live taskbar behavior still requires user verification.
+
 v0.6.18 (2026-10-13)
 - Restore useful travel information during outbound flights and time abroad.
 - Display conditional After-Return Route Preview even when no return ETA is confirmed.

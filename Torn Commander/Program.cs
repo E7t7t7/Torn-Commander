@@ -1,4 +1,4 @@
-namespace TornCommander;
+﻿namespace TornCommander;
 
 internal static class Program
 {
@@ -6,6 +6,7 @@ internal static class Program
     static void Main()
     {
         TraceStartup("Process entered Main().");
+        InstallationMaintenance.Run();
         ApplicationConfiguration.Initialize();
         TraceStartup("WinForms configuration initialized.");
 
@@ -36,7 +37,7 @@ internal static class Program
             var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TornCommander");
             Directory.CreateDirectory(root);
             File.AppendAllText(Path.Combine(root, "startup-diagnostic.log"),
-                $"[{DateTime.Now:O}] v0.6.18 PID={Environment.ProcessId} {message}\r\n");
+                $"[{DateTime.Now:O}] v0.6.19 PID={Environment.ProcessId} {message}\r\n");
         }
         catch { /* Diagnostics must never prevent startup. */ }
     }

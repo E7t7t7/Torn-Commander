@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)][string]$ZipPath,
     [Parameter(Mandatory=$true)][string]$ProjectRoot,
     [Parameter(Mandatory=$true)][int]$WaitPid,
@@ -228,6 +228,11 @@ try {
         } catch { Log "Could not evaluate a queued old version path; leaving cleanup for later." }
     }
     Set-Content -LiteralPath $pendingFile -Value @($keepPending | Select-Object -Unique) -Encoding UTF8
+    $sync = Join-Path $PSScriptRoot 'SYNC_COMMANDER_INSTALL.ps1'
+    if (-not $NoLaunch -and (Test-Path -LiteralPath $sync)) {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $sync -ProjectRoot $newProject
+        if ($LASTEXITCODE -ne 0) { Log 'Shortcut maintenance will retry when Commander starts.' }
+    }
     PruneArchives $targetVersion
     if (-not $NoLaunch) {
         Start-Process -FilePath $newExe -WorkingDirectory $newDist -ErrorAction Stop

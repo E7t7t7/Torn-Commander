@@ -1,7 +1,9 @@
-# Windows CI: versioned upgrade, saved rollback, folder cleanup and old-dist lock.
+﻿# Windows CI: versioned upgrade, saved rollback, folder cleanup and old-dist lock.
 # All fixtures are fake Commander projects. Never reads actual player/account data.
 $ErrorActionPreference='Stop'
 $work=Join-Path $env:RUNNER_TEMP ('Commander Rollback Test '+[guid]::NewGuid().ToString('N'))
+$fixtureData=Join-Path $work 'LocalAppData'
+New-Item -ItemType Directory -Path $fixtureData -Force | Out-Null
 $installed=Join-Path $work 'Torn_Commander_v0.6.16\Torn Commander'
 $next=Join-Path $work 'Torn_Commander_v0.6.17\Torn Commander'
 $source=Join-Path $work 'Release\Torn Commander'
@@ -41,6 +43,7 @@ foreach($name in @('APPLY_COMMANDER_UPDATE.ps1','CREATE_DESKTOP_SHORTCUT.ps1')){
 function Invoke-Updater([string]$archive,[string]$origin){
  $psi=[Diagnostics.ProcessStartInfo]::new('powershell.exe')
  $psi.UseShellExecute=$false
+ $psi.Environment['LOCALAPPDATA']=$fixtureData
  $psi.RedirectStandardOutput=$true
  $psi.RedirectStandardError=$true
  $psi.RedirectStandardInput=$true
@@ -79,7 +82,7 @@ try{
  }else{
   Write-Host 'Old version folder retired successfully; rollback source must now recreate it.'
  }
- $vault=Join-Path $env:LOCALAPPDATA 'TornCommander\VersionBackups'
+ $vault=Join-Path $fixtureData 'TornCommander\VersionBackups'
  $rollback=Join-Path $vault 'Torn_Commander_v0.6.16.zip'
  if(!(Test-Path $rollback)){throw 'Old version was not saved for rollback.'}
  # Revert from 17 -> 16 while old v16 folder still exists/locked.
