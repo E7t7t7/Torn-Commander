@@ -221,8 +221,9 @@
 
   function pauseState(state, reason, abandonClaim = false) {
     state.running = false;
-    state.previousStage = state.stage;
+    if (state.stage !== 'paused') state.previousStage = state.stage;
     state.stage = 'paused';
+    state.pendingClaimRequest = '';
     state.status = reason;
     if (abandonClaim && state.claimId) {
       post({ type: 'tc-loss-abandon', profileId: state.profileId, slot: state.slot, orderId: state.orderId, claimId: state.claimId, reason });
@@ -262,6 +263,8 @@
       if (state.stage === 'claim') {
         if (now() < Number(state.retryAt || 0)) return;
         const requestId = 'claim_' + now() + '_' + Math.random().toString(36).slice(2);
+        state.claimAttempts = Number(state.claimAttempts || 0) + 1;
+        state.replyWaitAt = now();
         state.pendingClaimRequest = requestId;
         state.stage = 'claim-wait';
         state.status = 'Requesting the next loss slot from Commander.';
@@ -270,7 +273,27 @@
         return;
       }
 
-      if (state.stage === 'claim-wait' || state.stage === 'commit-wait') return;
+      if (state.stage === 'claim-wait' || state.stage === 'commit-wait') {
+        if (!state.replyWaitAt) { state.replyWaitAt=now(); save(state); return; }
+        if (now()-state.replyWaitAt < 10000) return;
+        if (state.stage === 'claim-wait') {
+          state.pendingClaimRequest='';
+          if (Number(state.claimAttempts || 0) >= 3) {
+            pauseState(state,'Commander did not acknowledge the slot after three requests. No attack started; check the worker connection.',true);
+          } else {
+            state.stage='claim'; state.retryAt=now(); state.status='Slot reply missing; retrying the same worker reservation.'; save(state);
+          }
+        } else {
+          if (Number(state.commitAttempts || 1) >= 3) {
+            pauseState(state,'Loss acknowledgement missing after three requests. The visible loss is retained for reconciliation; Resume retries this same claim, never a new attack.',false);
+          } else {
+            state.commitAttempts=Number(state.commitAttempts || 1)+1; state.replyWaitAt=now();
+            state.status='Loss reply missing; replaying the same commit receipt without a new fight.'; save(state);
+            post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId});
+          }
+        }
+        return;
+      }
 
       if (state.stage === 'attack-open') {
         if (!isAttackPage(state.targetId)) {
@@ -318,6 +341,8 @@
         const outcome = detectFightResult(state);
         if (outcome === 'loss') {
           state.stage = 'commit-wait';
+          state.commitAttempts = 1;
+          state.replyWaitAt = now();
           state.status = 'Visible loss detected. Committing exactly one loss to Commander.';
           save(state);
           post({ type: 'tc-loss-commit', profileId: state.profileId, slot: state.slot, orderId: state.orderId, claimId: state.claimId });
@@ -481,6 +506,7 @@
             return;
           }
           state.stage = 'claim';
+          state.claimAttempts = 0;
           state.claimId = '';
           state.kitsThisLoss = 0;
           state.status = 'Recovered. Requesting the next loss slot.';
@@ -533,15 +559,19 @@
     },
     resume() {
       const state = load();
-      if (!state) return false;
+      if (!state || state.running) return false;
       const token = sessionStorage.getItem(SESSION_KEY) || ('sess_' + now() + '_' + Math.random().toString(36).slice(2));
       sessionStorage.setItem(SESSION_KEY, token);
       state.sessionToken = token;
       state.running = true;
-      state.stage = state.claimId ? 'recovery-probe' : 'claim';
+      const reconcile = state.previousStage === 'commit-wait' && !!state.claimId;
+      state.stage = reconcile ? 'commit-wait' : state.claimId ? 'recovery-probe' : 'claim';
+      state.claimAttempts=0; state.commitAttempts=1; state.replyWaitAt=now();
+      state.pendingClaimRequest='';
       state.probeStartedAt = now();
       state.status = 'Resumed from Commander. Rechecking page state before the next action.';
       save(state);
+      if(reconcile) post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId});
       return true;
     },
     stop() {
@@ -551,6 +581,7 @@
       state.running = false;
       state.previousStage = state.stage;
       state.stage = 'stopped';
+      state.pendingClaimRequest = '';
       state.claimId = '';
       state.status = 'Stopped from Torn Commander.';
       save(state);
@@ -559,7 +590,14 @@
     reset() { clear(); return true; },
     onClaim(requestId, ok, claimId, message) {
       const state = load();
-      if (!state || state.pendingClaimRequest !== requestId) return false;
+      if (!state || !state.running || state.stage !== 'claim-wait' || state.pendingClaimRequest !== requestId) {
+        // A late grant cannot wake a stopped/paused worker. Release only when no
+        // active request/fight could still own the same reservation.
+        if(ok && claimId && (!state || !state.running) && state?.claimId !== claimId)
+          post({type:'tc-loss-abandon',profileId:state?.profileId || '',slot:state?.slot || '',orderId:state?.orderId || '',claimId,reason:'Late grant after stop/pause'});
+        return false;
+      }
+      state.claimAttempts = 0;
       state.pendingClaimRequest = '';
       if (!ok) {
         if (/complete|finished|no remaining/i.test(String(message || ''))) {
@@ -569,12 +607,16 @@
           save(state);
           return true;
         }
+        if (/paused|no longer exists|assigned to/i.test(String(message || ''))) {
+          pauseState(state,message || 'Order cannot run.',false); return true;
+        }
         state.stage = 'claim';
         state.retryAt = now() + 1800;
         state.status = message || 'Loss slot is busy; waiting to retry.';
         save(state);
         return true;
       }
+      if (!claimId) { pauseState(state,'Commander granted an empty claim. No attack started.',false); return false; }
       state.claimId = String(claimId || '');
       state.kitsThisLoss = 0;
       state.stage = 'attack-open';
@@ -583,14 +625,16 @@
       if (!isAttackPage(state.targetId)) location.assign(ATTACK_URL(state.targetId));
       return true;
     },
-    onCommit(ok, remaining, message) {
+    onCommit(claimId, ok, remaining, message) {
       const state = load();
-      if (!state || state.stage !== 'commit-wait') return false;
+      if (!state || !state.running || state.stage !== 'commit-wait' || state.claimId !== claimId) return false;
       if (!ok) {
         pauseState(state, message || 'Commander rejected the loss commit. Paused for review.', false);
         return true;
       }
       state.claimId = '';
+      state.commitAttempts = 0;
+      state.replyWaitAt = 0;
       state.finishAfterRecovery = Number(remaining || 0) <= 0;
       state.stage = state.finishAfterRecovery ? 'final-recovery' : 'heal-open';
       state.probeStartedAt = now();

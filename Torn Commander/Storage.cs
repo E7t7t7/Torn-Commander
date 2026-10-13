@@ -56,6 +56,8 @@ internal static class Storage
         }
     }
 
+    public static void SaveAtomic<T>(string path, T value) => AtomicJsonFile.Save(path, value, Options);
+
     public static void Save<T>(string path, T value)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

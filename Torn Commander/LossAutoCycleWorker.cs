@@ -104,10 +104,10 @@ internal sealed class LossAutoCycleWorker : IDisposable
         await _webView.CoreWebView2.ExecuteScriptAsync($"window.TornCommanderLossCycle && window.TornCommanderLossCycle.onClaim({args});");
     }
 
-    public async Task ReplyCommitAsync(bool ok, int remaining, string message)
+    public async Task ReplyCommitAsync(string claimId, bool ok, int remaining, string message)
     {
         await EnsureReadyAsync();
-        var args = string.Join(",", ok ? "true" : "false", remaining.ToString(System.Globalization.CultureInfo.InvariantCulture), JsonSerializer.Serialize(message));
+        var args = string.Join(",", JsonSerializer.Serialize(claimId), ok ? "true" : "false", remaining.ToString(System.Globalization.CultureInfo.InvariantCulture), JsonSerializer.Serialize(message));
         await _webView.CoreWebView2.ExecuteScriptAsync($"window.TornCommanderLossCycle && window.TornCommanderLossCycle.onCommit({args});");
     }
 
@@ -161,7 +161,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
         {
             _webView.Source = new Uri(TornRoutes.Home);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            await tcs.Task.WaitAsync(timeout.Token);
+            if (!await tcs.Task.WaitAsync(timeout.Token)) throw new InvalidOperationException("Torn navigation failed; loss worker was not started.");
         }
         finally
         {

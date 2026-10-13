@@ -1,3 +1,14 @@
+v0.6.25 (2026-10-13) — Loss-worker reply recovery and durable counting
+- Recover missing slot and loss acknowledgements with up to three bounded requests.
+- Replay the same commit claim; never start another fight to recover a missing loss reply.
+- Persist per-order commit receipts so retries and restarts cannot count that receipt twice.
+- Match commit replies to the current claim and keep pending loss reconciliation through Pause/Resume.
+- Ignore late grants after Stop/Pause; release unused reservations without releasing an already held fight claim.
+- Save loss orders through a flushed temporary file and replacement; failed saves restore in-memory counts and receipts.
+- Reject invalid grants and stop starting workers after a failed Torn navigation.
+- Isolated tests cover reply loss, duplicate acknowledgements, quotas, worker/profile separation, legacy orders and failed file replacement.
+- Existing fight/healing selectors still require live Torn verification.
+
 v0.6.24 (2026-10-13) — Guided graffiti command reliability
 - Replace a pending JavaScript Promise result with command-ID acknowledgement and completion polling.
 - Prevent overlapping guided requests and disable both Run Once buttons while busy.

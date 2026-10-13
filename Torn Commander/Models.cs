@@ -217,6 +217,7 @@ public sealed class MarketScanResult
 
 public sealed class LossOrder
 {
+    public List<LossCommitReceipt> CommitReceipts { get; set; } = new();
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public string TargetPlayerId { get; set; } = "";

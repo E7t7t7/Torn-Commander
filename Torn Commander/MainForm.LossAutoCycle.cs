@@ -300,7 +300,7 @@ public sealed partial class MainForm
             var orderId = ReadWorkerString(root, "orderId");
             var claimId = ReadWorkerString(root, "claimId");
             var result = CommitLossClaim(worker, orderId, claimId);
-            await worker.ReplyCommitAsync(result.Ok, result.Remaining, result.Message);
+            await worker.ReplyCommitAsync(claimId, result.Ok, result.Remaining, result.Message);
             return;
         }
 
@@ -370,37 +370,25 @@ public sealed partial class MainForm
     {
         if (string.IsNullOrWhiteSpace(claimId)) return (false, 0, "Worker had no active claim to commit.");
 
-        LossClaimLease? lease;
+        var order = _lossOrders.FirstOrDefault(x => x.Id.Equals(orderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null) return (false, 0, "Order no longer exists.");
+        var replay = LossAccounting.Replay(order, claimId, worker.ProfileId, worker.Slot);
+        if (replay is not null) return (replay.Ok, replay.Remaining, replay.Message);
         lock (_lossClaimGate)
         {
             PruneLossClaimsLocked();
-            if (!_lossClaims.TryGetValue(claimId, out lease)) return (false, 0, "Loss claim expired or was already released.");
-            if (!lease.OrderId.Equals(orderId, StringComparison.OrdinalIgnoreCase) || !lease.Slot.Equals(worker.Slot, StringComparison.OrdinalIgnoreCase) || !lease.ProfileId.Equals(worker.ProfileId, StringComparison.OrdinalIgnoreCase))
-                return (false, 0, "Loss claim did not match this account/order.");
+            if (!_lossClaims.TryGetValue(claimId, out var lease)) return (false, order.Remaining, "Loss claim expired or was released. Review the actual fight result.");
+            if (!lease.OrderId.Equals(orderId, StringComparison.OrdinalIgnoreCase) || lease.Slot != worker.Slot || lease.ProfileId != worker.ProfileId)
+                return (false, order.Remaining, "Loss claim did not match this account/order.");
+            LossCommitResult result;
+            try { result = LossAccounting.Commit(order, claimId, worker.ProfileId, worker.Slot, SaveLossOrders); }
+            catch (Exception ex) { return (false, order.Remaining, "Loss was not saved; count and claim retained. " + ex.Message); }
+            if (!result.Ok) return (false, result.Remaining, result.Message);
             _lossClaims.Remove(claimId);
+            RebindLossOrders();
+            FlashStatus($"Auto-cycle {worker.Slot} confirmed visible loss. {order.CompletedTotal}/{order.RequestedLosses} complete.");
+            return (true, result.Remaining, result.Message);
         }
-
-        var order = _lossOrders.FirstOrDefault(x => x.Id.Equals(orderId, StringComparison.OrdinalIgnoreCase));
-        if (order is null) return (false, 0, "Order no longer exists.");
-        if (order.Status == "Complete") return (false, order.Remaining, "Order was already marked complete; loss was not counted.");
-        if (order.CompletedTotal >= order.RequestedLosses) return (false, order.Remaining, "Requested total was already reached; loss was not double-counted.");
-
-        if (worker.Slot == "A")
-        {
-            order.CompletedA++;
-            order.NextA = "Auto recovery";
-        }
-        else
-        {
-            order.CompletedB++;
-            order.NextB = "Auto recovery";
-        }
-
-        order.Status = order.Remaining <= 0 ? "Final recovery" : "Auto cycling";
-        SaveLossOrders();
-        RebindLossOrders();
-        FlashStatus($"Auto-cycle {worker.Slot} confirmed visible loss. {order.CompletedTotal}/{order.RequestedLosses} complete.");
-        return (true, order.Remaining, $"Loss committed. {order.Remaining} remaining.");
     }
 
     private void AbandonLossClaim(LossAutoCycleWorker worker, string claimId)
