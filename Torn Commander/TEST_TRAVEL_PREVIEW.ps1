@@ -38,9 +38,9 @@ namespace TornCommander {
     public sealed class AppSettings {}
     public sealed class TravelForecastItem {
         public int ItemId {get;set;}
-        public string ItemName {get;set;}=""
-        public string Country {get;set;}=""
-        public string Source {get;set;}=""
+        public string ItemName {get;set;}="";
+        public string Country {get;set;}="";
+        public string Source {get;set;}="";
         public int? Stock {get;set;}
         public DateTime? StockUpdatedAtUtc {get;set;}
         public DateTime? RestockAtUtc {get;set;}
