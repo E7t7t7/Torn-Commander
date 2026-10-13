@@ -1,3 +1,10 @@
+v0.6.28 (2026-10-13) — Restore profiles and dashboard loading
+- Fix missing company business-health elements that stopped dashboard rendering before profiles and API status appeared.
+- Render profile, update and executable-path controls before optional advice panels.
+- Isolate company/progression rendering errors and show a recoverable panel warning.
+- Preserve existing account profiles, browser sessions and saved API credentials.
+- Add release-gated tests using actual markup IDs and two-account state, including a deliberately failing company panel.
+
 v0.6.27 (2026-10-13) — Cash while growing daily adviser
 - Add a Home dashboard plan for training, education, sustainable income and nerve.
 - Save configurable training share, cash reserve and recorded trading-margin target separately for each profile.

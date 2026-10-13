@@ -86,6 +86,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & 'Torn Commander/TEST_TRAVEL_PREVIEW.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Travel preview regression test failed; release withheld.' }
+      - name: Check dashboard profiles and optional panel failures
+        shell: pwsh
+        run: |
+          node 'Torn Commander/TEST_DASHBOARD_RUNTIME.js' 'Torn Commander/MainForm.ModernDashboard.cs'
+          if ($LASTEXITCODE -ne 0) { throw 'Dashboard runtime regression failed; release withheld.' }
       - name: Check company collection and arrival advice
         shell: pwsh
         run: |
