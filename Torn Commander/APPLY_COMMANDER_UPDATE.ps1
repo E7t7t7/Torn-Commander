@@ -181,29 +181,53 @@ try {
         catch { Log "Shortcut warning: $($_.Exception.Message). New executable is available in $newDist." }
     }
 
-    # Retire old folder only when fully idle. A locked OneDrive or WebView file
-    # is NOT force-deleted, so a user can recover after any OS-level lock.
-    if ((Split-Path -Leaf $oldOuter) -match '^Torn_Commander_v\d+\.\d+\.\d+$' -and
-        -not [string]::Equals($oldOuter,$newOuter,[StringComparison]::OrdinalIgnoreCase)) {
-        $retiredBase = Join-Path $root 'RetiredInstallations'
-        New-Item -ItemType Directory -Path $retiredBase -Force | Out-Null
-        $retired = Join-Path $retiredBase ((Split-Path -Leaf $oldOuter) + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
-        try {
-            Move-Item -LiteralPath $oldOuter -Destination $retired -ErrorAction Stop
-            Log "Retired old version outside active install directory."
-            try { Remove-Item -LiteralPath $retired -Recurse -Force -ErrorAction Stop }
-            catch { Log "Retired folder cleanup deferred: $($_.Exception.Message)" }
-        }
-        catch {
-            if (!(Test-Path -LiteralPath $oldOuter) -and (Test-Path -LiteralPath $retired)) {
-                Log "Old version was moved into LOCALAPPDATA but its cleanup is deferred. Rollback source is saved."
-            } elseif (Test-Path -LiteralPath $oldOuter) {
-                Log "Old version is still in place (Windows lock). Its files were not intentionally overwritten."
-            } else {
-                Log "Old folder location changed during Windows cleanup; rollback ZIP was saved in $vault."
-            }
-        }
+    # Never move/delete the installation we just left. Windows can partially
+    # move a directory before reporting a lock, leaving an unusable fallback.
+    # Keep one immediate previous installation, and clean EARLIER versions
+    # only on a later switch, when a source ZIP is already secured in the vault.
+    $pendingFile = Join-Path $root 'PendingVersionFolders.txt'
+    $pending = @()
+    if (Test-Path -LiteralPath $pendingFile -PathType Leaf) {
+        $pending = @(Get-Content -LiteralPath $pendingFile | Where-Object { $_ })
     }
+    if ((Split-Path -Leaf $oldOuter) -match '^Torn_Commander_v[0-9]+[.][0-9]+[.][0-9]+$' -and
+        $pending -notcontains $oldOuter) {
+        $pending += $oldOuter
+        Log "Previous installation retained for immediate recovery: $oldOuter"
+    }
+    $keepPending = @()
+    foreach($candidate in ($pending | Select-Object -Unique)) {
+        try {
+            $full = [IO.Path]::GetFullPath($candidate).TrimEnd('\')
+            $leaf = Split-Path -Leaf $full
+            $candidateVersion = $leaf -replace '^Torn_Commander_v',''
+            if ($leaf -notmatch '^Torn_Commander_v[0-9]+[.][0-9]+[.][0-9]+$' -or
+                -not [string]::Equals((Split-Path -Parent $full),$installBase,[StringComparison]::OrdinalIgnoreCase)) { continue }
+            if ([string]::Equals($full,$oldOuter,[StringComparison]::OrdinalIgnoreCase) -or
+                [string]::Equals($full,$newOuter,[StringComparison]::OrdinalIgnoreCase)) {
+                $keepPending += $full
+                continue
+            }
+            if (-not (Test-Path -LiteralPath $full -PathType Container)) { continue }
+            $archive = Join-Path $vault ('Torn_Commander_v' + $candidateVersion + '.zip')
+            if (-not (Test-Path -LiteralPath $archive -PathType Leaf) -or
+                -not (Test-Path -LiteralPath (Join-Path $full 'Torn Commander\TornCommander.csproj') -PathType Leaf)) {
+                $keepPending += $full
+                Log "Old installation was not pruned because backup/source verification is missing: $full"
+                continue
+            }
+            try {
+                Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction Stop
+                if (Test-Path -LiteralPath $full) { $keepPending += $full }
+                else { Log "Pruned older version folder after preserving rollback ZIP: $leaf" }
+            }
+            catch {
+                $keepPending += $full
+                Log "Older version cleanup delayed by Windows file lock: $leaf"
+            }
+        } catch { Log "Could not evaluate a queued old version path; leaving cleanup for later." }
+    }
+    Set-Content -LiteralPath $pendingFile -Value @($keepPending | Select-Object -Unique) -Encoding UTF8
     PruneArchives $targetVersion
     if (-not $NoLaunch) {
         Start-Process -FilePath $newExe -WorkingDirectory $newDist -ErrorAction Stop
