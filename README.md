@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.25. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.26. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -48,3 +48,5 @@ Company business health now highlights recorded spending above reported income b
 Guided graffiti now acknowledges commands synchronously and polls their completion by ID. A profile change cancels pending commands; the page also expires requests after 25 seconds. Run Once submits at most one verified Spray click per request, with no automatic retry. Selection ambiguity or changed/disabled controls stop submission. Live Torn layout and crime outcomes still require local verification.
 
 Loss workers retry missing Commander replies after ten seconds, up to three requests. Lost commit acknowledgements replay the same claim against persistent per-order receipts; they do not start a new fight or add a second loss. Exhausted retries pause with the pending visible loss retained; Resume reconciles that same claim. New commits still require an authorized live lease. Orders are written atomically and failed saves restore the prior counts. No actual Torn fight or item-use outcome is inferred from a sent click.
+
+Commander paces Torn API requests across native modules and the userscript HTTP bridge through a shared process queue (one request start per 1.25 seconds). A Torn error 5 or HTTP 429 pauses sends for at least 65 seconds and respects a longer Retry-After. The dashboard counts down and retains prior successful sync data. Other applications and separately running Commander processes still consume the account allowance; this queue does not control their traffic. Full Sync takes longer because its reads are paced. Official API limit documentation: https://www.torn.com/api.html.

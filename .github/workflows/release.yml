@@ -109,6 +109,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Loss worker protocol test failed.' }
           & 'Torn Commander/TEST_LOSS_ACCOUNTING.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Loss accounting test failed; release withheld.' }
+      - name: Check shared API pacing and cooldown
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_API_PACING.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'API pacing regression failed; release withheld.' }
       - name: Package tracked source only
         id: package
         shell: pwsh

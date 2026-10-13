@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.25";
+        Text = "Torn Commander v0.6.26";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -263,6 +263,7 @@ public sealed partial class MainForm : Form
         var target = _settings.Profiles.FirstOrDefault(x => x.Id.Equals(profileId, StringComparison.OrdinalIgnoreCase));
         if (target is null || target.Id.Equals(CurrentProfileId, StringComparison.OrdinalIgnoreCase)) return;
 
+        _apiSyncCancellation?.Cancel();
         await CancelPendingGraffitiAsync();
         SaveCurrentProfileTabs();
         FlashStatus($"Switching to {target.Name}…");
@@ -277,7 +278,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.25 — {target.Name}";
+        Text = $"Torn Commander v0.6.26 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -388,7 +389,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.25 — {name}";
+        Text = $"Torn Commander v0.6.26 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -452,7 +453,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.25 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.26 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1236,7 +1237,7 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.25");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.26");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
@@ -1464,7 +1465,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.25 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.26 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -1759,6 +1760,8 @@ public sealed partial class MainForm : Form
         }
     }
 
+    private CancellationTokenSource? _apiSyncCancellation;
+
     private async Task RefreshFastAsync(bool showErrors)
     {
         if (_syncing) return;
@@ -1770,11 +1773,14 @@ public sealed partial class MainForm : Form
         }
 
         var syncProfile = CurrentProfileId;
+        using var syncCancellation = new CancellationTokenSource();
+        _apiSyncCancellation = syncCancellation;
         _syncing = true;
-        _apiStatusLabel.Text = "API: fast sync…";
+        _apiStatusLabel.Text = "API: fast sync — paced requests…";
+        UpdateModernDashboard();
         try
         {
-            var fresh = await _api.FetchFastSnapshotAsync(key);
+            var fresh = await _api.FetchFastSnapshotAsync(key, syncCancellation.Token);
             if (syncProfile != CurrentProfileId) return;
             MergeFastSnapshot(fresh);
             UpdateAllUi();
@@ -1786,12 +1792,15 @@ public sealed partial class MainForm : Form
         }
         catch (Exception ex)
         {
+            if (syncProfile != CurrentProfileId || syncCancellation.IsCancellationRequested) return;
             _apiStatusLabel.Text = "API fast sync failed: " + ex.Message;
             if (showErrors) MessageBox.Show(ex.Message, "Torn API fast sync");
         }
         finally
         {
+            if (ReferenceEquals(_apiSyncCancellation, syncCancellation)) _apiSyncCancellation = null;
             _syncing = false;
+            UpdateModernDashboard();
         }
     }
 
@@ -1807,13 +1816,25 @@ public sealed partial class MainForm : Form
         }
 
         var syncProfile = CurrentProfileId;
+        using var syncCancellation = new CancellationTokenSource();
+        _apiSyncCancellation = syncCancellation;
         _syncing = true;
         _apiStatusLabel.Text = "API: full sync — reading perks, education, Crimes 2.0 and awards…";
-        FlashStatus("Full API sync running…");
+        FlashStatus("Full API sync running with paced requests…");
+        UpdateModernDashboard();
         try
         {
-            var fresh = await _api.FetchFullSnapshotAsync(key);
+            var fresh = await _api.FetchFullSnapshotAsync(key, syncCancellation.Token);
             if (syncProfile != CurrentProfileId) return;
+            if (fresh.Errors.Any(x => x.Contains("Torn API cooldown", StringComparison.Ordinal)))
+            {
+                MergeFastSnapshot(fresh);
+                _snapshot.Errors = fresh.Errors;
+                UpdateAllUi();
+                _apiStatusLabel.Text = "API cooldown — last successful full data retained.";
+                if (showErrors) ShowApiWarnings(fresh.Errors, "Torn API cooldown");
+                return;
+            }
             _snapshot = fresh;
             UpdateAllUi();
             _apiStatusLabel.Text = _snapshot.Errors.Count == 0
@@ -1829,12 +1850,15 @@ public sealed partial class MainForm : Form
         }
         catch (Exception ex)
         {
+            if (syncProfile != CurrentProfileId || syncCancellation.IsCancellationRequested) return;
             _apiStatusLabel.Text = "API full sync failed: " + ex.Message;
             if (showErrors) MessageBox.Show(ex.Message, "Torn API full sync");
         }
         finally
         {
+            if (ReferenceEquals(_apiSyncCancellation, syncCancellation)) _apiSyncCancellation = null;
             _syncing = false;
+            UpdateModernDashboard();
         }
     }
 
@@ -1844,6 +1868,12 @@ public sealed partial class MainForm : Form
 
     private void ShowApiWarnings(IReadOnlyCollection<string> errors, string title)
     {
+        var cooldown = errors.FirstOrDefault(x => x.Contains("Torn API cooldown", StringComparison.Ordinal));
+        if (cooldown is not null)
+        {
+            MessageBox.Show("Torn temporarily limited API requests. Commander has stopped new requests and will allow them after the cooldown. Other tools using your account share Torn's allowance.\n\nLast successful data is retained. Wait for the API cooldown badge to clear before syncing again.", "Torn API cooldown");
+            return;
+        }
         var restricted = errors.Where(IsAccessLevelError).ToList();
         if (restricted.Count > 0)
         {
@@ -1872,29 +1902,8 @@ public sealed partial class MainForm : Form
 
     private void MergeFastSnapshot(TornSnapshot fresh)
     {
-        if (_snapshot.FullRetrievedAt == DateTime.MinValue)
-        {
-            _snapshot = fresh;
-            return;
-        }
-
-        _snapshot.PlayerName = fresh.PlayerName ?? _snapshot.PlayerName;
-        _snapshot.PlayerId = fresh.PlayerId ?? _snapshot.PlayerId;
-        _snapshot.Level = fresh.Level ?? _snapshot.Level;
-        _snapshot.CurrentNerve = fresh.CurrentNerve ?? _snapshot.CurrentNerve;
-        _snapshot.MaxNerve = fresh.MaxNerve ?? _snapshot.MaxNerve;
-        _snapshot.CurrentEnergy = fresh.CurrentEnergy ?? _snapshot.CurrentEnergy;
-        _snapshot.MaxEnergy = fresh.MaxEnergy ?? _snapshot.MaxEnergy;
-        _snapshot.RacingSkill = fresh.RacingSkill ?? _snapshot.RacingSkill;
-        _snapshot.NerveRefillAvailable = fresh.NerveRefillAvailable ?? _snapshot.NerveRefillAvailable;
-        _snapshot.JobName = fresh.JobName ?? _snapshot.JobName;
-        _snapshot.CompanyName = fresh.CompanyName ?? _snapshot.CompanyName;
-        _snapshot.FactionName = fresh.FactionName ?? _snapshot.FactionName;
-        _snapshot.FastRetrievedAt = fresh.FastRetrievedAt;
-
-        foreach (var name in new[] { "basic", "travel" })
-            if (!fresh.RawJson.ContainsKey(name)) _snapshot.RawJson.Remove(name);
-        foreach (var pair in fresh.RawJson) _snapshot.RawJson[pair.Key] = pair.Value;
+        SnapshotMerge.MergeFast(_snapshot, fresh);
+        if (!fresh.RawJson.ContainsKey("basic") && !fresh.RawJson.ContainsKey("travel")) ClearTravelState();
     }
 
     private void UpdateAllUi()
@@ -2889,7 +2898,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.25; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.26; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);

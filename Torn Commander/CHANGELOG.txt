@@ -1,3 +1,14 @@
+v0.6.26 (2026-10-13) — Shared API pacing and cooldown
+- Pace native Torn API reads and userscript bridge API requests through one process-wide queue.
+- Space requests by at least 1.25 seconds, leaving headroom for other account tools.
+- Torn error 5 or HTTP 429 blocks queued sends for at least 65 seconds; respect longer Retry-After values.
+- Show a live cooldown countdown and disable duplicate sync requests while busy or cooling down.
+- Replace repeated endpoint error dialogs with one clear cooldown notice.
+- Retain prior successful account/coach data during a blocked full sync; clear unverified travel location evidence.
+- Cancel queued personal sync work on profile changes and reuse the shared HTTP client.
+- Reuse the crime catalog already fetched during Full Sync.
+- Test concurrent pacing, queued blocks, cancellation, cooldown expiry, prior data retention and dashboard controls without contacting Torn.
+
 v0.6.25 (2026-10-13) — Loss-worker reply recovery and durable counting
 - Recover missing slot and loss acknowledgements with up to three bounded requests.
 - Replay the same commit claim; never start another fight to recover a missing loss reply.

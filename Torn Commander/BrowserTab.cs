@@ -18,6 +18,7 @@ internal sealed class BrowserTab : IDisposable
     private readonly Action<string> _locationChanged;
     private readonly HashSet<string> _allowOnceHosts = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
+    private readonly CancellationTokenSource _bridgeCancellation = new();
 
     public BrowserTab(
         string url,
@@ -175,31 +176,41 @@ internal sealed class BrowserTab : IDisposable
             object payload;
             try
             {
-                using var res = await http.SendAsync(req);
-                var text = await res.Content.ReadAsStringAsync();
-                var responseHeaders = string.Join("\n", res.Headers.Concat(res.Content.Headers).Select(h => h.Key + ": " + string.Join(", ", h.Value)));
-                payload = new
+                if (uri.Scheme == "https" && uri.Host.Equals("api.torn.com", StringComparison.OrdinalIgnoreCase))
                 {
-                    status = (int)res.StatusCode,
-                    statusText = res.ReasonPhrase ?? "",
-                    responseText = text,
-                    response = text,
-                    finalUrl = res.RequestMessage?.RequestUri?.ToString() ?? url,
-                    readyState = 4,
-                    responseHeaders
-                };
+                    var packet = await TornApiTransport.SendAsync(http, req, _bridgeCancellation.Token);
+                    payload = new { status = packet.Status, statusText = packet.Reason, responseText = packet.Body,
+                        response = packet.Body, finalUrl = packet.FinalUrl, readyState = 4, responseHeaders = packet.Headers };
+                }
+                else
+                {
+                    using var res = await http.SendAsync(req, _bridgeCancellation.Token);
+                    var text = await res.Content.ReadAsStringAsync(_bridgeCancellation.Token);
+                    var responseHeaders = string.Join("\n", res.Headers.Concat(res.Content.Headers).Select(h => h.Key + ": " + string.Join(", ", h.Value)));
+                    payload = new
+                    {
+                        status = (int)res.StatusCode,
+                        statusText = res.ReasonPhrase ?? "",
+                        responseText = text,
+                        response = text,
+                        finalUrl = res.RequestMessage?.RequestUri?.ToString() ?? url,
+                        readyState = 4,
+                        responseHeaders
+                    };
+                }
             }
             catch (Exception ex)
             {
                 payload = new { status = 0, statusText = "", responseText = "", response = "", finalUrl = url, readyState = 4, responseHeaders = "", error = ex.Message };
             }
 
+            if (_disposed) return true;
             var idJson = JsonSerializer.Serialize(id);
             var payloadJson = JsonSerializer.Serialize(payload);
             await core.ExecuteScriptAsync($"window.__tcGmXhrResolve && window.__tcGmXhrResolve({idJson}, {payloadJson});");
             return true;
         }
-        catch { return false; }
+        catch { return true; }
     }
 
     private void UpdateTitle()
@@ -398,6 +409,8 @@ const GM = { addStyle:GM_addStyle, getValue:async(k,d)=>GM_getValue(k,d), setVal
     {
         if (_disposed) return;
         _disposed = true;
+        _bridgeCancellation.Cancel();
+        _bridgeCancellation.Dispose();
         try { WebView.Dispose(); } catch { }
         try { Page.Dispose(); } catch { }
     }

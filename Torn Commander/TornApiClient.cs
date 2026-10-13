@@ -5,13 +5,13 @@ namespace TornCommander;
 
 internal sealed class TornApiClient
 {
-    private readonly HttpClient _http = new()
+    private static readonly HttpClient _http = new()
     {
         BaseAddress = new Uri("https://api.torn.com/v2/"),
         Timeout = TimeSpan.FromSeconds(25)
     };
 
-    public TornApiClient()
+    static TornApiClient()
     {
         var version = typeof(TornApiClient).Assembly.GetName().Version?.ToString(3) ?? "unknown";
         _http.DefaultRequestHeaders.UserAgent.ParseAdd($"TornCommander/{version} (desktop companion)");
@@ -21,11 +21,11 @@ internal sealed class TornApiClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, relative);
         request.Headers.Authorization = new AuthenticationHeaderValue("ApiKey", key);
-        using var response = await _http.SendAsync(request, ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
+        var response = await TornApiTransport.SendAsync(_http, request, ct);
+        var body = response.Body;
 
-        if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"{(int)response.StatusCode} {response.ReasonPhrase}: {Trim(body, 500)}");
+        if (response.Status is < 200 or >= 300)
+            throw new HttpRequestException($"{response.Status} {response.Reason}: {Trim(body, 500)}");
 
         try
         {
@@ -65,6 +65,7 @@ internal sealed class TornApiClient
     public async Task<TornSnapshot> FetchFullSnapshotAsync(string key, CancellationToken ct = default)
     {
         var s = await FetchFastSnapshotAsync(key, ct);
+        ct.ThrowIfCancellationRequested();
         var requests = new (string Name, string Path)[]
         {
             ("perks", "user/perks"),
@@ -88,6 +89,7 @@ internal sealed class TornApiClient
         var results = await Task.WhenAll(requests.Select(x => TryFetchAsync(x.Name, x.Path, key, ct)));
         ApplyFetchResults(s, results);
 
+        ct.ThrowIfCancellationRequested();
         await FetchCrimeProgressAsync(s, key, ct);
 
         // Directors/employees can expose their live company addiction effectiveness through
@@ -235,7 +237,7 @@ internal sealed class TornApiClient
         string catalogJson;
         try
         {
-            catalogJson = await GetAsync("torn/crimes", key, ct);
+            catalogJson = s.RawJson.TryGetValue("torn_crimes", out var existing) ? existing : await GetAsync("torn/crimes", key, ct);
             s.RawJson["torn_crimes"] = catalogJson;
         }
         catch (Exception ex)
@@ -245,8 +247,7 @@ internal sealed class TornApiClient
         }
 
         var catalog = ParseCrimeCatalog(catalogJson);
-        // Keep the full sync responsive without hammering Torn's API. Four concurrent
-        // per-crime reads is enough to cut waiting time while staying comfortably small.
+        // Limit pending crime reads; all HTTP sends also use the process-wide paced queue.
         using var gate = new SemaphoreSlim(4);
         var tasks = catalog.Select(async crime =>
         {

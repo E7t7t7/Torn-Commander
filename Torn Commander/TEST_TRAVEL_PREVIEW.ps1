@@ -113,7 +113,15 @@ context.renderTravelPreview(report,{situation:{state:'outbound'}},[]);
 assert(nodes.travelPreviewCount.textContent.includes('1 options'),'Serialized routes vanished on render');
 assert(nodes.travelPreviewDiagnostic.textContent.includes('Feed: 1'),'Serialized diagnostics vanished on render');
 assert(nodes.travelPreviewRows.innerHTML.includes('Orchid'),'Route card is empty');
-console.log('DASHBOARD DATA TEST PASSED: serialized C# route renders in production JavaScript.');
+const apiStart=script.indexOf('function renderApiActivity('),apiEnd=script.indexOf('setInterval(()=>renderApiActivity',apiStart);
+vm.runInContext(script.slice(apiStart,apiEnd),context);
+context.renderApiActivity({apiConnected:true,apiActivity:{cooldownUntil:new Date(Date.now()+5000).toISOString()}});
+assert(nodes.fullSyncButton.disabled && nodes.apiBadge.textContent.includes('API cooldown'),'Cooldown buttons/notice missing');
+context.renderApiActivity({apiConnected:true,apiActivity:{cooldownUntil:new Date(Date.now()-5000).toISOString()}});
+assert(!nodes.fullSyncButton.disabled,'Cooldown never enables sync again');
+context.renderApiActivity({apiConnected:true,apiActivity:{syncing:true}});
+assert(nodes.fullSyncButton.disabled,'Sync allows duplicate requests');
+console.log('DASHBOARD DATA TEST PASSED: serialized route rendering and API cooldown controls.');
 '@
 $renderPath=Join-Path $project 'render-test.js'
 [IO.File]::WriteAllText($renderPath,$renderTest)
