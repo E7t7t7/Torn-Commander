@@ -47,6 +47,7 @@ internal sealed class TornApiClient
         var requests = new (string Name, string Path)[]
         {
             ("basic", "user/basic"),
+            ("travel", "user/travel"),
             ("bars", "user/bars"),
             ("refills", "user/refills"),
             ("skills", "user/skills"),

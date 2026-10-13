@@ -1,3 +1,13 @@
+v0.6.22 (2026-10-12) — Actual-flight travel planning
+- Read v2 profile.status correctly and fetch user/travel in Fast Sync.
+- Display actual takeoff and landing timestamps; relative timers remain anchored to their observation.
+- Returning plans start after landing in Torn plus turnaround.
+- Outbound and abroad plans use an explicitly conditional shop stay, return flight and turnaround.
+- Rebuild Plan refreshes personal flight timing before calculating a schedule.
+- Guard API merges against profile changes and discard failed old travel responses.
+- Test outbound, returning, arrived, blocked, missing, custom departure and rolling-horizon schedules.
+- GitHub release notes now include each version's feature changelog.
+
 v0.6.21 (2026-10-12)
 - Explain raw travel-feed exclusions by economics, stock filter and confidence before deduplication.
 - Re-evaluate cached shelf ages; disclose future-dated observations instead of treating them as fresh.

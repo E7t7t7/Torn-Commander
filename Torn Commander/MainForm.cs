@@ -1,4 +1,4 @@
-﻿using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.21";
+        Text = "Torn Commander v0.6.22";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -276,7 +276,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.21 — {target.Name}";
+        Text = $"Torn Commander v0.6.22 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -387,7 +387,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.21 — {name}";
+        Text = $"Torn Commander v0.6.22 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -451,7 +451,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.21 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.22 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1235,7 +1235,7 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.21");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.22");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
@@ -1463,7 +1463,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.21 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.22 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -1768,11 +1768,13 @@ public sealed partial class MainForm : Form
             return;
         }
 
+        var syncProfile = CurrentProfileId;
         _syncing = true;
         _apiStatusLabel.Text = "API: fast sync…";
         try
         {
             var fresh = await _api.FetchFastSnapshotAsync(key);
+            if (syncProfile != CurrentProfileId) return;
             MergeFastSnapshot(fresh);
             UpdateAllUi();
             _apiStatusLabel.Text = fresh.Errors.Count == 0
@@ -1803,12 +1805,15 @@ public sealed partial class MainForm : Form
             return;
         }
 
+        var syncProfile = CurrentProfileId;
         _syncing = true;
         _apiStatusLabel.Text = "API: full sync — reading perks, education, Crimes 2.0 and awards…";
         FlashStatus("Full API sync running…");
         try
         {
-            _snapshot = await _api.FetchFullSnapshotAsync(key);
+            var fresh = await _api.FetchFullSnapshotAsync(key);
+            if (syncProfile != CurrentProfileId) return;
+            _snapshot = fresh;
             UpdateAllUi();
             _apiStatusLabel.Text = _snapshot.Errors.Count == 0
                 ? $"API full sync OK — {_snapshot.FullRetrievedAt:G}"
@@ -1886,6 +1891,8 @@ public sealed partial class MainForm : Form
         _snapshot.FactionName = fresh.FactionName ?? _snapshot.FactionName;
         _snapshot.FastRetrievedAt = fresh.FastRetrievedAt;
 
+        foreach (var name in new[] { "basic", "travel" })
+            if (!fresh.RawJson.ContainsKey(name)) _snapshot.RawJson.Remove(name);
         foreach (var pair in fresh.RawJson) _snapshot.RawJson[pair.Key] = pair.Value;
     }
 
@@ -2882,7 +2889,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.21; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.22; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);
