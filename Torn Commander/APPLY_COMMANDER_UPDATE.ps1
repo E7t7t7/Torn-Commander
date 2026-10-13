@@ -194,7 +194,15 @@ try {
             try { Remove-Item -LiteralPath $retired -Recurse -Force -ErrorAction Stop }
             catch { Log "Retired folder cleanup deferred: $($_.Exception.Message)" }
         }
-        catch { Log "Old folder could not be removed because Windows still uses it. Kept intact at $oldOuter; safe to remove later after closing apps." }
+        catch {
+            if (!(Test-Path -LiteralPath $oldOuter) -and (Test-Path -LiteralPath $retired)) {
+                Log "Old version was moved into LOCALAPPDATA but its cleanup is deferred. Rollback source is saved."
+            } elseif (Test-Path -LiteralPath $oldOuter) {
+                Log "Old version is still in place (Windows lock). Its files were not intentionally overwritten."
+            } else {
+                Log "Old folder location changed during Windows cleanup; rollback ZIP was saved in $vault."
+            }
+        }
     }
     PruneArchives $targetVersion
     if (-not $NoLaunch) {
