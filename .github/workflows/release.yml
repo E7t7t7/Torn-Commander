@@ -94,6 +94,8 @@ jobs:
       - name: Check installed userscript runtime
         shell: pwsh
         run: |
+          & 'Torn Commander/TEST_USERSCRIPT_HTTP.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Userscript HTTP regression failed; release withheld.' }
           & 'Torn Commander/TEST_USERSCRIPT_RUNTIME.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Userscript runtime failed; release withheld.' }
       - name: Check casino calculations

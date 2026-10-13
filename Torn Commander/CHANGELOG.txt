@@ -1,3 +1,9 @@
+v0.6.33 (2026-10-13) — Helper JSON request compatibility
+- Preserve declared Content-Type and other content headers on userscript HTTP requests.
+- Replace StringContent's default text/plain header so JSON contract/registration calls use the requested application/json format.
+- Keep script authentication headers and UTF-8 request bodies intact, without copying Commander API credentials into a third-party service.
+- Add an isolated test matching the Loss X-change POST request shape; no live registration or contract mutation is performed in tests.
+
 v0.6.32 (2026-10-13) — Live trading scanner and adviser
 - Scan up to eight selected item names or IDs through the existing shared Torn API queue.
 - Keep watchlists, limits and seven days of bounded quote history separately per profile; cancel scans on profile changes.

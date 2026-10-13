@@ -163,17 +163,8 @@ internal sealed class BrowserTab : IDisposable
             if (string.IsNullOrWhiteSpace(id) || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return true;
 
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            using var req = new HttpRequestMessage(new HttpMethod(method), uri);
-            if (data is not null) req.Content = new StringContent(data, System.Text.Encoding.UTF8);
-            if (root.TryGetProperty("headers", out var headers) && headers.ValueKind == JsonValueKind.Object)
-            {
-                foreach (var h in headers.EnumerateObject())
-                {
-                    var value = h.Value.ValueKind == JsonValueKind.String ? h.Value.GetString() ?? "" : h.Value.ToString();
-                    if (!req.Headers.TryAddWithoutValidation(h.Name, value) && req.Content is not null)
-                        req.Content.Headers.TryAddWithoutValidation(h.Name, value);
-                }
-            }
+            var headers = root.TryGetProperty("headers", out var headerElement) ? headerElement : default;
+            using var req = UserscriptHttp.Create(method, uri, data, headers);
 
             object payload;
             try
