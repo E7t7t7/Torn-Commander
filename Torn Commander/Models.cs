@@ -353,6 +353,7 @@ public sealed class TravelForecastItem
 
 public sealed class TravelForecastSnapshot
 {
+    public TravelFeedDiagnostics? Diagnostics { get; set; }
     public DateTime RetrievedAtUtc { get; set; } = DateTime.MinValue;
     public string Source { get; set; } = "Not loaded";
     public string Error { get; set; } = "";

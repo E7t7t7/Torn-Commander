@@ -7,6 +7,27 @@ public sealed partial class MainForm
     private CompanyJournal? _companyJournal;
     private string _companyJournalProfileId = "";
     private bool _companySyncing;
+    private readonly Dictionary<string, DateTime> _companyNextAttempt = new();
+    private void SetCompanyAutoCollection(JsonElement request)
+    {
+        if (!request.TryGetProperty("enabled", out var enabled) || enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return;
+        var journal = GetCompanyJournal();
+        var previous = journal.AutoCollectEnabled;
+        journal.AutoCollectEnabled = enabled.GetBoolean();
+        try { SaveCompanyJournal(); }
+        catch { journal.AutoCollectEnabled = previous; throw; }
+        UpdateModernDashboard();
+    }
+    private void TickCompanyCollection()
+    {
+        if (_companySyncing) return;
+        var journal = GetCompanyJournal();
+        var now = DateTime.UtcNow;
+        if (!CompanyIntelligence.CollectionDue(journal, now)) return;
+        if (_companyNextAttempt.TryGetValue(CurrentProfileId, out var next) && now < next) return;
+        _companyNextAttempt[CurrentProfileId] = now.AddMinutes(10);
+        _ = SyncCompanyIntelligenceAsync();
+    }
     private string CompanyJournalPath()
     {
         var safe = new string(CurrentProfileId.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray());
@@ -56,14 +77,6 @@ public sealed partial class MainForm
         }
         finally { _companySyncing = false; UpdateModernDashboard(); }
     }
-    private static long? CompanyCost(JsonElement request, string field, long? prior)
-    {
-        if (!request.TryGetProperty(field, out var x)) return prior;
-        if (x.ValueKind == JsonValueKind.Null) return null;
-        if (x.ValueKind == JsonValueKind.Number && x.TryGetInt64(out var n) && n >= 0 && n <= 100000000000L)
-            return n;
-        throw new InvalidDataException(field + " must be a nonnegative number or blank.");
-    }
     private void SaveCompanyCosts(JsonElement request)
     {
         var journal = GetCompanyJournal();
@@ -77,16 +90,22 @@ public sealed partial class MainForm
         }
         try
         {
-            current.DailyAdvertising = CompanyCost(request, "advertising", current.DailyAdvertising);
-            current.DailyPayroll = CompanyCost(request, "payroll", current.DailyPayroll);
-            current.DailyStockCost = CompanyCost(request, "stock", current.DailyStockCost);
-            if (request.TryGetProperty("notes", out var notes) && notes.ValueKind == JsonValueKind.String)
+            // Validate every field before changing any part of the saved observation.
+            var advertising = CompanyIntelligence.CompanyCost(request, "advertising", current.DailyAdvertising);
+            var payroll = CompanyIntelligence.CompanyCost(request, "payroll", current.DailyPayroll);
+            var stock = CompanyIntelligence.CompanyCost(request, "stock", current.DailyStockCost);
+            var note = current.Notes;
+            if (request.TryGetProperty("notes", out var notes))
             {
+                if (notes.ValueKind != JsonValueKind.String) throw new InvalidDataException("Notes must be text.");
                 var n = (notes.GetString() ?? "").Trim();
-                current.Notes = n[..Math.Min(n.Length, 240)];
+                note = n[..Math.Min(n.Length, 240)];
             }
+            var old = (current.DailyAdvertising, current.DailyPayroll, current.DailyStockCost, current.Notes);
+            current.DailyAdvertising = advertising; current.DailyPayroll = payroll; current.DailyStockCost = stock; current.Notes = note;
+            try { SaveCompanyJournal(); }
+            catch { (current.DailyAdvertising, current.DailyPayroll, current.DailyStockCost, current.Notes) = old; throw; }
             journal.Status = "Manual company costs saved locally. No Torn company settings were changed.";
-            SaveCompanyJournal();
         }
         catch (Exception ex) { journal.Status = "Costs not saved: " + ex.Message; }
         UpdateModernDashboard();
@@ -121,6 +140,7 @@ public sealed partial class MainForm
             suggested = advice.SuggestedBudget,
             samples = advice.SampleDays,
             syncing = _companySyncing,
+            autoCollect = journal.AutoCollectEnabled,
             rows = days.Take(30).Select(x => new {
                 day = x.DayUtc, income = x.DailyIncome, customers = x.DailyCustomers,
                 ad = x.DailyAdvertising, payroll = x.DailyPayroll, stock = x.DailyStockCost,

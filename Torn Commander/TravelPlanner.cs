@@ -151,6 +151,7 @@ public sealed partial class MainForm
     private async Task RefreshTravelForecastAsync(bool showErrors)
     {
         if (_travelRefreshing) return;
+        var profileId = CurrentProfileId;
         _travelRefreshing = true;
         _travelLastAttemptUtc = DateTime.UtcNow;
         SaveTravelSettings();
@@ -182,9 +183,11 @@ public sealed partial class MainForm
             // Current stock is valuable even when the prediction endpoint is empty.
             // Use the user's existing Torn API connection for a small, rate-limited set of
             // missing market quotes. The API key goes only to api.torn.com via TornApiClient.
+            if (profileId != CurrentProfileId) return;
             if (stock.Count > 0 && stock.Any(x => x.MarketValue <= 0))
                 await EnrichMissingTravelPricesAsync(stock);
 
+            if (profileId != CurrentProfileId) return;
             var candidates = stock.Concat(remote?.Items ?? Enumerable.Empty<TravelForecastItem>()).ToList();
             if (candidates.Count == 0)
             {
@@ -193,10 +196,9 @@ public sealed partial class MainForm
             }
             if (candidates.Count > 0)
             {
-                var enriched = candidates.Select(CalculateTravelOpportunity)
-                    .Where(x => (x.Units > 0 && x.ProfitPerHour > 0) || (x.Stock is > 0 && x.BuyPrice > 0 && x.MarketValue <= 0))
-                    .Where(x => !_settings.TravelInStockOnly || x.StockStatus == "In stock")
-                    .Where(x => (x.MarketValue <= 0 && x.Stock is > 0) || x.StockStatus == "In stock" || _settings.TravelIncludeLowConfidence || x.Confidence >= _settings.TravelMinConfidence)
+                var calculated = candidates.Select(CalculateTravelOpportunity).ToList();
+                var diagnostics = TravelFeedDiagnostics.Build(calculated, _settings);
+                var enriched = calculated.Where(x => TravelFeedDiagnostics.Include(x, _settings))
                     // Deduplicate a current-stock row and a forecast for the same item/destination.
                     .GroupBy(x => (x.Country.ToUpperInvariant(), x.ItemId, x.ItemName.ToUpperInvariant()))
                     .Select(g => g.OrderByDescending(x => x.StockStatus == "In stock" && !x.IsStale)
@@ -210,6 +212,7 @@ public sealed partial class MainForm
                     .Take(140).ToList();
                 _travelForecast = new TravelForecastSnapshot
                 {
+                    Diagnostics = diagnostics,
                     RetrievedAtUtc = DateTime.UtcNow,
                     Source = stock.Count > 0 ? stock[0].Source + (remote is null ? "" : " + forecast") : remote?.Source ?? "Commander local learning",
                     Items = enriched,
@@ -623,7 +626,7 @@ public sealed partial class MainForm
         var now = DateTime.UtcNow;
         item.IsStale = item.IsStale ||
             (item.Stock is > 0 && !item.StockUpdatedAtUtc.HasValue) ||
-            (item.StockUpdatedAtUtc.HasValue && (now - item.StockUpdatedAtUtc.Value).TotalMinutes > 30) ||
+            (item.StockUpdatedAtUtc.HasValue && (now - item.StockUpdatedAtUtc.Value).TotalMinutes is < -10 or > 30) ||
             (item.PricingUpdatedAtUtc.HasValue && (now - item.PricingUpdatedAtUtc.Value).TotalHours > 12) ||
             (item.RestockAtUtc.HasValue && item.RestockAtUtc.Value < now.AddHours(-1));
         var live = item.Stock is > 0 && !item.IsStale;

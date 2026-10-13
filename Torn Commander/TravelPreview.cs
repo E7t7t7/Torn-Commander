@@ -33,10 +33,43 @@ public sealed class TravelPreviewReport
     public List<TravelPreviewRoute> Routes { get; set; } = new();
 }
 
+public sealed class TravelFeedDiagnostics
+{
+    public int InputRows { get; set; }
+    public int RejectedEconomics { get; set; }
+    public int RejectedStockFilter { get; set; }
+    public int RejectedConfidence { get; set; }
+    public int UnpricedRows { get; set; }
+    public int NoUnitsRows { get; set; }
+    public int NonPositiveMarginRows { get; set; }
+
+    private static bool EconomicCandidate(TravelForecastItem x) =>
+        (x.Units > 0 && x.ProfitPerHour > 0) || (x.Stock is > 0 && x.BuyPrice > 0 && x.MarketValue <= 0);
+    private static bool StockCandidate(TravelForecastItem x, AppSettings s) => !s.TravelInStockOnly || x.StockStatus == "In stock";
+    private static bool ConfidenceCandidate(TravelForecastItem x, AppSettings s) =>
+        (x.MarketValue <= 0 && x.Stock is > 0) || x.StockStatus == "In stock" ||
+        s.TravelIncludeLowConfidence || x.Confidence >= s.TravelMinConfidence;
+    public static bool Include(TravelForecastItem x, AppSettings s) =>
+        EconomicCandidate(x) && StockCandidate(x, s) && ConfidenceCandidate(x, s);
+    public static TravelFeedDiagnostics Build(IEnumerable<TravelForecastItem> source, AppSettings s)
+    {
+        var rows = source.ToList();
+        return new() {
+            InputRows = rows.Count,
+            RejectedEconomics = rows.Count(x => !EconomicCandidate(x)),
+            RejectedStockFilter = rows.Count(x => EconomicCandidate(x) && !StockCandidate(x,s)),
+            RejectedConfidence = rows.Count(x => EconomicCandidate(x) && StockCandidate(x,s) && !ConfidenceCandidate(x,s)),
+            UnpricedRows = rows.Count(x => x.BuyPrice <= 0 || x.MarketValue <= 0),
+            NoUnitsRows = rows.Count(x => x.Units <= 0),
+            NonPositiveMarginRows = rows.Count(x => x.BuyPrice > 0 && x.MarketValue > 0 && x.ProfitPerItem <= 0)
+        };
+    }
+}
+
 public static class TravelPreviewEngine
 {
     public static TravelPreviewReport Build(IEnumerable<TravelForecastItem> source, AppSettings settings,
-        DateTime nowUtc, string? feedError = null)
+        DateTime nowUtc, string? feedError = null, TravelFeedDiagnostics? diagnostics = null)
     {
         var rows = source?.ToList() ?? new List<TravelForecastItem>();
         var report = new TravelPreviewReport
@@ -45,7 +78,7 @@ public static class TravelPreviewEngine
             PricedRows = rows.Count(x => x.MarketValue > 0 && x.BuyPrice > 0),
             UnpricedRows = rows.Count(x => x.MarketValue <= 0 || x.BuyPrice <= 0),
             PositiveMarginRows = rows.Count(x => x.MarketValue > 0 && x.BuyPrice > 0 && x.ProfitPerItem > 0),
-            StaleRows = rows.Count(x => x.IsStale),
+            StaleRows = rows.Count(x => x.IsStale || (x.StockUpdatedAtUtc.HasValue && (nowUtc - x.StockUpdatedAtUtc.Value).TotalMinutes > 30)),
             ForecastRows = rows.Count(x => x.RestockAtUtc.HasValue),
             FreshStockRows = rows.Count(x => x.Stock is > 0 && x.StockUpdatedAtUtc.HasValue &&
                 !x.IsStale && (nowUtc - x.StockUpdatedAtUtc.Value).TotalMinutes is >= -10 and <= 30)
@@ -59,15 +92,18 @@ public static class TravelPreviewEngine
         report.AffordableRows = candidates.Count;
         report.Routes = candidates.Take(5).Select(x =>
         {
-            var age = x.StockUpdatedAtUtc.HasValue
-                ? (int?)Math.Max(0, (nowUtc - x.StockUpdatedAtUtc.Value).TotalMinutes) : null;
+            var rawAge = x.StockUpdatedAtUtc.HasValue
+                ? (double?)(nowUtc - x.StockUpdatedAtUtc.Value).TotalMinutes : null;
+            var age = rawAge is >= -10 ? (int?)Math.Max(0, rawAge.Value) : null;
             string evidence;
             if (x.Stock is > 0 && x.StockUpdatedAtUtc.HasValue && !x.IsStale &&
-                age.HasValue && age.Value <= 30)
-                evidence = $"Third-party shelf report: {x.Stock:N0} at {age.Value}m ago; can sell out before arrival";
+                rawAge is >= -10 and <= 30)
+                evidence = $"Third-party shelf report: {x.Stock:N0} at {age.GetValueOrDefault()}m ago; can sell out before arrival";
+            else if (rawAge is < -10)
+                evidence = "Future-dated shelf timestamp — cannot establish current availability";
             else if (x.RestockAtUtc > nowUtc)
                 evidence = "Modeled restock (unconfirmed) — check shelf before purchasing";
-            else if (x.Stock is > 0 && x.IsStale)
+            else if (x.Stock is > 0 && (x.IsStale || rawAge > 30))
                 evidence = "Stale shelf observation — not evidence of current availability";
             else if (x.Stock is > 0)
                 evidence = "Old or undated stock report — verify before flying";
@@ -90,6 +126,8 @@ public static class TravelPreviewEngine
             report.Guidance = $"Loaded {report.FeedRows} records ({report.PricedRows} priced, {report.PositiveMarginRows} with positive unit margin), but none meets current carrying-capacity, budget and trip-profit conditions. Try a new feed check or review filters and flight settings.";
         else
             report.Guidance = $"Showing {report.Routes.Count} candidate routes from {report.FeedRows} feed records; {report.FreshStockRows} have stock observed in the last 30 minutes. These are conditional comparisons, NOT timed bookings or guaranteed profit.";
+        if (diagnostics is not null)
+            report.Guidance += $" Raw feed: {diagnostics.InputRows} rows; excluded {diagnostics.RejectedEconomics} for quantity/trip economics, {diagnostics.RejectedStockFilter} by in-stock filter, {diagnostics.RejectedConfidence} by confidence filter. Observations: {diagnostics.UnpricedRows} unpriced, {diagnostics.NoUnitsRows} with no purchasable units, {diagnostics.NonPositiveMarginRows} nonpositive unit margins (these observations can overlap). Counts precede deduplication.";
         if (!string.IsNullOrWhiteSpace(feedError))
             report.Guidance += " Live feed warning: " + (feedError.Length > 180 ? feedError[..180] + "…" : feedError);
         return report;

@@ -62,6 +62,7 @@ public sealed partial class MainForm
                 case "openCrimes": NavigateActive(TornRoutes.Crimes); break;
                 case "openTravel": NavigateActive("https://www.torn.com/travelagency.php"); break;
                 case "travelRefresh": await RefreshTravelForecastAsync(true); break;
+                case "companyAuto": SetCompanyAutoCollection(root); break;
                 case "companySync": await SyncCompanyIntelligenceAsync(); break;
                 case "openCompany": NavigateActive("https://www.torn.com/companies.php"); break;
                 case "companyCosts": SaveCompanyCosts(root); break;
@@ -267,7 +268,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.20",
+                    version = "0.6.21",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -341,7 +342,7 @@ public sealed partial class MainForm
                         },
                         pauseUntilHome = _settings.TravelPauseUntilHome,
                         preview = TravelPreviewEngine.Build(_travelForecast.Items, _settings,
-                            DateTime.UtcNow, _travelForecast.Error),
+                            DateTime.UtcNow, _travelForecast.Error, _travelForecast.Diagnostics),
                         arrival = new {
                             status = arrival.Status, action = arrival.Action, country = arrival.Country,
                             cash = arrival.Cash, slots = arrival.SlotsLeft, message = arrival.Message,
@@ -478,13 +479,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="casino"><i>♠</i>Casino</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.20</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.21</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.20</span><button class="btn small" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.21</span><button class="btn small" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <section class="page active" id="dashboard">
   <div class="top"><div><div class="eyebrow">Your command center</div><div class="bigtitle" id="player">Torn Commander</div><div class="sub" id="profileMeta">Account information appears after sync</div></div><span class="pill good">Local dashboard</span></div>
@@ -571,7 +572,7 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <section class="page" id="company">
   <div class="top">
    <div><div class="eyebrow">Local company intelligence</div><div class="bigtitle">Company Growth Advisor</div><div class="sub">Daily outcomes, advertising experiments and business trends — read-only recommendations</div></div>
-   <div class="actions"><button class="btn primary" id="coSync" onclick="send('companySync')">Sync Company</button><button class="btn" onclick="send('openCompany')">Open Torn Company</button></div>
+   <div class="actions"><button class="btn primary" id="coSync" onclick="send('companySync')">Sync Company</button><button class="btn" onclick="send('openCompany')">Open Torn Company</button><label class="sub"><input type="checkbox" id="coAuto" onchange="send('companyAuto',{enabled:this.checked})"> Daily sync while open</label></div>
   </div>
   <div class="notice info" id="coStatus">No history yet. Sync a saved Torn API key to start daily collection.</div>
   <div class="grid" style="margin-top:12px">
@@ -715,6 +716,7 @@ function renderCompany(c,profile){
  $('coAdviceState').textContent=c.state||'NO BASELINE';
  $('coAdvice').textContent=c.advice||'Collect daily observations first.';
  $('coDays').textContent=(c.samples||0)+' daily records with recorded advertising · Suggested experimental level: '+(c.suggested?money(c.suggested):'Not established');
+ $('coAuto').checked=!!c.autoCollect;
  $('coSync').disabled=!!c.syncing;
  $('coSync').textContent=c.syncing?'Syncing…':'Sync Company';
  $('coSave').disabled=!c.day;
@@ -729,13 +731,13 @@ function renderCompany(c,profile){
  }
  const rows=c.rows||[];
  $('coHistory').innerHTML=rows.length?rows.map(x=>
-   '<div class="minirow" style="gap:12px;flex-wrap:wrap"><div style="flex:1 1 160px"><b>'+esc(x.day)+'</b><div class="sub">'+Number(x.customers||0).toLocaleString()+' customers · '+Number(x.staff||0)+' staff · '+Number(x.rating||0)+' stars</div>'+
+   '<div class="minirow" style="gap:12px;flex-wrap:wrap"><div style="flex:1 1 160px"><b>'+esc(x.day)+'</b><div class="sub">'+(x.customers==null?'unknown':Number(x.customers).toLocaleString())+' customers · '+(x.staff??'unknown')+' staff · '+(x.rating??'unknown')+' stars</div>'+
    (x.notes?'<div class="sub">'+esc(x.notes)+'</div>':'')+'</div><div style="text-align:right">'+
-   '<div>Income '+money(x.income)+'</div><div class="sub">Ads '+(x.ad==null?'unknown':money(x.ad))+' · After ads '+(x.afterAd==null?'unknown':money(x.afterAd))+'</div>'+
+   '<div>Income '+(x.income==null?'unknown':money(x.income))+'</div><div class="sub">Ads '+(x.ad==null?'unknown':money(x.ad))+' · After ads '+(x.afterAd==null?'unknown':money(x.afterAd))+'</div>'+
    '<div class="sub">Accounted margin '+(x.net==null?'unknown':money(x.net))+'</div></div></div>').join('')
    :'<div class="empty">Sync Company to start storing dated observations locally.</div>';
 }
-function render(d){if(!d)return;const previous=S.profileId;S=d;renderCompany(d.company,d.profileId);applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.20';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+function render(d){if(!d)return;const previous=S.profileId;S=d;renderCompany(d.company,d.profileId);applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.21';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -743,7 +745,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.20 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.21 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');$('apiBadge').textContent=d.apiConnected?(d.apiErrors?'API partial':'API configured'):'API key needed';$('apiBadge').className='pill '+(!d.apiConnected?'warn':d.apiErrors?'warn':'good');$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!d.guide||d.guide.crime!=='Graffiti';$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 $('lossCard').innerHTML=d.loss?`<div class="section">${esc(d.loss.buyer)} · target ${esc(d.loss.target)}</div><div class="metric">${d.loss.completed} / ${d.loss.requested} confirmed losses</div><div class="sub">${d.loss.remaining} remaining · ${money(d.loss.gross)} tracked · ${esc(d.loss.status)}</div>`:'<div class="empty">No active loss order. Create and configure it in the Full Loss Desk.</div>';

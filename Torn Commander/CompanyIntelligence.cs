@@ -9,10 +9,10 @@ internal sealed class CompanyObservation
     public long CompanyId { get; set; }
     public string CompanyName { get; set; } = "";
     public string CompanyType { get; set; } = "";
-    public int Rating { get; set; }
-    public int Employees { get; set; }
-    public long DailyIncome { get; set; }
-    public int DailyCustomers { get; set; }
+    public int? Rating { get; set; }
+    public int? Employees { get; set; }
+    public long? DailyIncome { get; set; }
+    public int? DailyCustomers { get; set; }
     public long? DailyAdvertising { get; set; }
     public long? DailyPayroll { get; set; }
     public long? DailyStockCost { get; set; }
@@ -24,6 +24,7 @@ internal sealed class CompanyObservation
 }
 internal sealed class CompanyJournal
 {
+    public bool AutoCollectEnabled { get; set; }
     public long ActiveCompanyId { get; set; }
     public string Status { get; set; } = "Connect a Torn API key and sync your company to begin collecting daily results.";
     public List<CompanyObservation> Days { get; set; } = new();
@@ -31,6 +32,17 @@ internal sealed class CompanyJournal
 internal sealed record CompanyRecommendation(string State, string Message, long SuggestedBudget, int SampleDays);
 internal static class CompanyIntelligence
 {
+    public static long? CompanyCost(JsonElement request, string field, long? prior)
+    {
+        if (!request.TryGetProperty(field, out var x)) return prior;
+        if (x.ValueKind == JsonValueKind.Null) return null;
+        if (x.ValueKind == JsonValueKind.Number && x.TryGetInt64(out var n) && n >= 0 && n <= 100000000000L)
+            return n;
+        throw new InvalidDataException(field + " must be a nonnegative number or blank.");
+    }
+    public static bool CollectionDue(CompanyJournal journal, DateTime nowUtc) =>
+        journal.AutoCollectEnabled && !journal.Days.Any(x => x.FromApi && x.CompanyId == journal.ActiveCompanyId && x.DayUtc == nowUtc.ToString("yyyy-MM-dd"));
+
     private static long Long(JsonElement x, string field)
     {
         if (x.ValueKind != JsonValueKind.Object || !x.TryGetProperty(field, out var y)) return 0;
@@ -38,7 +50,12 @@ internal static class CompanyIntelligence
     }
     private static long? OptionalLong(JsonElement x, string field) =>
         x.ValueKind == JsonValueKind.Object && x.TryGetProperty(field, out var y) &&
-        y.ValueKind == JsonValueKind.Number && y.TryGetInt64(out var n) ? n : null;
+        y.ValueKind == JsonValueKind.Number && y.TryGetInt64(out var n) && n >= 0 ? n : null;
+    private static int? OptionalInt(JsonElement x, string field)
+    {
+        var value = OptionalLong(x, field);
+        return value is >= 0 and <= int.MaxValue ? (int?)value.Value : null;
+    }
     private static string Text(JsonElement x, string field) =>
         x.ValueKind == JsonValueKind.Object && x.TryGetProperty(field, out var y) &&
         y.ValueKind == JsonValueKind.String ? y.GetString() ?? "" : "";
@@ -55,10 +72,10 @@ internal static class CompanyIntelligence
             CompanyId = id,
             CompanyName = Text(p, "name"),
             CompanyType = p.TryGetProperty("type", out var t) ? Text(t, "name") : "",
-            Rating = (int)Long(p, "rating"),
-            Employees = p.TryGetProperty("employees", out var e) ? (int)Long(e, "hired") : 0,
-            DailyIncome = p.TryGetProperty("income", out var income) ? Long(income, "daily") : 0,
-            DailyCustomers = p.TryGetProperty("customers", out var cust) ? (int)Long(cust, "daily") : 0,
+            Rating = OptionalInt(p, "rating"),
+            Employees = p.TryGetProperty("employees", out var e) ? OptionalInt(e, "hired") : null,
+            DailyIncome = p.TryGetProperty("income", out var income) ? OptionalLong(income, "daily") : null,
+            DailyCustomers = p.TryGetProperty("customers", out var cust) ? OptionalInt(cust, "daily") : null,
             DailyAdvertising = OptionalLong(p, "advertisement_budget"),
             FromApi = true,
             ObservedUtc = DateTime.UtcNow,
@@ -84,7 +101,7 @@ internal static class CompanyIntelligence
 
     public static CompanyRecommendation Analyze(IReadOnlyList<CompanyObservation> days)
     {
-        var points = days.Where(x => x.FromApi && x.DailyAdvertising.HasValue)
+        var points = days.Where(x => x.FromApi && x.DailyAdvertising.HasValue && x.DailyIncome.HasValue)
             .OrderBy(x => x.DayUtc, StringComparer.Ordinal).ToList();
         if (points.Count == 0)
             return new("NO BASELINE", "Sync a Limited or Full Access company profile, or enter advertising manually. No budget recommendation yet.", 0, 0);
@@ -92,12 +109,14 @@ internal static class CompanyIntelligence
         var currentBudget = latest.DailyAdvertising ?? 0;
         if (points.Count < 7)
             return new("BASELINE", $"Collected {points.Count}/7 daily records with advertising costs. Hold the budget steady while building history.", currentBudget, points.Count);
+        if (points.Any(x => !x.Employees.HasValue))
+            return new("INCOMPLETE", "Employee counts are missing; collect comparable staffing observations before judging advertising budgets.", currentBudget, points.Count);
         var step = Math.Max(100L, (long)Math.Round(Math.Max(1L, currentBudget) * 0.10));
         var groups = points.GroupBy(x => (long)Math.Round((double)x.DailyAdvertising!.Value / step) * step)
             .Where(g => g.Count() >= 3).Select(g => new {
                 Budget = g.Key,
                 Count = g.Count(),
-                Mean = g.Average(x => x.DailyIncome - x.DailyAdvertising!.Value),
+                Mean = g.Average(x => x.DailyIncome!.Value - x.DailyAdvertising!.Value),
                 StaffSpread = g.Max(x => x.Employees) - g.Min(x => x.Employees)
             }).OrderByDescending(g => g.Mean).ToList();
         if (groups.Count < 2)
@@ -107,7 +126,7 @@ internal static class CompanyIntelligence
         var best = groups[0];
         var near = groups.OrderBy(g => Math.Abs(g.Budget - currentBudget)).First();
         var delta = best.Mean - near.Mean;
-        if (delta < Math.Max(500.0, latest.DailyIncome * 0.02))
+        if (delta < Math.Max(500.0, latest.DailyIncome!.Value * 0.02))
             return new("NO CLEAR WINNER", "Compared repeated budgets; observed income after advertising differs too little to claim an improvement. Keep collecting evidence.", currentBudget, points.Count);
         return new("EXPERIMENTAL", $"A budget near USD {best.Budget:N0}/day showed roughly USD {delta:N0}/day more income after ads than the closest observed budget ({best.Count} vs {near.Count} days). This does not prove causation or true net profit. Run a controlled test before changing long-term spending.", best.Budget, points.Count);
     }

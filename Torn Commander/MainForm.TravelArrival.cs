@@ -71,7 +71,7 @@ public sealed partial class MainForm
               return out;
               })()
               """);
-            if (profile != CurrentProfileId) return;
+            if (profile != CurrentProfileId || string.IsNullOrWhiteSpace(raw)) return;
             using var doc = JsonDocument.Parse(raw);
             if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
             if (doc.RootElement.TryGetProperty("error", out var error))
@@ -115,7 +115,7 @@ public sealed partial class MainForm
         }
         catch (Exception ex)
         {
-            if (explicitRequest) { _arrivalAdvice = new TravelLandingAdvice { Action = "Scan failed", Message = "Could not read the shop safely: " + ex.Message }; UpdateModernDashboard(); }
+            if (profile == CurrentProfileId && explicitRequest) { _arrivalAdvice = new TravelLandingAdvice { Action = "Scan failed", Message = "Could not read the shop safely: " + ex.Message }; UpdateModernDashboard(); }
         }
         finally { _arrivalScanning = false; }
     }

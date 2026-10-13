@@ -86,6 +86,12 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & 'Torn Commander/TEST_TRAVEL_PREVIEW.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Travel preview regression test failed; release withheld.' }
+      - name: Check company collection and arrival advice
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & 'Torn Commander/TEST_ADVICE_MODELS.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Advice regression test failed; release withheld.' }
       - name: Package tracked source only
         id: package
         shell: pwsh

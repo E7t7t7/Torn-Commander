@@ -84,19 +84,24 @@ public static class TravelArrivalAdvisor
             .ToList();
         foreach (var row in snapshot.Items.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
         {
-            var quote = relevant.FirstOrDefault(x => x.ItemName.Equals(row.Name, StringComparison.OrdinalIgnoreCase));
+            var matching = relevant.Where(x => x.ItemName.Equals(row.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+            var quote = matching.Where(x => x.MarketValue > 0 && x.PricingUpdatedAtUtc.HasValue &&
+                    (nowUtc - x.PricingUpdatedAtUtc.Value).TotalMinutes is >= -10 and <= 720)
+                .OrderByDescending(x => x.PricingUpdatedAtUtc).FirstOrDefault();
+            var forecastQuote = matching.Where(x => x.RestockAtUtc > nowUtc && !x.IsStale)
+                .OrderByDescending(x => x.Confidence).FirstOrDefault();
             var unitNet = quote is { MarketValue: > 0 }
                 ? (long)Math.Floor(quote.MarketValue * (applyMarketFee ? 0.95m : 1m)) - row.BuyPrice
                 : 0L;
             var available = Math.Max(0, Math.Min(result.SlotsLeft, row.Stock));
-            var affordable = row.BuyPrice > 0 ? (int)Math.Min(available, snapshot.Cash / row.BuyPrice) : 0;
+            var affordable = row.BuyPrice > 0 ? (int)Math.Min(available, Math.Max(0, snapshot.Cash) / row.BuyPrice) : 0;
             var choice = new TravelLandingChoice {
                 Item = row.Name, Stock = row.Stock, Units = affordable, Cost = affordable * row.BuyPrice,
                 ProfitPerUnit = unitNet,
                 NetProfit = unitNet > 0 ? affordable * unitNet : 0,
                 PriceEvidence = quote is { MarketValue: > 0 }
                     ? $"Indicative market value ${quote.MarketValue:N0}, not a guaranteed sale"
-                    : "No recent market valuation; profit unknown"
+                    : "No timestamped market valuation within 12 hours; profit unknown"
             };
             var change = recent.FirstOrDefault(x => x.Item.Equals(row.Name, StringComparison.OrdinalIgnoreCase)
                 && x.After == row.Stock);
@@ -106,13 +111,13 @@ public static class TravelArrivalAdvisor
                 choice.ObservedChange = $"Observed {change.Before} → {change.After} between {change.PreviousScanUtc.ToLocalTime():h:mm:ss tt} and {change.DetectedUtc.ToLocalTime():h:mm:ss tt}";
             }
             // Only forecast items with a valid future timestamp count as a timed forecast.
-            if (row.Stock <= 0 && quote?.RestockAtUtc is DateTime forecast &&
+            if (row.Stock <= 0 && forecastQuote?.RestockAtUtc is DateTime forecast &&
                 forecast > nowUtc && forecast <= nowUtc.AddHours(3) &&
-                quote.Confidence >= 0.40 && !quote.IsStale)
+                forecastQuote.Confidence >= 0.40 && !forecastQuote.IsStale)
             {
                 choice.RestockMinutes = Math.Max(1, (int)Math.Ceiling((forecast - nowUtc).TotalMinutes));
                 choice.RestockText = $"Around {forecast.ToLocalTime():h:mm tt} (estimate, ± unknown)";
-                choice.RestockEvidence = $"{quote.Source}; confidence {quote.Confidence:P0}";
+                choice.RestockEvidence = $"{forecastQuote.Source}; confidence {forecastQuote.Confidence:P0}";
                 choice.RestockIsEstimate = true;
             }
             else if (row.Stock <= 0)
@@ -156,8 +161,13 @@ public static class TravelArrivalAdvisor
         }
         result.BasketSummary = parts.Count > 0 ? string.Join(" + ", parts) : "No affordable, positively valued mix available";
         var winner = result.Choices.FirstOrDefault(x => x.Units > 0 && x.NetProfit > 0);
-        var predicted = result.Choices.Where(x => x.Stock == 0 && x.RestockMinutes is > 0 && x.ProfitPerUnit > 0)
-            .OrderByDescending(x => x.ProfitPerUnit).FirstOrDefault();
+        long PredictedNet(TravelLandingChoice choice)
+        {
+            var price = snapshot.Items.FirstOrDefault(x => x.Name.Equals(choice.Item, StringComparison.OrdinalIgnoreCase))?.BuyPrice ?? 0;
+            return price > 0 ? Math.Min((long)result.SlotsLeft, Math.Max(0, snapshot.Cash) / price) * choice.ProfitPerUnit : 0;
+        }
+        var predicted = result.Choices.Where(x => x.Stock == 0 && x.RestockMinutes is > 0 && x.ProfitPerUnit > 0 && PredictedNet(x) > 0)
+            .OrderByDescending(PredictedNet).FirstOrDefault();
         if (result.SlotsLeft == 0)
         {
             result.Action = "Return home";
@@ -170,10 +180,10 @@ public static class TravelArrivalAdvisor
         }
         else if (winner is not null && predicted is not null &&
             predicted.RestockMinutes <= 20 &&
-            predicted.ProfitPerUnit * result.SlotsLeft > winner.NetProfit * 1.4)
+            PredictedNet(predicted) > result.BasketNet * 1.4)
         {
             result.Action = "Consider waiting";
-            result.Message = $"{winner.Item} is available for about ${winner.NetProfit:N0} estimated net, but a {predicted.Item} restock is estimated in ~{predicted.RestockMinutes}m and might pay more. Neither stock nor timing is guaranteed.";
+            result.Message = $"The available mixed load has about ${result.BasketNet:N0} estimated net, but a {predicted.Item} restock is estimated in ~{predicted.RestockMinutes}m and might pay more. Neither stock nor timing is guaranteed.";
         }
         else if (winner is not null)
         {

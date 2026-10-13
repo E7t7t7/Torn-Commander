@@ -1,4 +1,15 @@
-﻿v0.6.20 (2026-10-12)
+v0.6.21 (2026-10-12)
+- Explain raw travel-feed exclusions by economics, stock filter and confidence before deduplication.
+- Re-evaluate cached shelf ages; disclose future-dated observations instead of treating them as fresh.
+- Reject undated, older-than-12-hour and far-future resale quotes in arrival profit advice.
+- Compare affordable forecast loads against the full available mixed basket, including limited/zero cash.
+- Optional per-profile daily company API collection while open; off by default, ten-minute retry limit.
+- Preserve missing company income, staffing and rating as unknown; exclude incomplete financial baselines.
+- Validate all manual cost fields before modifying the observation; restore values if saving fails.
+- Ignore delayed travel results after switching profiles; report the actual version to Torn API.
+- Add isolated model tests for data gaps, cost validation, collection schedule, quote ages and basket budgets.
+
+v0.6.20 (2026-10-12)
 - Apply the requested ZIP-only older-version policy when the active app starts, including after an update installed by an older updater.
 - Keep only the active version unzipped once all older folders have verified archives and are no longer in use.
 - Continue to preserve running, locked, linked or private-data folders and provide rollback archives both beside installations and in the app's rollback library.

@@ -1,4 +1,4 @@
-# Validate travel preview calculations and compiled dashboard JavaScript on Windows.
+﻿# Validate travel preview calculations and compiled dashboard JavaScript on Windows.
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderTravelPreviewTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
@@ -33,9 +33,26 @@ route.IsStale=true;
 var stale=TravelPreviewEngine.Build(new[]{route},settings,now);
 if(stale.Routes.Count!=1 || !stale.Routes[0].StockEvidence.Contains("Stale"))
     throw new Exception("Stale-stock evidence regression.");
+route.IsStale=false;
+route.StockUpdatedAtUtc=now.AddMinutes(-31);
+if(!TravelPreviewEngine.Build(new[]{route},settings,now).Routes[0].StockEvidence.Contains("Stale"))
+    throw new Exception("Timestamp aging must override an obsolete cached fresh flag.");
+route.StockUpdatedAtUtc=now.AddMinutes(11);
+if(!TravelPreviewEngine.Build(new[]{route},settings,now).Routes[0].StockEvidence.Contains("Future-dated"))
+    throw new Exception("Future timestamps must not establish shelf availability.");
+route.StockStatus="Unknown"; route.Confidence=.1;
+settings.TravelInStockOnly=true;
+var diag=TravelFeedDiagnostics.Build(new[]{route,unpriced,new TravelForecastItem()},settings);
+if(diag.InputRows!=3 || diag.RejectedEconomics!=1 || diag.RejectedStockFilter!=2 || diag.RejectedConfidence!=0)
+    throw new Exception("Sequential raw-feed exclusion counts are wrong.");
+settings.TravelInStockOnly=false;
+if(TravelFeedDiagnostics.Include(route,settings) || !TravelFeedDiagnostics.Include(unpriced,settings))
+    throw new Exception("Confidence filter must exclude low-confidence priced routes while retaining unknown prices.");
+if(!TravelPreviewEngine.Build(Array.Empty<TravelForecastItem>(),settings,now,null,diag).Guidance.Contains("Raw feed: 3 rows"))
+    throw new Exception("Filtered-out input must still be explained.");
 Console.WriteLine("TRAVEL PREVIEW ENGINE TEST PASSED: empty/unpriced/stale/fresh and no false guarantee.");
 namespace TornCommander {
-    public sealed class AppSettings {}
+    public sealed class AppSettings { public bool TravelInStockOnly {get;set;} public bool TravelIncludeLowConfidence {get;set;} public double TravelMinConfidence {get;set;}=0.4; }
     public sealed class TravelForecastItem {
         public int ItemId {get;set;}
         public string ItemName {get;set;}="";
@@ -45,6 +62,8 @@ namespace TornCommander {
         public DateTime? StockUpdatedAtUtc {get;set;}
         public DateTime? RestockAtUtc {get;set;}
         public bool IsStale {get;set;}
+        public string StockStatus {get;set;}="";
+        public double Confidence {get;set;}
         public long BuyPrice {get;set;}
         public long MarketValue {get;set;}
         public long ProfitPerItem {get;set;}
