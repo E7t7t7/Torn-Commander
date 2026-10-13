@@ -1,3 +1,12 @@
+v0.6.23 (2026-10-13) — Company business health and dashboard data
+- Flag reported income below recorded spending immediately, including an incomplete baseline.
+- Show revenue/customer, advertising/customer, minimum recorded costs, and customer-count break-even scenario.
+- Compare income with the previous recorded day and disclose staffing changes.
+- Do not endorse the current advertising budget when income is below advertising alone.
+- Fix cramped cost inputs with the responsive form layout.
+- Serialize dashboard model fields consistently so calculated route previews and business reports reach the UI.
+- Test the screenshot's loss figures and production JavaScript rendering from real serialized model data.
+
 v0.6.22 (2026-10-12) — Actual-flight travel planning
 - Read v2 profile.status correctly and fetch user/travel in Fast Sync.
 - Display actual takeoff and landing timestamps; relative timers remain anchored to their observation.

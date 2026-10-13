@@ -99,6 +99,36 @@ internal static class CompanyIntelligence
         journal.Days = journal.Days.OrderByDescending(x => x.DayUtc, StringComparer.Ordinal).Take(365).ToList();
     }
 
+    public static CompanyBusinessReport BusinessReport(IReadOnlyList<CompanyObservation> days)
+    {
+        var latest = days.OrderByDescending(x => x.DayUtc, StringComparer.Ordinal).FirstOrDefault();
+        if (latest is null) return new("No observation", "Sync Company to begin.", null, null, null, null, null, null, false);
+        var knownCosts = (latest.DailyAdvertising ?? 0) + (latest.DailyPayroll ?? 0) + (latest.DailyStockCost ?? 0);
+        var complete = latest.DailyAdvertising.HasValue && latest.DailyPayroll.HasValue && latest.DailyStockCost.HasValue;
+        var revenuePerCustomer = latest.DailyIncome.HasValue && latest.DailyCustomers is > 0
+            ? (decimal?)latest.DailyIncome.Value / latest.DailyCustomers.Value : null;
+        var adsPerCustomer = latest.DailyAdvertising.HasValue && latest.DailyCustomers is > 0
+            ? (decimal?)latest.DailyAdvertising.Value / latest.DailyCustomers.Value : null;
+        var previous = days.Where(x => x.CompanyId == latest.CompanyId && x.DayUtc != latest.DayUtc && x.DailyIncome.HasValue)
+            .OrderByDescending(x => x.DayUtc, StringComparer.Ordinal).FirstOrDefault();
+        long? incomeChange = latest.DailyIncome.HasValue && previous is not null
+            ? latest.DailyIncome.Value - previous.DailyIncome!.Value : null;
+        long? balance = latest.DailyIncome.HasValue ? latest.DailyIncome.Value - knownCosts : null;
+        var state = balance < 0 ? "SPENDING EXCEEDS INCOME" : !complete ? "COSTS INCOMPLETE" : "ACCOUNTED MARGIN";
+        var note = balance < 0
+            ? $"Reported income is USD {-balance:N0} below recorded costs before any missing expenses. Verify matching reporting periods and review spending before treating the current budget as sustainable."
+            : complete ? "All three entered costs are included. This is an observed accounting balance, not a prediction of profit."
+            : "Enter missing payroll and supplies to assess the business; blank costs remain unknown.";
+        if (revenuePerCustomer is > 0 && adsPerCustomer > revenuePerCustomer)
+            note += " Advertising per customer exceeds reported revenue per customer.";
+        if (previous is not null)
+            note += $" Income comparison uses {previous.DayUtc}; staffing was " + (latest.Employees.HasValue && previous.Employees.HasValue
+                ? latest.Employees == previous.Employees ? "unchanged." : "different, so advertising alone cannot explain the change."
+                : "not fully recorded.");
+        return new(state, note, knownCosts, balance, revenuePerCustomer, adsPerCustomer,
+            revenuePerCustomer is > 0 ? (long?)Math.Ceiling(knownCosts / revenuePerCustomer.Value) : null, incomeChange, complete);
+    }
+
     public static CompanyRecommendation Analyze(IReadOnlyList<CompanyObservation> days)
     {
         var points = days.Where(x => x.FromApi && x.DailyAdvertising.HasValue && x.DailyIncome.HasValue)
@@ -107,6 +137,8 @@ internal static class CompanyIntelligence
             return new("NO BASELINE", "Sync a Limited or Full Access company profile, or enter advertising manually. No budget recommendation yet.", 0, 0);
         var latest = points[^1];
         var currentBudget = latest.DailyAdvertising ?? 0;
+        if (latest.DailyIncome < currentBudget)
+            return new("SPENDING ALERT", $"Reported income is USD {currentBudget - latest.DailyIncome:N0} below advertising alone. Check that both values cover the same reporting period and review affordability. The current budget is not a recommended spending level; collect comparable complete days before optimizing it.", 0, points.Count);
         if (points.Count < 7)
             return new("BASELINE", $"Collected {points.Count}/7 daily records with advertising costs. Hold the budget steady while building history.", currentBudget, points.Count);
         if (points.Any(x => !x.Employees.HasValue))
@@ -131,3 +163,7 @@ internal static class CompanyIntelligence
         return new("EXPERIMENTAL", $"A budget near USD {best.Budget:N0}/day showed roughly USD {delta:N0}/day more income after ads than the closest observed budget ({best.Count} vs {near.Count} days). This does not prove causation or true net profit. Run a controlled test before changing long-term spending.", best.Budget, points.Count);
     }
 }
+
+
+internal sealed record CompanyBusinessReport(string State, string Note, long? KnownCosts, long? Balance,
+    decimal? RevenuePerCustomer, decimal? AdvertisingPerCustomer, long? BreakEvenCustomers, long? IncomeChange, bool CompleteCosts);

@@ -137,6 +137,7 @@ public sealed partial class MainForm
             status = journal.Status,
             state = advice.State,
             advice = advice.Message,
+            business = CompanyIntelligence.BusinessReport(days),
             suggested = advice.SuggestedBudget,
             samples = advice.SampleDays,
             syncing = _companySyncing,

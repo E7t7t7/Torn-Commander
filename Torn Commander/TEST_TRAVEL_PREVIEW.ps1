@@ -4,6 +4,7 @@ $project=Join-Path $env:RUNNER_TEMP ('CommanderTravelPreviewTest'+[guid]::NewGui
 New-Item -ItemType Directory -Path $project -Force | Out-Null
 $source=Join-Path $PSScriptRoot 'TravelPreview.cs'
 Copy-Item -LiteralPath $source -Destination $project
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'DashboardJson.cs') -Destination $project
 $prog=@'
 using System;
 using System.Collections.Generic;
@@ -29,6 +30,7 @@ if(preview.FreshStockRows!=1 || preview.Routes.Count!=1 ||
    preview.Routes[0].OneWayMinutes!=80 ||
    preview.Routes[0].StockVerifiedNow || preview.Routes[0].ScenarioProfit!=9200)
     throw new Exception("Observed-stock preview / no false guarantees regression.");
+File.WriteAllText(Path.Combine(args[0],"preview.json"),DashboardJson.Serialize(preview));
 route.IsStale=true;
 var stale=TravelPreviewEngine.Build(new[]{route},settings,now);
 if(stale.Routes.Count!=1 || !stale.Routes[0].StockEvidence.Contains("Stale"))
@@ -82,7 +84,7 @@ $proj=@'
 </Project>
 '@
 Set-Content -LiteralPath (Join-Path $project 'PreviewTest.csproj') -Value $proj -Encoding UTF8
-dotnet run --project (Join-Path $project 'PreviewTest.csproj') --configuration Release
+dotnet run --project (Join-Path $project 'PreviewTest.csproj') --configuration Release -- $project
 if($LASTEXITCODE -ne 0){throw 'Travel preview C# regression test failed.'}
 
 $dashboard=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'MainForm.ModernDashboard.cs') -Raw
@@ -97,3 +99,23 @@ foreach($marker in @('id="travelPreviewRows"','id="travelPreviewDiagnostic"','fu
  if(-not $dashboard.Contains($marker)){throw "Missing travel preview dashboard marker: $marker"}
 }
 Write-Host 'TRAVEL PREVIEW DASHBOARD TEST PASSED: JavaScript syntax and wire-up.'
+
+$renderTest=@'
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const script=fs.readFileSync(process.argv[2],'utf8');
+const report=JSON.parse(fs.readFileSync(process.argv[3],'utf8'));
+const start=script.indexOf('function renderTravelPreview('),end=script.indexOf('function renderItinerary(',start);
+const nodes={};
+const context={ $:id=>nodes[id]??=( {} ), esc:s=>String(s??''),money:x=>String(x)};
+vm.createContext(context);
+vm.runInContext(script.slice(start,end),context);
+context.renderTravelPreview(report,{situation:{state:'outbound'}},[]);
+assert(nodes.travelPreviewCount.textContent.includes('1 options'),'Serialized routes vanished on render');
+assert(nodes.travelPreviewDiagnostic.textContent.includes('Feed: 1'),'Serialized diagnostics vanished on render');
+assert(nodes.travelPreviewRows.innerHTML.includes('Orchid'),'Route card is empty');
+console.log('DASHBOARD DATA TEST PASSED: serialized C# route renders in production JavaScript.');
+'@
+$renderPath=Join-Path $project 'render-test.js'
+[IO.File]::WriteAllText($renderPath,$renderTest)
+& node $renderPath $scriptPath (Join-Path $project 'preview.json')
+if($LASTEXITCODE -ne 0){throw 'Serialized travel preview rendering failed.'}

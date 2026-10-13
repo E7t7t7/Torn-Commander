@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('CompanyIntelligence.cs','TravelArrivalAdvisor.cs')){
+foreach($file in @('CompanyIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
@@ -32,6 +32,16 @@ Check(journal.Days.Count==1 && missing.DailyAdvertising==0 && missing.DailyPayro
 Check(CompanyIntelligence.Analyze(journal.Days).SampleDays==0,"Unknown income counted as zero in baseline.");
 var days=Enumerable.Range(1,7).Select(i=>new CompanyObservation{FromApi=true,DayUtc="2026-10-"+i.ToString("00"),DailyIncome=1000,DailyAdvertising=100}).ToList();
 Check(CompanyIntelligence.Analyze(days).State=="INCOMPLETE","Missing staffing should block budget inference.");
+var loss = new CompanyObservation { CompanyId=1, FromApi=true, DayUtc="2026-10-13", DailyIncome=146325, DailyCustomers=428, DailyAdvertising=400000, Employees=8 };
+var report = CompanyIntelligence.BusinessReport(new[]{loss});
+Check(report.State=="SPENDING EXCEEDS INCOME" && report.Balance==-253675 && !report.CompleteCosts && report.BreakEvenCustomers==1170,"Observed loss / partial-cost business report wrong.");
+Check(CompanyIntelligence.Analyze(new[]{loss}).State=="SPENDING ALERT" && CompanyIntelligence.Analyze(new[]{loss}).SuggestedBudget==0,"Baseline must not endorse loss-making advertising.");
+using(var wire=JsonDocument.Parse(DashboardJson.Serialize(report))){
+ Check(wire.RootElement.GetProperty("balance").GetInt64()==-253675 && wire.RootElement.GetProperty("state").GetString()=="SPENDING EXCEEDS INCOME","Business data cannot reach dashboard field names.");
+}
+var prior=new CompanyObservation { CompanyId=1, DayUtc="2026-10-12", DailyIncome=100000, Employees=7 };
+Check(CompanyIntelligence.BusinessReport(new[]{prior,loss}).IncomeChange==46325 && CompanyIntelligence.BusinessReport(new[]{prior,loss}).Note.Contains("different"),"Income trend lost staffing context.");
+Check(CompanyIntelligence.BusinessReport(new[]{missing}).RevenuePerCustomer is null,"Unknown business revenue fabricated.");
 var shop=new TravelLandingSnapshot{Country="Test",Cash=100,Capacity=4,SeenUtc=now,Items=new(){
  new(){Name="A",Stock=2,BuyPrice=10},new(){Name="B",Stock=2,BuyPrice=10},new(){Name="C",Stock=0,BuyPrice=1000}}};
 var quotes=new List<TravelForecastItem>{
