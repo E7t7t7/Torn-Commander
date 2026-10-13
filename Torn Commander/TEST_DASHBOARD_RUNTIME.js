@@ -19,7 +19,7 @@ assert(render.indexOf("$('profileSelect').replaceChildren")<render.indexOf("rend
 console.log('DASHBOARD RUNTIME PASSED: real markup IDs, company rendering, profile-first order and panel failure isolation.');
 
 for(const node of Object.values(nodes)) node.replaceChildren=function(...children){this.options=children};
-Object.assign(context,{S:{},Option:function(name,id){this.text=name;this.value=id},applyTheme:()=>{},renderApiActivity:()=>{},renderItinerary:()=>{},renderArrival:()=>{},setFilters:()=>{},renderTravelRows:()=>{},renderProgression:()=>{}});
+Object.assign(context,{S:{},Option:function(name,id){this.text=name;this.value=id},applyTheme:()=>{},renderApiActivity:()=>{},renderItinerary:()=>{},renderArrival:()=>{},setFilters:()=>{},renderTravelRows:()=>{},renderProgression:()=>{},renderScriptTools:()=>{}});
 vm.runInContext(render,context);
 const state={profileId:'one',profiles:[{id:'one',name:'Account A'},{id:'two',name:'Account B'}],buildPath:'Fixture.exe',company:{name:'Fixture Company',rows:[]}};
 context.render(state);

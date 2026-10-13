@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.29";
+        Text = "Torn Commander v0.6.30";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -278,7 +278,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.29 — {target.Name}";
+        Text = $"Torn Commander v0.6.30 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -389,7 +389,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.29 — {name}";
+        Text = $"Torn Commander v0.6.30 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -453,7 +453,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.29 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.30 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1186,8 +1186,8 @@ public sealed partial class MainForm : Form
         p.Controls.Add(Body(description));
         p.Controls.Add(status);
         var row = new FlowLayoutPanel { AutoSize = true, BackColor = PanelBg, WrapContents = true };
-        row.Controls.Add(MakeButton("Enable", (_, _) => { SetScriptEnabled(fileName, true); RefreshStatus(); }, 72));
-        row.Controls.Add(MakeButton("Disable", (_, _) => { SetScriptEnabled(fileName, false); RefreshStatus(); }, 72));
+        row.Controls.Add(MakeButton("Enable", async (_, _) => { await SetScriptEnabled(fileName, true); RefreshStatus(); }, 72));
+        row.Controls.Add(MakeButton("Disable", async (_, _) => { await SetScriptEnabled(fileName, false); RefreshStatus(); }, 72));
         row.Controls.Add(MakeButton("Open folder", (_, _) => OpenFolder(Storage.UserScriptsPath), 90));
         p.Controls.Add(row);
         RefreshStatus();
@@ -1208,8 +1208,8 @@ public sealed partial class MainForm : Form
         p.Controls.Add(status);
         var row = new FlowLayoutPanel { AutoSize = true, BackColor = PanelBg, WrapContents = true };
         row.Controls.Add(MakeButton("Install / Update", async (_, _) => { await InstallRemoteUserscriptAsync(displayName, fileName, downloadUrl); RefreshStatus(); }, 112));
-        row.Controls.Add(MakeButton("Enable", (_, _) => { SetScriptEnabled(fileName, true); RefreshStatus(); }, 68));
-        row.Controls.Add(MakeButton("Disable", (_, _) => { SetScriptEnabled(fileName, false); RefreshStatus(); }, 70));
+        row.Controls.Add(MakeButton("Enable", async (_, _) => { await SetScriptEnabled(fileName, true); RefreshStatus(); }, 68));
+        row.Controls.Add(MakeButton("Disable", async (_, _) => { await SetScriptEnabled(fileName, false); RefreshStatus(); }, 70));
         row.Controls.Add(MakeButton("Project", async (_, _) => await AddBrowserTabAsync(projectUrl), 72));
         p.Controls.Add(row);
         RefreshStatus();
@@ -1222,14 +1222,24 @@ public sealed partial class MainForm : Form
         p.Controls.Add(MakeButton("Open dashboard", async (_, _) => await AddBrowserTabAsync(url), 110));
     }
 
-    private void SetScriptEnabled(string fileName, bool enabled)
+    private async Task SetScriptEnabled(string fileName, bool enabled)
     {
         _settings.EnabledScripts.RemoveAll(x => x.Equals(fileName, StringComparison.OrdinalIgnoreCase));
         if (enabled && File.Exists(Path.Combine(Storage.UserScriptsPath, fileName)))
             _settings.EnabledScripts.Add(fileName);
         Storage.SaveSettings(_settings);
         RefreshScriptsList();
-        FlashStatus($"{fileName}: {(enabled ? "enabled" : "disabled")}. Reload the matching Torn tab to apply the change.");
+        await ApplyScriptsToOpenTabsAsync();
+        FlashStatus($"{fileName}: {(enabled ? "enabled" : "disabled")}. Open Torn tabs refreshed.");
+    }
+
+    private async Task ApplyScriptsToOpenTabsAsync()
+    {
+        foreach (var tab in _browserTabObjects.ToList())
+        {
+            try { await tab.ApplyUserscriptsAsync(); }
+            catch (Exception ex) { FlashStatus("Could not refresh helper scripts: " + ex.Message); }
+        }
     }
 
     private async Task<bool> InstallRemoteUserscriptAsync(string displayName, string fileName, string downloadUrl, bool quiet = false)
@@ -1238,14 +1248,14 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.29");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.30");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
             Directory.CreateDirectory(Storage.UserScriptsPath);
             await File.WriteAllTextAsync(Path.Combine(Storage.UserScriptsPath, fileName), script);
-            SetScriptEnabled(fileName, true);
-            if (!quiet) MessageBox.Show($"{displayName} was installed/updated and enabled. Reload its matching Torn tab to activate it.", "Commander Tools", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            await SetScriptEnabled(fileName, true);
+            if (!quiet) MessageBox.Show($"{displayName} was installed/updated and enabled. Matching open tabs have been refreshed. Look for the helper on its Torn page.", "Commander Tools", MessageBoxButtons.OK, MessageBoxIcon.Information);
             FlashStatus($"Installed {displayName}.");
             return true;
         }
@@ -1466,7 +1476,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.29 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.30 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -2740,11 +2750,12 @@ public sealed partial class MainForm : Form
         }
     }
 
-    private void SaveEnabledScripts()
+    private async void SaveEnabledScripts()
     {
         _settings.EnabledScripts = _scriptsList.CheckedItems.Cast<string>().ToList();
         Storage.SaveSettings(_settings);
-        MessageBox.Show("Enabled userscripts saved. Open a new browser tab (or restart Commander) for script injection changes to apply.", "Torn Commander");
+        await ApplyScriptsToOpenTabsAsync();
+        MessageBox.Show("Enabled userscripts saved and open tabs refreshed.", "Torn Commander");
     }
 
     private async Task LoadExtensionAsync()
@@ -2899,7 +2910,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.29; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.30; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);

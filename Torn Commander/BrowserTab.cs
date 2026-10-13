@@ -18,6 +18,8 @@ internal sealed class BrowserTab : IDisposable
     private readonly Action<string> _locationChanged;
     private readonly HashSet<string> _allowOnceHosts = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
+    private readonly List<string> _scriptRegistrations = new();
+    private readonly SemaphoreSlim _scriptGate = new(1, 1);
     private readonly CancellationTokenSource _bridgeCancellation = new();
 
     public BrowserTab(
@@ -233,6 +235,21 @@ internal sealed class BrowserTab : IDisposable
             _locationChanged(url);
     }
 
+    public async Task ApplyUserscriptsAsync()
+    {
+        if (_disposed || WebView.CoreWebView2 is null) return;
+        await _scriptGate.WaitAsync();
+        try
+        {
+            if (_disposed) return;
+            foreach (var id in _scriptRegistrations) WebView.CoreWebView2.RemoveScriptToExecuteOnDocumentCreated(id);
+            _scriptRegistrations.Clear();
+            await InjectLocalScriptsAsync();
+            WebView.Reload();
+        }
+        finally { _scriptGate.Release(); }
+    }
+
     private async Task InjectLocalScriptsAsync()
     {
         Directory.CreateDirectory(Storage.UserScriptsPath);
@@ -244,7 +261,7 @@ internal sealed class BrowserTab : IDisposable
                 if (!File.Exists(path) || !Storage.IsSupportedScriptFile(path)) continue;
                 var script = await File.ReadAllTextAsync(path);
                 var payload = WrapUserscriptForMetadata(script, name);
-                await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(payload);
+                _scriptRegistrations.Add(await WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(payload));
             }
             catch (Exception ex)
             {
@@ -269,7 +286,8 @@ internal sealed class BrowserTab : IDisposable
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (matches.Count == 0 && excludes.Count == 0) return script;
+        var runAt = ReadMetadata(script, "@run-at").FirstOrDefault() ?? "document-end";
+        var noFrames = script.Contains("@noframes", StringComparison.OrdinalIgnoreCase);
 
         var matchRegexes = matches.Select(GlobToRegex).ToList();
         var excludeRegexes = excludes.Select(GlobToRegex).ToList();
@@ -285,7 +303,7 @@ const GM_deleteValue = (k) => { try { localStorage.removeItem('__tc_gm_'+__tc_na
 const GM_listValues = () => { try { const p='__tc_gm_'+__tc_name+'_'; return Object.keys(localStorage).filter(k=>k.startsWith(p)).map(k=>k.slice(p.length)); } catch { return []; } };
 const GM_openInTab = (u) => { window.open(u, '_blank'); };
 if (!window.__tcGmXhrPending) window.__tcGmXhrPending = {};
-if (!window.__tcGmXhrResolve) window.__tcGmXhrResolve = (id,res) => { const d=window.__tcGmXhrPending[id]; if(!d) return; delete window.__tcGmXhrPending[id]; try { if(res && res.status >= 200 && res.status < 400) d.onload?.(res); else d.onerror?.(res||{status:0,readyState:4}); d.onreadystatechange?.(res||{status:0,readyState:4}); } catch {} };
+if (!window.__tcGmXhrResolve) window.__tcGmXhrResolve = (id,res) => { const d=window.__tcGmXhrPending[id]; if(!d) return; delete window.__tcGmXhrPending[id]; try { if(d.responseType==='json' && res) res.response=JSON.parse(res.responseText); if(res && res.status > 0) d.onload?.(res); else d.onerror?.(res||{status:0,readyState:4}); d.onreadystatechange?.(res||{status:0,readyState:4}); } catch {} };
 const GM_xmlhttpRequest = (d) => {
   const id='tcxhr_'+Date.now()+'_'+Math.random().toString(36).slice(2);
   if (window.chrome && window.chrome.webview) {
@@ -299,19 +317,47 @@ const GM_xmlhttpRequest = (d) => {
     .catch(e=>d.onerror?.({error:String(e),status:0,readyState:4}));
   return {abort:()=>ctl.abort()};
 };
-const GM_registerMenuCommand = (label,fn) => 0;
+const unsafeWindow = window;
+const GM_registerMenuCommand = (label,fn) => {
+  const id=__tc_name+':'+label;
+  window.__tcScriptMenus ??= new Map();
+  window.__tcScriptMenus.set(id,{name:__tc_name,label,fn});
+  const mount=()=>{
+    if(!document.body) return;
+    let box=document.getElementById('tc-script-menu');
+    if(!box){
+      box=document.createElement('details');box.id='tc-script-menu';
+      box.style.cssText='position:fixed;top:55px;right:12px;z-index:2147483647;background:#152336;color:white;padding:8px;border:1px solid #70bafa;border-radius:8px;max-height:65vh;overflow:auto;font:13px sans-serif';
+      const title=document.createElement('summary');title.textContent='Commander helpers';box.appendChild(title);document.body.appendChild(box);
+    }
+    for(const [key,entry] of window.__tcScriptMenus){
+      if([...box.querySelectorAll('button')].some(b=>b.dataset.command===key)) continue;
+      const b=document.createElement('button');b.dataset.command=key;b.textContent=entry.name+': '+entry.label;
+      b.style.cssText='display:block;margin:7px 0;padding:7px;color:white;background:#254361;border:1px solid #70bafa;cursor:pointer';
+      b.onclick=()=>{try{entry.fn()}catch(e){console.error('Commander helper command failed',e)}};
+      box.appendChild(b);
+    }
+  };
+  if(document.body) mount();else document.addEventListener('DOMContentLoaded',mount,{once:true});
+  return id;
+};
 const GM = { addStyle:GM_addStyle, getValue:async(k,d)=>GM_getValue(k,d), setValue:async(k,v)=>GM_setValue(k,v), deleteValue:async(k)=>GM_deleteValue(k), listValues:async()=>GM_listValues(), xmlHttpRequest:GM_xmlhttpRequest, openInTab:GM_openInTab, registerMenuCommand:GM_registerMenuCommand };
 ";
 
         return "(() => {\n"
+             + (noFrames ? "if(window.top!==window.self)return;\n" : "")
              + $"const __tc_name = {nameJson};\n"
              + $"const __tc_matches = {matchJson};\n"
              + $"const __tc_excludes = {excludeJson};\n"
              + "const __tc_url = location.href;\n"
              + "const __tc_test = (p) => { try { return new RegExp(p, 'i').test(__tc_url); } catch { return false; } };\n"
              + "if ((__tc_matches.length === 0 || __tc_matches.some(__tc_test)) && !__tc_excludes.some(__tc_test)) {\n"
-             + gmCompat + "\n"
+             + "const __tc_run=()=>{\n" + gmCompat + "\n"
              + "try {\n" + script + "\n} catch (e) { console.error('Torn Commander userscript failed:', __tc_name, e); }\n"
+             + "};\n"
+             + (runAt.Equals("document-start", StringComparison.OrdinalIgnoreCase)
+                 ? "if(document.documentElement)__tc_run();else{const o=new MutationObserver(()=>{if(document.documentElement){o.disconnect();__tc_run()}});o.observe(document,{childList:true,subtree:true})}\n"
+                 : "if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',__tc_run,{once:true});else __tc_run();\n")
              + "}\n})();";
     }
 

@@ -1,3 +1,12 @@
+v0.6.30 (2026-10-13) — Usable in-app helper scripts
+- Re-register installed/enabled scripts in existing tabs and reload them after changes; a normal reload previously retained the old script list.
+- Honor document-start and document-end/idle timing, page exclusions and noframes; wait for the document root when needed.
+- Expose real userscript menu commands in a visible Commander helpers menu on the Torn page.
+- List installed helpers in Scripts & Helpers with Open helper buttons that enable and load the appropriate Torn page.
+- Supply compatibility APIs to raw scripts too; deliver HTTP error responses through onload as expected by userscripts.
+- Test the production wrapper timing, visible menu callback, page/frame filtering and HTTP status handling.
+- Loss X-change remains downloaded from its author rather than redistributed.
+
 v0.6.29 (2026-10-13) — Solo and coordinated loss contracts
 - Start A and Start B each run only their selected account; a solo account can complete the full order total.
 - Add Start Both to the dashboard and full Loss Desk; require distinct profiles only for this coordinated action.

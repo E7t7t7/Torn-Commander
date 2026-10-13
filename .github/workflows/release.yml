@@ -91,6 +91,11 @@ jobs:
         run: |
           node 'Torn Commander/TEST_DASHBOARD_RUNTIME.js' 'Torn Commander/MainForm.ModernDashboard.cs'
           if ($LASTEXITCODE -ne 0) { throw 'Dashboard runtime regression failed; release withheld.' }
+      - name: Check installed userscript runtime
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_USERSCRIPT_RUNTIME.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Userscript runtime failed; release withheld.' }
       - name: Check company collection and arrival advice
         shell: pwsh
         run: |
