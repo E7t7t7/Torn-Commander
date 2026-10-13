@@ -20,6 +20,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
     public string Slot => _slot;
     public string ProfileId => _profileId;
     public bool IsInitialized => _initialized;
+    public bool IsArmed { get; private set; }
     public string LastStatus { get; private set; } = "Not initialized";
 
     public Func<LossAutoCycleWorker, JsonElement, Task>? MessageHandler { get; set; }
@@ -90,11 +91,12 @@ internal sealed class LossAutoCycleWorker : IDisposable
     {
         await EnsureTornDocumentAsync();
         await InvokeAsync("start", config);
+        IsArmed = true;
     }
 
     public async Task PauseAsync() => await InvokeNoArgAsync("pause");
     public async Task ResumeAsync() => await InvokeNoArgAsync("resume");
-    public async Task StopAsync() => await InvokeNoArgAsync("stop");
+    public async Task StopAsync() { await InvokeNoArgAsync("stop"); IsArmed = false; }
     public async Task ResetAsync() => await InvokeNoArgAsync("reset");
 
     public async Task ReplyClaimAsync(string requestId, bool ok, string claimId, string message)

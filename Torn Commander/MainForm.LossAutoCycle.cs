@@ -12,6 +12,7 @@ public sealed partial class MainForm
     private readonly object _lossClaimGate = new();
     private readonly Dictionary<string, LossClaimLease> _lossClaims = new(StringComparer.OrdinalIgnoreCase);
 
+    private bool _lossStartBusy;
     private LossAutoCycleWorker? _lossWorkerA;
     private LossAutoCycleWorker? _lossWorkerB;
     private Panel _lossWorkerHostA = null!;
@@ -60,6 +61,7 @@ public sealed partial class MainForm
         var startRow = new FlowLayoutPanel { AutoSize = true, BackColor = PanelBg, WrapContents = true };
         startRow.Controls.Add(MakeButton("START AUTO A", async (_, _) => await StartLossAutoCycleAsync(true), 105));
         startRow.Controls.Add(MakeButton("START AUTO B", async (_, _) => await StartLossAutoCycleAsync(false), 105));
+        startRow.Controls.Add(MakeButton("Start Both", async (_, _) => await StartBothLossWorkersAsync(), 105));
         startRow.Controls.Add(MakeButton("Resume A", async (_, _) => await ResumeLossWorkerAsync(true), 82));
         startRow.Controls.Add(MakeButton("Resume B", async (_, _) => await ResumeLossWorkerAsync(false), 82));
         p.Controls.Add(startRow);
@@ -139,35 +141,67 @@ public sealed partial class MainForm
 
     private async Task StartLossAutoCycleAsync(bool accountA)
     {
+        if (_lossStartBusy) return;
+        _lossStartBusy = true;
+        try { await StartLossWorkerCoreAsync(accountA); }
+        finally { _lossStartBusy = false; }
+    }
+
+    private async Task StartBothLossWorkersAsync()
+    {
+        if (_lossStartBusy) return;
+        var order = SelectedLossOrder();
+        if (order is null) { MessageBox.Show("Create or select a Loss Desk order first.", "Loss Desk"); return; }
+        if (order.ProfileAId.Equals(order.ProfileBId, StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show("Start Both needs two different profiles. Use Start A or Start B for a solo contract.", "Loss Desk");
+            return;
+        }
+        _lossStartBusy = true;
+        try
+        {
+            if (!await StartLossWorkerCoreAsync(true)) return;
+            if (!await StartLossWorkerCoreAsync(false))
+            {
+                await PauseLossWorkerAsync(true);
+                FlashStatus("Start Both could not start B; A was paused. Review settings before resuming.");
+            }
+        }
+        finally { _lossStartBusy = false; }
+    }
+
+    private async Task<bool> StartLossWorkerCoreAsync(bool accountA)
+    {
         var order = SelectedLossOrder();
         if (order is null)
         {
             MessageBox.Show("Create or select a Loss Desk order first.", "Loss Auto Cycle");
-            return;
+            return false;
         }
         if (order.Status == "Paused")
         {
             MessageBox.Show("The selected order is paused. Resume the order first.", "Loss Auto Cycle");
-            return;
+            return false;
         }
         if (order.Remaining <= 0)
         {
             MessageBox.Show("The selected order has no losses remaining.", "Loss Auto Cycle");
-            return;
-        }
-
-        if (order.ProfileAId.Equals(order.ProfileBId, StringComparison.OrdinalIgnoreCase))
-        {
-            MessageBox.Show("Auto Cycle requires Account A and Account B to be different Commander profiles so their Torn sessions and local worker state stay isolated. Edit/recreate the order with two distinct profiles.", "Loss Auto Cycle");
-            return;
+            return false;
         }
 
         var profileId = accountA ? order.ProfileAId : order.ProfileBId;
+        var other = accountA ? _lossWorkerB : _lossWorkerA;
+        var current = accountA ? _lossWorkerA : _lossWorkerB;
+        if (current?.IsArmed == true || (other?.IsArmed == true && other.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("This profile already has an active worker. Resume it or stop it before starting a new cycle.", "Loss Desk");
+            return false;
+        }
         var key = CredentialManager.LoadApiKey(profileId);
         if (string.IsNullOrWhiteSpace(key))
         {
             MessageBox.Show($"Profile {(accountA ? "A" : "B")} does not have a saved Torn API key yet. Switch to that profile once and save/test its key in Settings.", "Loss Auto Cycle");
-            return;
+            return false;
         }
 
         TornSnapshot profileSnapshot;
@@ -178,17 +212,17 @@ public sealed partial class MainForm
         catch (Exception ex)
         {
             MessageBox.Show("Could not identify the account from Torn API:\n\n" + ex.Message, "Loss Auto Cycle");
-            return;
+            return false;
         }
         if (string.IsNullOrWhiteSpace(profileSnapshot.PlayerName) || profileSnapshot.PlayerId is null)
         {
             MessageBox.Show("The saved API key did not return the profile name/player ID. Auto-cycle did not start.", "Loss Auto Cycle");
-            return;
+            return false;
         }
         if (profileSnapshot.PlayerId.Value.ToString() == order.TargetPlayerId)
         {
             MessageBox.Show("The loss-selling target cannot be the same account as the selected worker profile.", "Loss Auto Cycle");
-            return;
+            return false;
         }
 
         var worker = await InitializeLossWorkerAsync(accountA, profileId);
@@ -207,6 +241,7 @@ public sealed partial class MainForm
             maxKits = (int)_lossMaxKits.Value
         });
         FlashStatus($"Auto-cycle {(accountA ? "A" : "B")} armed for order {order.Id}. The worker will pause on ambiguous Torn UI instead of guessing.");
+        return true;
     }
 
     private async Task PauseLossWorkerAsync(bool accountA)
@@ -220,12 +255,7 @@ public sealed partial class MainForm
     private async Task ResumeLossWorkerAsync(bool accountA)
     {
         var worker = accountA ? _lossWorkerA : _lossWorkerB;
-        if (worker is null)
-        {
-            await InitializeLossWorkerAsync(accountA);
-            worker = accountA ? _lossWorkerA : _lossWorkerB;
-        }
-        if (worker is null) return;
+        if (worker?.IsArmed != true) { await StartLossAutoCycleAsync(accountA); return; }
         await worker.ResumeAsync();
         FlashStatus($"Loss auto-cycle {(accountA ? "A" : "B")} resume requested.");
     }
@@ -251,8 +281,8 @@ public sealed partial class MainForm
     private async Task ResumeBothLossWorkersAsync()
     {
         var tasks = new List<Task>();
-        if (_lossWorkerA is not null) tasks.Add(_lossWorkerA.ResumeAsync());
-        if (_lossWorkerB is not null) tasks.Add(_lossWorkerB.ResumeAsync());
+        if (_lossWorkerA?.IsArmed == true) tasks.Add(_lossWorkerA.ResumeAsync());
+        if (_lossWorkerB?.IsArmed == true) tasks.Add(_lossWorkerB.ResumeAsync());
         if (tasks.Count > 0) await Task.WhenAll(tasks);
         FlashStatus("Resume requested for both initialized loss workers.");
     }

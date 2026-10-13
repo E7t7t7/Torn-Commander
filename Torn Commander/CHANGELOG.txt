@@ -1,3 +1,10 @@
+v0.6.29 (2026-10-13) — Solo and coordinated loss contracts
+- Start A and Start B each run only their selected account; a solo account can complete the full order total.
+- Add Start Both to the dashboard and full Loss Desk; require distinct profiles only for this coordinated action.
+- Prevent repeated start clicks and duplicate active workers using the same profile.
+- Pause A if coordinated start cannot start B; Resume Both only resumes already armed workers.
+- Test full contract completion by either solo slot without splitting the requested total.
+
 v0.6.28 (2026-10-13) — Restore profiles and dashboard loading
 - Fix missing company business-health elements that stopped dashboard rendering before profiles and API status appeared.
 - Render profile, update and executable-path controls before optional advice panels.

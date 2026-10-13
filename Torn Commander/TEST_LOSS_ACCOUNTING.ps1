@@ -34,6 +34,11 @@ using(var locked=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Non
 Check(order.CompletedTotal==0 && order.CommitReceipts.Count==0 && order.Status=="Active","Failed save changed count.");
 Check(File.ReadAllText(path)==prior,"Failed replacement damaged persisted order.");
 Check(!Directory.EnumerateFiles(args[0],"*.tmp").Any(),"Temporary file leaked.");
+foreach(var slot in new[]{"A","B"}){
+ var solo=new LossOrder{RequestedLosses=3,ProfileAId="solo",ProfileBId="solo"};
+ for(int i=0;i<3;i++) Check(LossAccounting.Commit(solo,"solo"+slot+i,"solo",slot,()=>{}).Ok,"Solo loss rejected.");
+ Check(solo.CompletedTotal==3 && solo.Remaining==0 && (slot=="A"?solo.CompletedA:solo.CompletedB)==3,"Solo total split or lost.");
+}
 var legacy=JsonSerializer.Deserialize<LossOrder>("""{"RequestedLosses":4,"CompletedA":2}""")!;
 Check(legacy.CommitReceipts.Count==0 && legacy.CompletedA==2,"Old order migration changed count.");
 Console.WriteLine("LOSS ACCOUNTING PASSED: receipt replay, profiles, restart, quota, failed-save rollback, atomic preservation and legacy orders.");
