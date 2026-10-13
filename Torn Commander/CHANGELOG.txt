@@ -1,3 +1,9 @@
+v0.6.34 (2026-10-13) — Clear adviser forms
+- Add persistent visible labels to casino and trading inputs so saved numbers retain their meaning.
+- Arrange adviser controls in responsive field grids inside the existing Commander panel.
+- Apply the selected dark palette to adviser and progression inputs for readable text and consistent controls.
+- Retain all adviser calculations, settings and profiles.
+
 v0.6.33 (2026-10-13) — Helper JSON request compatibility
 - Preserve declared Content-Type and other content headers on userscript HTTP requests.
 - Replace StringContent's default text/plain header so JSON contract/registration calls use the requested application/json format.
