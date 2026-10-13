@@ -97,6 +97,11 @@ jobs:
         run: |
           & 'Torn Commander/TEST_TRAVEL_TIMING.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Flight timing test failed; release withheld.' }
+      - name: Check guided graffiti command protocol
+        shell: pwsh
+        run: |
+          node 'Torn Commander/TEST_GRAFFITI_HELPER.js' 'Torn Commander/BundledScripts/Torn_Graffiti_Paint_Helper.user.js'
+          if ($LASTEXITCODE -ne 0) { throw 'Graffiti command test failed; release withheld.' }
       - name: Package tracked source only
         id: package
         shell: pwsh

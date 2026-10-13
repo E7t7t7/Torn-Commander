@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.23";
+        Text = "Torn Commander v0.6.24";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -263,6 +263,7 @@ public sealed partial class MainForm : Form
         var target = _settings.Profiles.FirstOrDefault(x => x.Id.Equals(profileId, StringComparison.OrdinalIgnoreCase));
         if (target is null || target.Id.Equals(CurrentProfileId, StringComparison.OrdinalIgnoreCase)) return;
 
+        await CancelPendingGraffitiAsync();
         SaveCurrentProfileTabs();
         FlashStatus($"Switching to {target.Name}…");
         CloseAllTabs();
@@ -276,7 +277,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.23 — {target.Name}";
+        Text = $"Torn Commander v0.6.24 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -387,7 +388,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.23 — {name}";
+        Text = $"Torn Commander v0.6.24 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -451,7 +452,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.23 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.24 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1235,7 +1236,7 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.23");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.24");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
@@ -1463,7 +1464,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.23 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.24 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -2310,7 +2311,7 @@ public sealed partial class MainForm : Form
         }
     }
 
-    private async Task ExecuteRecommendedActionAsync(bool openOnly, bool dashboardRunOnce = false)
+    private async Task ExecuteRecommendedActionCoreAsync(bool openOnly, bool dashboardRunOnce, string actionProfile)
     {
         var action = _recommendation.GuidedAction;
         if (action is null)
@@ -2339,6 +2340,7 @@ public sealed partial class MainForm : Form
             return;
         }
 
+        if (actionProfile != CurrentProfileId) return;
         if (action.Crime.Equals("Graffiti", StringComparison.OrdinalIgnoreCase))
         {
             var runOnce = action.SupportsRunOnce && (dashboardRunOnce || mode == "One-click single action");
@@ -2346,8 +2348,6 @@ public sealed partial class MainForm : Form
                 ? "CHECKING: Run Once requested — verifying district, paint and Spray button before a single click."
                 : "CHECKING: Open & Configure requested — no automatic Spray.";
             UpdateModernDashboard();
-            var targetJson = JsonSerializer.Serialize(action.Target);
-            var optionJson = JsonSerializer.Serialize(action.Option);
             // The Torn Crimes screen is a SPA. Route-ready != script-ready, and a
             // helper registered on document creation may be absent after switching
             // its script on without reloading an existing tab. Never spray until
@@ -2365,7 +2365,8 @@ public sealed partial class MainForm : Form
             var attemptedInjection = false;
             for (var i = 0; i < 60; i++)
             {
-                var probe = await tab.ExecuteScriptAsync("typeof window.__TornCommanderGraffiti?.runGuideAction === 'function'");
+                if (actionProfile != CurrentProfileId) return;
+                var probe = await tab.ExecuteScriptAsync("typeof window.__TornCommanderGraffiti?.startGuideAction === 'function'");
                 if (probe == "true") { helperReady = true; break; }
                 // Recover a helper that was enabled after this WebView tab loaded,
                 // without repeatedly adding scripts or clicking page controls.
@@ -2398,11 +2399,10 @@ public sealed partial class MainForm : Form
                 FlashStatus(_lastGraffitiActionStatus);
                 return;
             }
-            // Await the guide promise so a rejected/failed command cannot silently report "started".
-            // The helper owns the at-most-one-click rule and posts detailed progress statuses.
-            var script = $"(async () => {{ const h = window.__TornCommanderGraffiti; if (!h || typeof h.runGuideAction !== 'function') return {{ ok:false, reason:'helper-missing' }}; return await h.runGuideAction({targetJson}, {optionJson}, {(runOnce ? "true" : "false")}); }})()";
-            FlashStatus("Graffiti: verifying district and paint for " + (runOnce ? "one Spray attempt" : "configuration only") + ".");
-            var result = await tab.ExecuteScriptAsync(script);
+            if (actionProfile != CurrentProfileId) return;
+            FlashStatus("Graffiti: verifying selections for " + (runOnce ? "one Spray attempt" : "configuration only") + ".");
+            var result = await ExecuteGraffitiCommandAsync(tab, action.Target, action.Option, runOnce, actionProfile);
+            if (actionProfile != CurrentProfileId) return;
             if (string.IsNullOrWhiteSpace(result) || result == "null" || result.Contains("helper-missing", StringComparison.OrdinalIgnoreCase))
             {
                 _lastGraffitiActionStatus = "STOPPED: Graffiti helper returned no result. Reload Crimes, then use Copy Graffiti Debug.";
@@ -2889,7 +2889,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.23; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.24; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);

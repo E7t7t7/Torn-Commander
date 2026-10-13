@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Commander - Graffiti Paint Helper
 // @namespace    torn.commander
-// @version      1.6.1
+// @version      1.7.0
 // @description  Shows paint charge percentages and supports Torn Commander guided one-action Graffiti setup/submission when the user explicitly presses the guide button.
 // @match        https://www.torn.com/page.php?sid=crimes*
 // @match        https://www.torn.com/loader.php?sid=crimes*
@@ -10,6 +10,8 @@
 
 (() => {
     'use strict';
+    // Re-injection must not reset the command lock or register duplicate observers.
+    if (window.__TornCommanderGraffiti) return;
 
     const COLORS = ['Black','Red','Pink','Purple','Blue','Green','White','Orange'];
     const TARGETS = ['East Side','West Side','North Side','Residential District','Red-Light District','Financial District','City Centre'];
@@ -403,7 +405,7 @@
                 selected:isSelectedElement(el)
             }));
         return {
-            helperVersion:'1.6.1', route:location.pathname + location.search + location.hash,
+            helperVersion:'1.7.0', route:location.pathname + location.search + location.hash,
             selectionStatus:lastGuideStatus, actionState:lastGuideResult,
             graffitiRoute:/#\/?graffiti(?:$|[/?])/i.test(location.hash || ''),
             districtCandidateCount:findGuideCandidates('Residential District','target').length,
@@ -475,12 +477,13 @@
             if (options.length > 1) break;
             const classes = String(cur.className || '');
             const stateText = `${cur.getAttribute?.('data-state') || ''} ${cur.getAttribute?.('data-status') || ''}`;
-            if (cur.getAttribute?.('aria-selected') === 'true'
+            if ((cur.matches?.('input[type="radio"],input[type="checkbox"]') && cur.checked === true)
+                || cur.getAttribute?.('aria-selected') === 'true'
                 || cur.getAttribute?.('aria-checked') === 'true'
                 || cur.getAttribute?.('data-selected') === 'true'
                 || cur.getAttribute?.('data-active') === 'true'
                 || /(?:^|[\s_-])(selected|chosen|equipped|checked)(?:[\s_-]|$)/i.test(classes)
-                || /(?:selected|checked|chosen)/i.test(stateText)
+                || /(?:^|\s)(selected|checked|chosen)(?:\s|$)/i.test(stateText)
                 || (depth <= 1 && options.length === 1 &&
                     (/(?:^|[\s_-])(active|current)(?:[\s_-]|$)/i.test(classes)
                      || /^(active|current)$/i.test(stateText.trim())))) return true;
@@ -682,14 +685,14 @@
         });
     }
 
-    async function deliberateClick(el) {
+    async function deliberateClick(el, beforeClick = () => true) {
         // Exactly one click event per explicit user request. A synthetic mousedown/up
         // sequence followed by .click() can dispatch multiple game actions in React.
         if (!el || !el.isConnected || !isInCrimeContent(el)) return false;
         if (el.matches?.(':disabled') || el.getAttribute?.('aria-disabled') === 'true') return false;
         try { el.scrollIntoView?.({ block:'center', inline:'nearest' }); } catch {}
         await new Promise(r => setTimeout(r, 90));
-        if (!el.isConnected || !isInCrimeContent(el)) return false;
+        if (!el.isConnected || !isInCrimeContent(el) || el.matches?.(':disabled') || el.getAttribute?.('aria-disabled') === 'true' || !beforeClick()) return false;
         try { el.focus?.({preventScroll:true}); } catch {}
         try { el.click(); return true; } catch { return false; }
     }
@@ -706,7 +709,8 @@
         return matches();
     }
 
-    async function selectGuideSetup(target = 'Residential District', requestedPaint = 'Purple') {
+    async function selectGuideSetup(target = 'Residential District', requestedPaint = 'Purple', shouldContinue = () => true) {
+        if (!shouldContinue()) return {ok:false,reason:'Command cancelled before selection'};
         const paint = strictGuideColor(requestedPaint);
         if (!paint) return {ok:false,reason:`Unknown paint color ${requestedPaint}. No selection attempted.`};
         if (!(await ensureGraffitiOpen())) return {ok:false, reason:'Graffiti page controls are not ready; open the Graffiti crime page first'};
@@ -714,7 +718,7 @@
         if (targets.length !== 1) return {ok:false,reason:`Expected one ${target} district control; found ${targets.length}. Debug is available in the paint window.`};
         const targetEl = targets[0].el;
         if (!isSelectedElement(targetEl)) {
-            if (!(await deliberateClick(targetEl)))
+            if (!(await deliberateClick(targetEl, shouldContinue)))
                 return {ok:false,reason:`Could not safely click ${target} district. No paint or Spray touched.`};
         }
         const targetVerified = await verifyStableSelection('target', target, 2500);
@@ -731,7 +735,7 @@
         if (!paints) return {ok:false,reason:`Could not uniquely locate ${paint} paint. No Spray. Copy Graffiti Debug.`};
         if (paints[0].el === targetEl) return {ok:false,reason:'District and paint resolved to the same control. No Spray.'};
         if (!isSelectedElement(paints[0].el)) {
-            if (!(await deliberateClick(paints[0].el)))
+            if (!(await deliberateClick(paints[0].el, shouldContinue)))
                 return {ok:false,reason:`Could not safely click ${paint} paint. No Spray.`};
         }
         const paintVerified = await verifyStableSelection('paint', paint, 2500);
@@ -762,7 +766,7 @@
     }
 
     let lastSprayClickAt = 0;
-    async function runGuideAction(target = 'Residential District', fallbackPaint = 'Purple', runOnce = false) {
+    async function runGuideAction(target = 'Residential District', fallbackPaint = 'Purple', runOnce = false, shouldContinue = () => true) {
         if (runOnce && Date.now() - lastSprayClickAt < 4500) {
             notifyCommander('Run Once cooldown active after the previous Spray click. No new click.', 'STOPPED');
             return {ok:false,reason:'Duplicate Spray click prevented by cooldown'};
@@ -774,11 +778,12 @@
         guideBusy = true;
         notifyCommander('Checking requested district and paint controls. No Spray yet.', 'CHECKING');
         try {
-            const configured = await selectGuideSetup(target, fallbackPaint);
+            const configured = await selectGuideSetup(target, fallbackPaint, shouldContinue);
             if (!configured.ok) {
                 notifyCommander(`Stopped: ${configured.reason}`, 'STOPPED');
                 return configured;
             }
+            if (!shouldContinue()) return {ok:false,reason:'Command cancelled before submission'};
             if (!runOnce) {
                 notifyCommander(`Verified ${configured.target} + ${configured.paint}. One manual Spray remains.`, 'VERIFIED');
                 return configured;
@@ -797,9 +802,16 @@
                 return {...configured,submitted:false,reason:'Spray button not verified'};
             }
             notifyCommander(`Spray control found. Sending one click for ${configured.target} + ${configured.paint}.`, 'CHECKING');
-            if (!(await deliberateClick(actionButton))) {
-                notifyCommander('Spray control disappeared or became disabled. No click sent.', 'STOPPED');
-                return {...configured,submitted:false,reason:'Spray control not clickable'};
+            const stillVerified = () => {
+                const targets = selectedTargetEvidence(), paints = selectedPaintEvidence();
+                return shouldContinue() && targets.length === 1 &&
+                    normalizeTargetName(targets[0]) === normalizeTargetName(target) &&
+                    paints.length === 1 && paints[0] === configured.paint &&
+                    findFinalSprayButton() === actionButton;
+            };
+            if (!(await deliberateClick(actionButton, stillVerified))) {
+                notifyCommander('Spray cancelled: the control, selections or command changed before click. No click sent.', 'STOPPED');
+                return {...configured,submitted:false,reason:'Spray control, command or selections changed before click'};
             }
             lastSprayClickAt = Date.now();
             notifyCommander(`Sent one Spray click for ${configured.target} + ${configured.paint}. Confirm Torn's actual result before counting success.`, 'CLICK_SENT');
@@ -811,15 +823,49 @@
         } finally { guideBusy = false; }
     }
 
+    // Native WebView script evaluation does not serialize a pending Promise.
+    // Return an immediate acknowledgement, then expose a plain result by command ID.
+    const guideJobs = new Map();
+    function startGuideAction(id, target, paint, runOnce) {
+        if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id || '')) return {started:false,reason:'Invalid command ID'};
+        if (guideJobs.has(id)) return {started:false,reason:'Command ID already used; no retry'};
+        if (guideBusy) return {started:false,reason:'Another command is still running'};
+        for (const [oldId, job] of guideJobs) {
+            if (guideJobs.size < 16) break;
+            if (job.done) guideJobs.delete(oldId);
+        }
+        const job = {done:false,cancelled:false,result:null,deadline:Date.now()+25000};
+        guideJobs.set(id,job);
+        const allowed = () => !job.cancelled && Date.now() <= job.deadline && isGraffitiPage();
+        runGuideAction(target,paint,!!runOnce,allowed).then(result => {
+            job.result=result; job.done=true;
+        }, error => {
+            job.result={ok:false,reason:String(error?.message || error)}; job.done=true;
+        });
+        return {started:true,id};
+    }
+    function getGuideAction(id) {
+        const job=guideJobs.get(id);
+        return job ? {done:job.done,result:job.result,cancelled:job.cancelled} : {done:true,result:{ok:false,reason:'Command result unavailable; no retry'}};
+    }
+    function cancelGuideAction(id) {
+        const job=guideJobs.get(id);
+        if(job) job.cancelled=true;
+        return {cancelled:!!job,submitted:!!job?.result?.submitted};
+    }
+
     window.__TornCommanderGraffiti = {
-        version: '1.6.1',
+        version: '1.7.0',
         state,
         scan: () => scanAll(true),
         recommendation,
         debugJson: () => JSON.stringify(getSafeDebug(), null, 2),
         recommendedColor: smartGuideColor,
         selectGuideSetup,
-        runGuideAction
+        runGuideAction,
+        startGuideAction,
+        getGuideAction,
+        cancelGuideAction
     };
 
     hookNetwork();

@@ -1,3 +1,13 @@
+v0.6.24 (2026-10-13) — Guided graffiti command reliability
+- Replace a pending JavaScript Promise result with command-ID acknowledgement and completion polling.
+- Prevent overlapping guided requests and disable both Run Once buttons while busy.
+- Cancel pending graffiti commands before profile changes; timeout never causes an automatic retry.
+- Recheck requested district, paint, unique Spray control and enabled state immediately before clicking.
+- Recognize native checked radio controls; do not treat unchecked/unselected states as selected.
+- Preserve the command lock during helper re-injection.
+- Synthetic DOM tests cover one-click, configure-only, cooldown, cancellation, late selection changes, disabled buttons and ambiguous controls.
+- A sent click is not counted as a successful crime; verify Torn's actual result locally.
+
 v0.6.23 (2026-10-13) — Company business health and dashboard data
 - Flag reported income below recorded spending immediately, including an incomplete baseline.
 - Show revenue/customer, advertising/customer, minimum recorded costs, and customer-count break-even scenario.
