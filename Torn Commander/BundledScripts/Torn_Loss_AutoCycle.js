@@ -232,6 +232,22 @@
     return save(state);
   }
 
+  function openAttack(state) {
+    const time=now();
+    if(!state.attackNavigationStartedAt)state.attackNavigationStartedAt=time;
+    if(time-state.attackNavigationStartedAt>=30000){
+      pauseState(state,'Attack page did not open within 30 seconds. Inspect the worker browser for login, verification or a navigation failure.',true);return;
+    }
+    if(state.attackNavigationAttempts && time-Number(state.attackNavigationLastAt||0)<15000)return;
+    if(Number(state.attackNavigationAttempts||0)>=2)return;
+    state.attackNavigationAttempts=Number(state.attackNavigationAttempts||0)+1;
+    state.attackNavigationLastAt=time;
+    state.status='Opening target attack page ('+state.attackNavigationAttempts+'/2). Check the worker browser below.';
+    save(state);
+    try{location.assign(ATTACK_URL(state.targetId))}
+    catch(error){pauseState(state,'Attack navigation failed. Inspect the worker browser: '+error.message,true);}
+  }
+
   async function tick() {
     if (busy) return;
     busy = true;
@@ -297,9 +313,7 @@
 
       if (state.stage === 'attack-open') {
         if (!isAttackPage(state.targetId)) {
-          state.status = 'Opening target attack page.';
-          save(state);
-          location.assign(ATTACK_URL(state.targetId));
+          openAttack(state);
           return;
         }
         if (hospitalBanner()) {
@@ -620,9 +634,10 @@
       state.claimId = String(claimId || '');
       state.kitsThisLoss = 0;
       state.stage = 'attack-open';
+      state.attackNavigationStartedAt=0;state.attackNavigationAttempts=0;
       state.status = 'Loss slot granted. Opening target attack page.';
       save(state);
-      if (!isAttackPage(state.targetId)) location.assign(ATTACK_URL(state.targetId));
+      if (!isAttackPage(state.targetId)) openAttack(state);
       return true;
     },
     onCommit(claimId, ok, remaining, message) {
@@ -649,6 +664,7 @@
       else location.assign(ITEMS_URL);
       return true;
     },
+    pump() { void tick(); return true; },
     getState() { return load(); }
   };
 

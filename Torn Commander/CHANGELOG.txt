@@ -1,3 +1,11 @@
+v0.6.35 (2026-10-13) — Visible loss workers and reliable heartbeat
+- Dock the actual A/B worker browsers beneath the Commander dashboard and reveal the selected worker when initialized or started.
+- Make clear that the main Torn tab is separate from the browser performing the contract.
+- Drive the existing guarded worker tick from a desktop timer, so hidden WebView JavaScript timer throttling cannot leave the loop idle.
+- Wait for the actual Torn document and worker script before starting; reject missing-script starts instead of silently arming.
+- Limit attack-page navigation to two attempts and pause with a clear 30-second timeout, releasing the unstarted target claim.
+- Test progress with no JavaScript interval ticks, bounded navigation retries and safe lease release; retain existing loss-count and acknowledgement tests.
+
 v0.6.34 (2026-10-13) — Clear adviser forms
 - Add persistent visible labels to casino and trading inputs so saved numbers retain their meaning.
 - Arrange adviser controls in responsive field grids inside the existing Commander panel.

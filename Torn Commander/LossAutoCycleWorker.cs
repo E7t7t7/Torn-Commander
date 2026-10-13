@@ -13,6 +13,8 @@ internal sealed class LossAutoCycleWorker : IDisposable
     private readonly string _slot;
     private readonly string _profileId;
     private readonly string _profileName;
+    private readonly System.Windows.Forms.Timer _heartbeat = new() { Interval = 900 };
+    private bool _pumping;
     private bool _initialized;
     private bool _disposed;
 
@@ -30,6 +32,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
         _slot = slot;
         _profileId = profileId;
         _profileName = profileName;
+        _heartbeat.Tick += async (_,_) => await PumpAsync();
 
         var box = new GroupBox
         {
@@ -83,6 +86,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
         try { await core.ExecuteScriptAsync(script); } catch { }
 
         _initialized = true;
+        _heartbeat.Start();
         SetStatus("Initialized. Opening Torn…");
         _webView.Source = new Uri(TornRoutes.Home);
     }
@@ -150,25 +154,29 @@ internal sealed class LossAutoCycleWorker : IDisposable
         }
     }
 
+    private async Task PumpAsync()
+    {
+        if(_disposed || !_initialized || _pumping || _webView.CoreWebView2 is null)return;
+        _pumping=true;
+        try { await _webView.CoreWebView2.ExecuteScriptAsync("(()=>{const w=window.TornCommanderLossCycle;if(w)w.pump();return !!w})()"); }
+        catch(Exception ex){SetStatus("Worker heartbeat failed: "+ex.Message);}
+        finally{_pumping=false;}
+    }
+
     private async Task EnsureTornDocumentAsync()
     {
         await EnsureReadyAsync();
         var current = _webView.Source?.ToString() ?? "";
-        if (current.StartsWith("https://www.torn.com/", StringComparison.OrdinalIgnoreCase)) return;
-
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        void Handler(object? s, CoreWebView2NavigationCompletedEventArgs e) => tcs.TrySetResult(e.IsSuccess);
-        _webView.CoreWebView2.NavigationCompleted += Handler;
-        try
-        {
+        if (!current.StartsWith("https://www.torn.com/", StringComparison.OrdinalIgnoreCase))
             _webView.Source = new Uri(TornRoutes.Home);
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            if (!await tcs.Task.WaitAsync(timeout.Token)) throw new InvalidOperationException("Torn navigation failed; loss worker was not started.");
-        }
-        finally
+        var deadline=DateTime.UtcNow.AddSeconds(30);
+        while(DateTime.UtcNow<deadline)
         {
-            _webView.CoreWebView2.NavigationCompleted -= Handler;
+            var ready=await _webView.CoreWebView2.ExecuteScriptAsync("!!(location.hostname==='www.torn.com' && document.readyState!=='loading' && window.TornCommanderLossCycle)");
+            if(ready=="true")return;
+            await Task.Delay(150);
         }
+        throw new InvalidOperationException("Loss worker page did not become ready within 30 seconds. Inspect its worker browser and resolve any login or verification screen.");
     }
 
     private async Task InvokeNoArgAsync(string fn)
@@ -181,7 +189,8 @@ internal sealed class LossAutoCycleWorker : IDisposable
     {
         await EnsureReadyAsync();
         var json = JsonSerializer.Serialize(arg);
-        await _webView.CoreWebView2.ExecuteScriptAsync($"window.TornCommanderLossCycle && window.TornCommanderLossCycle.{fn}({json});");
+        var result=await _webView.CoreWebView2.ExecuteScriptAsync($"(()=>{{const w=window.TornCommanderLossCycle;if(!w)return false;w.{fn}({json});return true}})()");
+        if(result!="true")throw new InvalidOperationException("Worker script is not ready; no cycle was started.");
     }
 
     private Task EnsureReadyAsync()
@@ -212,6 +221,8 @@ internal sealed class LossAutoCycleWorker : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _heartbeat.Stop();
+        _heartbeat.Dispose();
         try
         {
             if (_webView.CoreWebView2 is not null)

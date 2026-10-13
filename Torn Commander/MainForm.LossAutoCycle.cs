@@ -82,8 +82,15 @@ public sealed partial class MainForm
         _lossWorkerHostB = new Panel { Width = 475, Height = 290, BackColor = PanelBg };
         _lossWorkerHostA.Controls.Add(WorkerPlaceholder("Account A worker not initialized."));
         _lossWorkerHostB.Controls.Add(WorkerPlaceholder("Account B worker not initialized."));
-        p.Controls.Add(_lossWorkerHostA);
-        p.Controls.Add(_lossWorkerHostB);
+        foreach(var entry in new[]{(Name:"Worker A",Host:_lossWorkerHostA),(Name:"Worker B",Host:_lossWorkerHostB)})
+        {
+            entry.Host.Dock=DockStyle.Fill;
+            var page=new TabPage(entry.Name){BackColor=PanelBg};
+            page.Controls.Add(entry.Host);
+            _lossWorkerDeck.TabPages.Add(page);
+        }
+        p.Controls.Add(MakeButton("Show worker browsers", (_,_) => ShowLossWorkerBrowser(true), 170));
+        p.Controls.Add(Muted("Worker browsers appear under the Commander dashboard. Select their A/B tabs to inspect the actual attack/healing page; the main Torn tab is separate."));
     }
 
     private Control WorkerPlaceholder(string text)
@@ -96,8 +103,16 @@ public sealed partial class MainForm
             TextAlign = ContentAlignment.MiddleCenter
         };
 
+    private void ShowLossWorkerBrowser(bool accountA)
+    {
+        _lossWorkerDeck.Visible=true;
+        _lossWorkerDeck.SelectedIndex=accountA?0:1;
+        _companionShell.SelectedIndex=0;
+    }
+
     private async Task<LossAutoCycleWorker> InitializeLossWorkerAsync(bool accountA, string? forcedProfileId = null)
     {
+        ShowLossWorkerBrowser(accountA);
         var order = SelectedLossOrder();
         var profileId = forcedProfileId;
         if (string.IsNullOrWhiteSpace(profileId))
