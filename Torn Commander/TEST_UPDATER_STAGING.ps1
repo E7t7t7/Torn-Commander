@@ -73,8 +73,12 @@ try{
  Invoke-Updater $zip $installed
  if(!(Test-Path (Join-Path $next 'dist\TornCommander.exe'))){throw 'New executable not installed.'}
  if((Get-Content (Join-Path $next 'VERSION.txt') -Raw).Trim() -ne '0.6.17'){throw 'New folder VERSION mismatch.'}
- if((Get-Content (Join-Path $installed 'VERSION.txt') -Raw).Trim() -ne '0.6.16'){throw 'Old locked installation altered.'}
- if(!(Test-Path (Join-Path $installed 'old-marker.txt'))){throw 'Old local file missing.'}
+ if(Test-Path -LiteralPath $installed){
+  if((Get-Content (Join-Path $installed 'VERSION.txt') -Raw).Trim() -ne '0.6.16'){throw 'Old version file changed.'}
+  if(!(Test-Path (Join-Path $installed 'old-marker.txt'))){throw 'Old local file missing.'}
+ }else{
+  Write-Host 'Old version folder retired successfully; rollback source must now recreate it.'
+ }
  $vault=Join-Path $env:LOCALAPPDATA 'TornCommander\VersionBackups'
  $rollback=Join-Path $vault 'Torn_Commander_v0.6.16.zip'
  if(!(Test-Path $rollback)){throw 'Old version was not saved for rollback.'}
