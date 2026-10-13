@@ -96,6 +96,11 @@ jobs:
         run: |
           & 'Torn Commander/TEST_USERSCRIPT_RUNTIME.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Userscript runtime failed; release withheld.' }
+      - name: Check casino calculations
+        shell: pwsh
+        run: |
+          node 'Torn Commander/TEST_CASINO_COACH.js' 'Torn Commander/CasinoCoachScript.cs'
+          if ($LASTEXITCODE -ne 0) { throw 'Casino regression failed; release withheld.' }
       - name: Check company collection and arrival advice
         shell: pwsh
         run: |

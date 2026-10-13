@@ -1,3 +1,13 @@
+v0.6.31 (2026-10-13) — Casino hand advisers
+- Add blackjack move advice with available-action controls and explicit eight-deck S17 baseline assumptions.
+- Add poker hand evaluation, sampled equity versus random opponents, tie sharing and pot-odds call/fold comparisons.
+- Show uncertainty and exclusions for poker ranges, rake and future bets; this is not a solver.
+- Compare High-Low directions and cash-out offers with stated deck/tie assumptions.
+- Evaluate other bets from entered chance, net payout and stake, without predicting random outcomes.
+- Clear edited or cross-profile advice, including late calculations.
+- Repair live Blackjack helper activation for dynamically mounted games, card changes and unavailable double/split controls.
+- Test hand ranking, ties, duplicate cards, soft aces, fallbacks, equity and bet-value calculations.
+
 v0.6.30 (2026-10-13) — Usable in-app helper scripts
 - Re-register installed/enabled scripts in existing tabs and reload them after changes; a normal reload previously retained the old script list.
 - Honor document-start and document-end/idle timing, page exclusions and noframes; wait for the document root when needed.

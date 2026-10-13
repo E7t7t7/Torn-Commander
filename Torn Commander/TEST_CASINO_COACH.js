@@ -1,0 +1,25 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync(process.argv[2],'utf8').split(String.fromCharCode(34).repeat(3))[1];
+const context={module:{exports:{}},setTimeout};vm.createContext(context);vm.runInContext(source,context);const c=context.module.exports;
+assert(c.blackjack('8 8','10').startsWith('Split'));
+assert(c.blackjack('A 7','6').startsWith('Double'));
+assert(c.blackjack('A 7','6',false).startsWith('Stand'));
+assert(c.blackjack('A 7','9').startsWith('Hit'));
+assert(c.blackjack('5 6','6',false).startsWith('Hit'));
+assert(c.blackjack('10 6','10',true,true,true).startsWith('Surrender'));
+assert(c.blackjack('2 2 2 2 2','10').startsWith('Hit'));
+assert(c.blackjack('A A 9','10').includes('21'));
+const r=s=>c.best(c.parseCards(s));
+assert(r('As Ks Qs Js 10s')>r('Ac Ad Ah As Kd'));
+assert(r('Ac Ad Ah Ks Kd')>r('Ah Kh 9h 5h 2h'));
+assert(r('As 2c 3h 4d 5s')<r('2s 3c 4h 5d 6s'));
+assert.equal(r('As Ks Qs Js 10s 2d 3d'),r('As Ks Qs Js 10s'));
+assert(c.highlow('8',15,100).startsWith('Cash out'));
+assert(c.highlow('2',15,50).startsWith('Higher'));
+assert(c.expected(18/37*100,1,100).includes('-2.70'));
+(async()=>{
+ assert((await c.poker('As Ks','Qs Js 10s 2d 3c',1,100,10,100)).includes('100.0%'));
+ assert((await c.poker('2c 3d','As Ks Qs Js 10s',1,100,0,100)).includes('50.0%'));
+ await assert.rejects(()=>c.poker('As As','',1,100,10),/unique/);
+ console.log('CASINO COACH PASSED: legal action fallbacks, soft aces, six-card case, hand ranking, wheel straight, ties, poker equity, pot odds, duplicate cards and bet values.');
+})().catch(e=>{console.error(e);process.exitCode=1});

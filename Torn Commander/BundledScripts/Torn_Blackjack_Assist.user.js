@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Blackjack Assist
 // @namespace    torn.blackjack.assist
-// @version      2.1
+// @version      2.2
 // @description  Displays real-time basic strategy advice for Blackjack on both desktop and Torn PDA.
 // @author       eaksquad
 // @match        https://www.torn.com/page.php?sid=blackjack*
@@ -82,7 +82,7 @@
             return strategy.pair[pairValue]?.[dealerIndex] || A.HIT;
         }
         if (playerHand.isSoft) {
-            return strategy.soft[playerHand.total]?.[dealerIndex] || A.STAND;
+            return strategy.soft[playerHand.total]?.[dealerIndex] || (playerHand.total<18?A.HIT:A.STAND);
         }
         return strategy.hard[playerHand.total]?.[dealerIndex] || A.STAND;
     }
@@ -98,7 +98,11 @@
             return;
         }
 
-        const decision = getDecision(dealerCardValue, playerHand);
+        const available = selector => [...document.querySelectorAll(selector)].some(el=>!el.disabled && el.getAttribute('aria-disabled')!=='true' && el.getClientRects().length);
+        let decision = getDecision(dealerCardValue, playerHand);
+        if(decision===A.SPLIT && !available('#split')) decision=getDecision(dealerCardValue,{...playerHand,isPair:false});
+        if(decision===A.DOUBLE && (playerHand.cards.length!==2 || !available('#double, #double-down, #doubleDown')))
+            decision=playerHand.isSoft && playerHand.total===18?A.STAND:A.HIT;
         updateOverlay(decision, playerHand.total);
     }
 
@@ -112,7 +116,7 @@
     function makeDraggable(element) {
         const STORAGE_POS_KEY = 'bjHelperPosition'; let isDragging = false, offsetX, offsetY; const savedPos = localStorage.getItem(STORAGE_POS_KEY); if (savedPos) { const { top, left } = JSON.parse(savedPos); element.style.top = top; element.style.left = left; } else { element.style.right = '20px'; element.style.bottom = '20px'; } const onDragStart = (e) => { isDragging = true; e.preventDefault(); const event = e.touches ? e.touches[0] : e; offsetX = event.clientX - element.offsetLeft; offsetY = event.clientY - element.offsetTop; element.style.right = ''; element.style.bottom = ''; window.addEventListener('mousemove', onDragMove, { passive: false }); window.addEventListener('touchmove', onDragMove, { passive: false }); window.addEventListener('mouseup', onDragEnd); window.addEventListener('touchend', onDragEnd); }; const onDragMove = (e) => { if (!isDragging) return; e.preventDefault(); const event = e.touches ? e.touches[0] : e; element.style.left = `${event.clientX - offsetX}px`; element.style.top = `${event.clientY - offsetY}px`; }; const onDragEnd = () => { isDragging = false; localStorage.setItem(STORAGE_POS_KEY, JSON.stringify({ top: element.style.top, left: element.style.left })); window.removeEventListener('mousemove', onDragMove); window.removeEventListener('touchmove', onDragMove); window.removeEventListener('mouseup', onDragEnd); window.removeEventListener('touchend', onDragEnd); }; element.addEventListener('mousedown', onDragStart); element.addEventListener('touchstart', onDragStart);
     }
-    
+
     function createOverlay() {
         if (document.getElementById('bj-helper-overlay')) return;
         const overlay = document.createElement('div');
@@ -132,19 +136,22 @@
         overlay.className = '';
         if (decision !== '---') { overlay.classList.add(`bj-${decision.toLowerCase()}`); } else { overlay.classList.add('bj-idle'); }
     }
-    
+
+    let activeGame=null,gameObserver=null;
     function initialize() {
         const gameContainer = document.querySelector('.blackjack, .blackjack-wrap');
-        if (!gameContainer) return;
+        if (!gameContainer || gameContainer===activeGame) return;
+        gameObserver?.disconnect();activeGame=gameContainer;
         if (!document.getElementById('bj-helper-overlay')) {
             addStyles();
             createOverlay();
         }
-        const observer = new MutationObserver(mainObserverCallback);
-        observer.observe(gameContainer, { childList: true, subtree: true });
+        gameObserver = new MutationObserver(mainObserverCallback);
+        gameObserver.observe(gameContainer, { childList: true, subtree: true, attributes:true, attributeFilter:['class','disabled','aria-disabled'] });
         mainObserverCallback();
     }
 
+    new MutationObserver(initialize).observe(document.documentElement,{childList:true,subtree:true});
     if (document.readyState === 'loading') {
         window.addEventListener('DOMContentLoaded', initialize);
     } else {
