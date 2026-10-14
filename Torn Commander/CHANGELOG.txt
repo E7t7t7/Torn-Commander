@@ -1,3 +1,13 @@
+v0.6.38 (2026-10-14) — Practical Candle Shop staffing layouts
+- Add one-click core-business, staff-growth, contribution-visibility and environment-recovery trial layouts sized to 4-10 scanned staff.
+- Protect making/selling coverage and compare a bounded core-role split using the team's actual working stats; place underqualified staff rather than requiring maxed employees.
+- Suggest a starting trial using observed environment, cash shortfalls, team size and assigned Trainer working-stat fit; explain support-role tradeoffs and every heuristic threshold.
+- Show exact role counts and open named assignments for the chosen layout without changing any Torn positions.
+- Parse/display company role descriptions, each employee's wage and permitted contribution value; leave missing figures unknown.
+- Persist the selected local layout with atomic saves and scan identity checks; retain current/custom-count plans and reset scenarios on a new scan.
+- Limit guided policies to Candle Shops; do not apply industry assumptions to other company types or promise revenue/star gains.
+- Test a one-star nine-person underqualified team, every supported staff count, weak Trainer screening, health/cash priorities, assignment consistency and restricted/company-mismatched scans.
+
 v0.6.37 (2026-10-14) — Company staff scan and growth plan
 - Scan company health, employee working stats/effectiveness, live company-type job requirements and stock through the paced Torn API.
 - Find the best combined working-stat fit across all staff, including underqualified employees; preserve current role counts by default.

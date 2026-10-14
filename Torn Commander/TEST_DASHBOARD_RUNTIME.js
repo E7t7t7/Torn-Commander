@@ -17,8 +17,14 @@ context.renderCompany({id:7,name:'Fixture Company',health:{efficiency:71,environ
 assert(nodes.coTeamRows.innerHTML.includes('Office')&&nodes.coTeamRows.innerHTML.includes('INT 80'),'Staff scan not rendered');
 assert(nodes.coTeamScore.textContent.includes('72')&&nodes.coJobs.innerHTML.includes('data-company-role="1"'),'Allocation or role counts not rendered');
 assert(nodes.coStockRows.innerHTML.includes('Candle')&&!nodes.coScanWarnings.hidden,'Stock details or scan warnings missing');
+context.renderCompany({id:7,layouts:{stage:'1-star Candle Shop · 9 scanned staff',selected:'Cash and staff growth',note:'Trial layout',options:[{id:'growth',name:'Cash and staff growth',suggested:true,countsText:'3 Chandler · 3 Salesperson',workingScore:300,underqualified:9,reason:'Training tradeoff'}],checks:['Compare a full daily report']},rows:[]},'one');
+assert(nodes.coLayoutStage.textContent.includes('9 scanned')&&nodes.coLayouts.innerHTML.includes('data-company-layout="growth"')&&nodes.coLayoutSelected.textContent.includes('Cash and staff growth'),'Guided nine-person layout not rendered');
+context.send=(cmd,data)=>{context.layoutMessage={cmd,...data}};
+context.previewCompanyLayout('growth');
+assert.strictEqual(context.layoutMessage.scenarioId,'growth');
 context.renderCompany({id:999,name:'Other',rows:[]},'two');
 assert(!nodes.coTeamRows.innerHTML.includes('Worker')&&!nodes.coJobs.innerHTML.includes('Manual')&&!nodes.coStockRows.innerHTML.includes('Candle'),'Previous profile company data retained in view');
+assert(!nodes.coLayouts.innerHTML.includes('Cash and staff growth'),'Previous company guided layouts retained');
 vm.runInContext(script.slice(script.indexOf('function renderSection('),script.indexOf('function render(d)')),context);
 context.renderSection('Fixture',()=>{throw Error('panel failure')});
 assert.strictEqual(nodes.dashboardRenderWarning.hidden,false);

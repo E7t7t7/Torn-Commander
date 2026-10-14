@@ -18,12 +18,14 @@ internal sealed class CompanyEmployeeScan
     public int? Inactivity { get; set; }
     public int? SettledIn { get; set; }
     public long? Wage { get; set; }
+    public long? ContributionValue { get; set; }
 }
 internal sealed class CompanyJobScan
 {
     public long Id { get; set; }
     public string Name { get; set; } = "";
     public string Ability { get; set; } = "";
+    public string Description { get; set; } = "";
     public CompanyWorkStats? Required { get; set; }
 }
 internal sealed class CompanyStockScan
@@ -45,10 +47,11 @@ internal sealed class CompanyTeamScan
     public List<CompanyStockScan> Stock { get; set; } = new();
     public List<string> Warnings { get; set; } = new();
     public Dictionary<long, int>? PlannedCounts { get; set; }
+    public string PlanSource { get; set; } = "Current role counts";
 }
 internal sealed record CompanyAssignment(long Id, string Name, string Current, string Recommended,
     CompanyWorkStats? Stats, CompanyWorkStats? Required, int? Before, int? After,
-    int? ActualWorking, int? ActualTotal, string NextStep);
+    int? ActualWorking, int? ActualTotal, string NextStep, long? Wage, long? ContributionValue);
 internal sealed record CompanyTeamReport(string State, string Note, int? Before, int? After,
     List<CompanyAssignment> Rows, List<string> Actions);
 
@@ -86,7 +89,7 @@ internal static class CompanyStaffAdvisor
                 PositionId = Number(pos, "id") ?? 0, Stats = Stats(Field(e, "stats")),
                 WorkingEffectiveness = Integer(eff, "working_stats"), TotalEffectiveness = Integer(eff, "total", true),
                 Addiction = Integer(eff, "addiction", true), Inactivity = Integer(eff, "inactivity", true),
-                SettledIn = Integer(eff, "settled_in"), Wage = Number(e, "wage")
+                SettledIn = Integer(eff, "settled_in"), Wage = Number(e, "wage"), ContributionValue = Number(e, "value", true)
             };
         }).ToList();
         if (result.Any(x => x.Id <= 0) || result.Select(x => x.Id).Distinct().Count() != result.Count)
@@ -102,7 +105,7 @@ internal static class CompanyStaffAdvisor
         var positions = Field(type, "positions");
         if (positions.ValueKind != JsonValueKind.Array) throw new InvalidDataException("No jobs returned for this company type.");
         var jobs = positions.EnumerateArray().Select(e => new CompanyJobScan {
-            Id = Number(e, "id") ?? 0, Name = Text(e, "name"), Ability = Text(e, "ability"),
+            Id = Number(e, "id") ?? 0, Name = Text(e, "name"), Ability = Text(e, "ability"), Description = Text(e, "description"),
             Required = Stats(Field(Field(e, "working_stats"), "required"))
         }).ToList();
         if (jobs.Any(x => x.Id <= 0) || jobs.Select(x => x.Id).Distinct().Count() != jobs.Count)
@@ -226,7 +229,7 @@ internal static class CompanyStaffAdvisor
             var current = slots[i]; var target = assignment == null ? current : targetSlots[assignment[i]];
             return new CompanyAssignment(e.Id, e.Name, e.Position, assignment == null ? "Plan unavailable" : target!.Name,
                 e.Stats, target?.Required, e.Stats != null && current?.Required != null ? Fit(e.Stats, current.Required) : null,
-                assignment != null ? Fit(e.Stats!, target!.Required!) : null, e.WorkingEffectiveness, e.TotalEffectiveness, Gap(e, target));
+                assignment != null ? Fit(e.Stats!, target!.Required!) : null, e.WorkingEffectiveness, e.TotalEffectiveness, Gap(e, target), e.Wage, e.ContributionValue);
         }).ToList();
         int? before = complete ? rows.Sum(x => x.Before!.Value) : null;
         int? after = complete ? rows.Sum(x => x.After!.Value) : null;

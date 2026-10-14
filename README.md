@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.37. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.38. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -63,3 +63,14 @@ The staff adviser solves a whole-team assignment for maximum combined modeled wo
 Working-stat effectiveness uses the [official Company wiki formula](https://wiki.torn.com/wiki/Company#Employee_Effectiveness). At exact recommended stats for a normal two-stat role the modeled score is 90. The optimizer excludes other effectiveness modifiers and cannot forecast sales, support-role effects, star growth or profit. Torn's actual reported scores are displayed separately. Preserve appropriate sales and support coverage when trying another role mix. Account data follows the [official v2 API schema](https://www.torn.com/swagger/openapi.json).
 
 The next-steps panel identifies observed advertising shortfalls, health issues, training gaps, missing accounting, empty shelves and below-cost pricing. API wages are shown separately from manually entered accounting. Inventory quantities and order costs are not treated as daily supplies spending. Each profile stores its own dated scan locally; scans older than 24 hours are flagged.
+
+
+### Practical Candle Shop layouts (v0.6.38)
+
+After **Scan Company & Staff**, the Company page offers named-assignment previews for **Core business first**, **Cash and staff growth**, **Measure employee contribution**, and **Test extra cleaning coverage**. These trial layouts support 4–10 scanned Candle Shop employees, including a one-star company with nine staff below recommended working stats. Select **Show Named Assignments** to preview the actual people for that layout; this only saves a local plan.
+
+The planner protects both Chandler and Salesperson coverage, starts with one Cleaner and one Quality Control, and searches a 40–60% split of the remaining core roles using actual staff stats. Larger teams can compare a Trainer, Bookkeeper or second Cleaner. Team size, recorded cash shortfalls, environment below 90%, and assigned Trainer working-stat fit below 50 guide the suggested starting trial. These percentages, support counts and screening thresholds are explicit Commander heuristics, not Torn requirements or proven profit optima. Other effectiveness modifiers may change a Trainer's actual benefit.
+
+The [official Candle Shop role list](https://wiki.torn.com/wiki/Candle_Shop) and [company support-role descriptions](https://wiki.torn.com/wiki/Company#Special_Positions) inform role coverage. Live API job requirements remain authoritative for placement. Other company types retain the existing custom-count builder rather than inheriting Candle Shop business assumptions.
+
+Compare the next complete daily report after a trial, including income, customers, health, wages, supplies and any actual extra trains. The planner does not predict income or star gains. Individual API contribution estimates are shown only when exposed; their reporting period is not assumed to be daily.

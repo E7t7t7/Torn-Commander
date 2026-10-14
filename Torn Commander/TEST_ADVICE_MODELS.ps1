@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
@@ -112,6 +112,56 @@ for(int trial=0;trial<25;trial++){
  long Search(int row,int mask){if(row==5)return 0;return Enumerable.Range(0,5).Where(j=>(mask&(1<<j))==0).Min(j=>Cost(row,j)+Search(row+1,mask|(1<<j)));}
  Check(chosen.Distinct().Count()==5 && Enumerable.Range(0,5).Sum(i=>Cost(i,chosen[i]))==Search(0,0),"Global allocation or minimum-movement tie break differs from exhaustive optimum.");
 }
+// One-star, nine-person Candle Shop: no fully trained employees are required.
+var candleJobs=new List<CompanyJobScan>{
+ new(){Id=101,Name="Chandler",Ability="None",Required=new(4500,2250,0)},
+ new(){Id=102,Name="Salesperson",Ability="None",Required=new(0,750,1500)},
+ new(){Id=103,Name="Cleaner",Ability="Cleaner",Required=new(1000,0,500)},
+ new(){Id=104,Name="Quality Controller",Ability="Manager",Required=new(0,1500,3000)},
+ new(){Id=105,Name="Trainer",Ability="Trainer",Required=new(0,4500,2250)},
+ new(){Id=106,Name="Bookkeeper",Ability="Secretary",Required=new(0,1250,2500)}
+};
+var candleCompany=new CompanyObservation{CompanyId=17,CompanyTypeId=8,Rating=1,Employees=9,Environment=95,DailyIncome=150000,DailyAdvertising=10000};
+var candleScan=new CompanyTeamScan{CompanyId=17,EmployeesLoaded=true,Jobs=candleJobs,
+ Employees=Enumerable.Range(1,9).Select(i=>new CompanyEmployeeScan{Id=i,Name="Worker "+i,PositionId=102,Position="Salesperson",Stats=new(300+i*70,100+i*80,200+i*60)}).ToList()};
+foreach(var worker in candleScan.Employees) worker.Stats=new(300+worker.Id*70,3000,1600); // below Trainer recommendations
+var layouts=CompanyStaffLayouts.Build(candleCompany,candleScan);
+Check(layouts.Stage.Contains("1-star")&&layouts.Stage.Contains("9 scanned")&&layouts.Options.Count==4,"One-star nine-person layouts missing.");
+Check(layouts.Options.Single(x=>x.Suggested).Id=="growth","Healthy growing team should offer growth trial.");
+foreach(var layout in layouts.Options){
+ Check(layout.Counts.Values.Sum()==9&&layout.Counts[101]>=1&&layout.Counts[102]>=1&&layout.Counts[103]>=1&&layout.Counts[104]==1,"Layout lost staff or core/support coverage.");
+ candleScan.PlannedCounts=layout.Counts;
+ var named=CompanyStaffAdvisor.Report(candleCompany,candleScan);
+ Check(named.State=="TEAM PLAN READY"&&named.Rows.Count==9&&named.After==layout.WorkingScore,"Layout preview and named assignment diverged.");
+ Check(layout.Underqualified>0,"Underqualified employees were not represented.");
+ foreach(var role in candleJobs)Check(named.Rows.Count(x=>x.Recommended==role.Name)==layout.Counts[role.Id],"Named assignment violated layout counts.");
+}
+candleScan.PlannedCounts=null;
+candleCompany.Environment=70;
+Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Options.Single(x=>x.Suggested).Id=="environment","Environment recovery trigger ignored.");
+candleCompany.Environment=95;candleCompany.DailyAdvertising=200000;
+Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Options.Single(x=>x.Suggested).Id=="cash","Cash-loss layout priority ignored.");
+candleCompany.Environment=null;
+Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Checks.Any(x=>x.Contains("unknown")),"Missing environment treated as known.");
+candleCompany.DailyAdvertising=10000;
+for(int size=4;size<=10;size++){
+ candleCompany.Employees=size;candleScan.Employees=Enumerable.Range(1,size).Select(i=>new CompanyEmployeeScan{Id=i,PositionId=102,Stats=new(0,0,0)}).ToList();
+ var sized=CompanyStaffLayouts.Build(candleCompany,candleScan);
+ Check(sized.Options.Count>0&&sized.Options.All(x=>x.Counts.Values.Sum()==size&&x.Underqualified==size),"Scaled layouts require maxed employees or lose slots.");
+ Check(size>=7||sized.Options.Count==1,"Small team overcommitted to optional support.");
+ Check(sized.Options.Single(x=>x.Suggested).Id=="cash","A weak Trainer should not be the default staffing choice.");
+}
+candleCompany.Employees=10;
+candleScan.Employees[0].Stats=null;
+Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Options.Count==0,"Missing private stats produced a guided layout.");
+candleScan.Employees[0].Stats=new(0,0,0);
+candleCompany.CompanyId=99;
+Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Options.Count==0,"Guided layouts leaked across companies.");
+candleCompany.CompanyId=17;candleCompany.CompanyTypeId=7;
+Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Options.Count==0,"Candle business assumptions applied to another company type.");
+var valueFixture=CompanyStaffAdvisor.ReadEmployees("""{"employees":[{"id":44,"value":-20,"wage":0},{"id":45,"value":null}]}""");
+Check(valueFixture[0].ContributionValue==-20&&valueFixture[0].Wage==0&&valueFixture[1].ContributionValue==null,"Contribution loss/unknown or zero wage lost.");
+Console.WriteLine("COMPANY LAYOUT TEST PASSED: one-star nine-person underqualified team, all 4-10 staff counts, protected role coverage, cash/environment priorities, named-assignment consistency, restricted stats and company-type isolation.");
 Console.WriteLine("COMPANY STAFF TEST PASSED: official API fixtures, unknown access fields, underqualified swaps, role-count scenarios, 25 exhaustive optimizer comparisons, company isolation, penalties and stock guidance.");
 Console.WriteLine("COMPANY / ARRIVAL TEST PASSED: unknown values, costs, daily schedule, history, quote age, mixed budgets, forecast limits.");
 namespace TornCommander{

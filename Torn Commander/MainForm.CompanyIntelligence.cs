@@ -124,10 +124,28 @@ public sealed partial class MainForm
             !request.TryGetProperty("scanToken", out var token) || token.GetString() != team.ScannedUtc.ToString("O"))
             throw new InvalidDataException("The company scan changed. Review the current scan before rebuilding the plan.");
         var previous = team.PlannedCounts;
-        team.PlannedCounts = request.TryGetProperty("reset", out var reset) && reset.ValueKind == JsonValueKind.True
-            ? null : CompanyStaffAdvisor.ReadCounts(request, team);
+        var previousSource = team.PlanSource;
+        Dictionary<long, int>? counts;
+        string source;
+        if (request.TryGetProperty("scenarioId", out var scenario))
+        {
+            if (scenario.ValueKind != JsonValueKind.String) throw new InvalidDataException("Choose a valid staffing layout.");
+            var latest = journal.Days.Where(x => x.CompanyId == team.CompanyId)
+                .OrderByDescending(x => x.DayUtc, StringComparer.Ordinal).FirstOrDefault();
+            var option = CompanyStaffLayouts.Build(latest, team).Options.FirstOrDefault(x => x.Id == scenario.GetString())
+                ?? throw new InvalidDataException("That layout is unavailable for the current scan. Scan again and choose an available plan.");
+            counts = new Dictionary<long, int>(option.Counts);
+            source = option.Name;
+        }
+        else
+        {
+            bool resetting = request.TryGetProperty("reset", out var reset) && reset.ValueKind == JsonValueKind.True;
+            counts = resetting ? null : CompanyStaffAdvisor.ReadCounts(request, team);
+            source = resetting ? "Current role counts" : "Custom role-count scenario";
+        }
+        team.PlannedCounts = counts; team.PlanSource = source;
         try { SaveCompanyJournal(); }
-        catch { team.PlannedCounts = previous; throw; }
+        catch { team.PlannedCounts = previous; team.PlanSource = previousSource; throw; }
         journal.Status = "Local staffing scenario saved. No Torn positions were changed.";
         UpdateModernDashboard();
     }
@@ -195,6 +213,7 @@ public sealed partial class MainForm
             health = new { efficiency = latest?.Efficiency, environment = latest?.Environment,
                 popularity = latest?.Popularity, trains = latest?.Trains, capacity = latest?.Capacity, funds = latest?.Funds },
             team = CompanyStaffAdvisor.Report(latest, journal.Team),
+            layouts = CompanyStaffLayouts.Build(latest, journal.Team),
             scan = journal.Team?.CompanyId == journal.ActiveCompanyId ? new {
                 at = journal.Team.ScannedUtc.ToString("yyyy-MM-dd HH:mm") + " UTC",
                 warnings = journal.Team.Warnings.Concat(
@@ -208,7 +227,7 @@ public sealed partial class MainForm
                         ? (long?)journal.Team.Employees.Sum(x => x.Wage!.Value) : null,
                 stock = journal.Team.Stock,
                 token = journal.Team.ScannedUtc.ToString("O"),
-                jobs = journal.Team.Jobs.Select(j => new { j.Id, j.Name, j.Ability, j.Required,
+                jobs = journal.Team.Jobs.Select(j => new { j.Id, j.Name, j.Ability, j.Description, j.Required,
                     count = journal.Team.PlannedCounts?.GetValueOrDefault(j.Id) ??
                         journal.Team.Employees.Count(e => e.PositionId == j.Id) }).ToList()
             } : null,
