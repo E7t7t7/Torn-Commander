@@ -9,6 +9,13 @@ internal sealed class CompanyObservation
     public long CompanyId { get; set; }
     public string CompanyName { get; set; } = "";
     public string CompanyType { get; set; } = "";
+    public long CompanyTypeId { get; set; }
+    public int? Efficiency { get; set; }
+    public int? Environment { get; set; }
+    public int? Popularity { get; set; }
+    public int? Trains { get; set; }
+    public int? Capacity { get; set; }
+    public long? Funds { get; set; }
     public int? Rating { get; set; }
     public int? Employees { get; set; }
     public long? DailyIncome { get; set; }
@@ -28,6 +35,7 @@ internal sealed class CompanyJournal
     public long ActiveCompanyId { get; set; }
     public string Status { get; set; } = "Connect a Torn API key and sync your company to begin collecting daily results.";
     public List<CompanyObservation> Days { get; set; } = new();
+    public CompanyTeamScan? Team { get; set; }
 }
 internal sealed record CompanyRecommendation(string State, string Message, long SuggestedBudget, int SampleDays);
 internal static class CompanyIntelligence
@@ -72,6 +80,11 @@ internal static class CompanyIntelligence
             CompanyId = id,
             CompanyName = Text(p, "name"),
             CompanyType = p.TryGetProperty("type", out var t) ? Text(t, "name") : "",
+            CompanyTypeId = p.TryGetProperty("type", out var type) ? Long(type, "id") : 0,
+            Efficiency = OptionalInt(p, "efficiency"), Environment = OptionalInt(p, "environment"),
+            Popularity = OptionalInt(p, "popularity"), Trains = OptionalInt(p, "trains"),
+            Funds = OptionalLong(p, "funds"),
+            Capacity = p.TryGetProperty("employees", out var capacity) ? OptionalInt(capacity, "capacity") : null,
             Rating = OptionalInt(p, "rating"),
             Employees = p.TryGetProperty("employees", out var e) ? OptionalInt(e, "hired") : null,
             DailyIncome = p.TryGetProperty("income", out var income) ? OptionalLong(income, "daily") : null,

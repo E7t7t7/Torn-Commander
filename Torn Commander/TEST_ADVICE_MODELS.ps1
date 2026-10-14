@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('CompanyIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
@@ -61,6 +61,58 @@ quotes[0].PricingUpdatedAtUtc=now;shop.Items[0].Stock=0;
 Check(Eval().Choices.First(x=>x.Item=="A").RestockMinutes is null,"Invented a restock ETA.");
 shop.Items[2].BuyPrice=10;quotes[2].MarketValue=50;
 Check(Eval().Action=="Consider waiting","Affordable supported forecast was lost.");
+// Company API fixtures follow the official v2 schema, including missing access fields.
+var profile=CompanyIntelligence.ReadProfile("""{"profile":{"id":7,"name":"Fixture","type":{"id":8,"name":"Candle Shop"},"employees":{"hired":2,"capacity":8},"efficiency":71,"environment":83,"popularity":42,"trains":3,"funds":10000}}""");
+Check(profile.CompanyTypeId==8 && profile.Capacity==8 && profile.Efficiency==71 && profile.Trains==3 && profile.Funds==10000,"Extended company health fields lost.");
+var employees=CompanyStaffAdvisor.ReadEmployees("""{"employees":[{"id":11,"name":"Low MAN","position":{"id":1,"name":"Manual"},"stats":{"manual_labor":10,"intelligence":80,"endurance":0},"effectiveness":{"working_stats":40,"total":44,"addiction":-3,"inactivity":-2,"settled_in":9},"wage":250},{"id":12,"name":"Low INT","position":{"id":2,"name":"Office"},"stats":{"manual_labor":80,"intelligence":10,"endurance":0}}]}""");
+Check(employees.Count==2 && employees[0].Addiction==-3 && employees[1].Wage==null && employees[1].TotalEffectiveness==null,"Employee modifiers or unknown values lost.");
+var jobs=CompanyStaffAdvisor.ReadJobs("""{"companies":[{"id":99,"positions":[]},{"id":8,"positions":[{"id":1,"name":"Manual","ability":"Cleaner","working_stats":{"required":{"manual_labor":100,"intelligence":0,"endurance":50}}},{"id":2,"name":"Office","ability":"Manager","working_stats":{"required":{"manual_labor":0,"intelligence":100,"endurance":50}}}]}]}""",8);
+Check(jobs.Count==2 && jobs[0].Ability=="Cleaner","Company-type jobs not selected correctly.");
+var scan=new CompanyTeamScan {CompanyId=7,EmployeesLoaded=true,Employees=employees,Jobs=jobs,StockLoaded=true,
+ Stock=CompanyStaffAdvisor.ReadStock("""{"stock":[{"name":"Candle","cost":10,"price":9,"in_stock":0,"on_order":0}]}""")};
+var team=CompanyStaffAdvisor.Report(profile,scan);
+Check(team.State=="TEAM PLAN READY" && team.After>team.Before && team.Rows[0].Recommended=="Office" && team.Rows[1].Recommended=="Manual","Underqualified staff must be globally swapped to better roles.");
+Check(team.Rows.All(x=>x.NextStep.Contains("gaps")) && team.Rows[0].NextStep.Contains("Addiction") &&
+ team.Actions.Any(x=>x.Contains("no stock")) && team.Actions.Any(x=>x.Contains("below unit cost")),"Training gaps, staff penalties and stock actions missing.");
+Check(CompanyStaffAdvisor.Fit(new(100,50,0),new(100,50,0))==90 &&
+ CompanyStaffAdvisor.Fit(new(200,100,0),new(100,50,0))==100 &&
+ CompanyStaffAdvisor.Fit(new(0,0,0),new(100,50,0))==0,"Effectiveness formula boundaries wrong.");
+using(var wire=JsonDocument.Parse(DashboardJson.Serialize(team))){
+ Check(wire.RootElement.GetProperty("rows")[0].GetProperty("stats").GetProperty("manualLabor").GetInt64()==10,"Staff data casing cannot reach dashboard.");
+}
+using(var counts=JsonDocument.Parse("""{"counts":[{"positionId":1,"count":0},{"positionId":2,"count":2}]}"""))
+ scan.PlannedCounts=CompanyStaffAdvisor.ReadCounts(counts.RootElement,scan);
+var scenario=CompanyStaffAdvisor.Report(profile,scan);
+Check(scenario.Rows.All(x=>x.Recommended=="Office"),"Chosen role counts were ignored.");
+foreach(var bad in new[]{"{\"counts\":[{\"positionId\":1,\"count\":1},{\"positionId\":2,\"count\":2}]}",
+ "{\"counts\":[{\"positionId\":1,\"count\":-1},{\"positionId\":2,\"count\":3}]}",
+ "{\"counts\":[{\"positionId\":1,\"count\":1},{\"positionId\":1,\"count\":1}]}"}){
+ using var req=JsonDocument.Parse(bad);
+ try{CompanyStaffAdvisor.ReadCounts(req.RootElement,scan);throw new Exception("Invalid staffing counts accepted.");}catch(InvalidDataException){}
+}
+scan.PlannedCounts=null;
+employees[0].Stats=null;
+var incomplete=CompanyStaffAdvisor.Report(profile,scan);
+Check(incomplete.State=="INCOMPLETE SCAN" && incomplete.Before==null && incomplete.Rows[0].Stats==null && incomplete.Rows.All(x=>x.After==null),"Missing stats must withhold team allocation, not become zero.");
+Check(CompanyStaffAdvisor.Report(new CompanyObservation{CompanyId=999},scan).Rows.Count==0,"Previous company's staff leaked into new company.");
+employees[0].Stats=new(10,80,0);
+profile.Employees=3;
+Check(CompanyStaffAdvisor.Report(profile,scan).State=="INCOMPLETE SCAN","Partial staff list must not produce a whole-company allocation.");
+profile.Employees=2;
+var basic=CompanyStaffAdvisor.ReadEmployees("""{"employees":[{"id":1,"name":"Basic","position":{"id":1,"name":"Role"}}]}""");
+Check(basic[0].Stats==null && basic[0].Wage==null,"Basic API response fabricated private employee detail.");
+try{CompanyStaffAdvisor.ReadEmployees("""{"employees":[{"id":1},{"id":1}]}""");throw new Exception("Duplicate employee accepted.");}catch(InvalidDataException){}
+// Compare optimizer to exhaustive permutations, including ties and zero stats.
+var random=new Random(731);
+for(int trial=0;trial<25;trial++){
+ var roles=Enumerable.Range(1,5).Select(i=>new CompanyJobScan{Id=i,Required=new(random.Next(1,200),random.Next(1,200),0)}).ToList();
+ var workers=Enumerable.Range(1,5).Select(i=>new CompanyEmployeeScan{Id=i,PositionId=i,Stats=new(random.Next(0,250),random.Next(0,250),0)}).ToList();
+ var chosen=CompanyStaffAdvisor.Allocate(workers,roles);
+ long Cost(int worker,int role)=>-CompanyStaffAdvisor.Fit(workers[worker].Stats!,roles[role].Required!)*1000L+(workers[worker].PositionId==roles[role].Id?0:1);
+ long Search(int row,int mask){if(row==5)return 0;return Enumerable.Range(0,5).Where(j=>(mask&(1<<j))==0).Min(j=>Cost(row,j)+Search(row+1,mask|(1<<j)));}
+ Check(chosen.Distinct().Count()==5 && Enumerable.Range(0,5).Sum(i=>Cost(i,chosen[i]))==Search(0,0),"Global allocation or minimum-movement tie break differs from exhaustive optimum.");
+}
+Console.WriteLine("COMPANY STAFF TEST PASSED: official API fixtures, unknown access fields, underqualified swaps, role-count scenarios, 25 exhaustive optimizer comparisons, company isolation, penalties and stock guidance.");
 Console.WriteLine("COMPANY / ARRIVAL TEST PASSED: unknown values, costs, daily schedule, history, quote age, mixed budgets, forecast limits.");
 namespace TornCommander{
  public sealed class TravelObservation{}

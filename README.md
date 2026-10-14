@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.36. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.37. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -52,3 +52,14 @@ Loss workers retry missing Commander replies after ten seconds, up to three requ
 Commander paces Torn API requests across native modules and the userscript HTTP bridge through a shared process queue (one request start per 1.25 seconds). A Torn error 5 or HTTP 429 pauses sends for at least 65 seconds and respects a longer Retry-After. The dashboard counts down and retains prior successful sync data. Other applications and separately running Commander processes still consume the account allowance; this queue does not control their traffic. Full Sync takes longer because its reads are paced. Official API limit documentation: https://www.torn.com/api.html.
 
 Home now includes Cash while growing: profile-specific training allocation, cash reserve, daily recorded trading-margin target and a local daily checklist. Default targets are editable planning choices, not an enforced energy/spending limit. No training, enrolment, flight or purchase is performed by this panel. It uses existing synced bars, wallet, education and travel observations; stale evidence is labelled. New trade records receive the active profile ID, while unassigned older trades stay unchanged and are excluded from the profile daily total. Check-ins reset on the PC local date and retain fourteen days. Travel requirement source: https://wiki.torn.com/wiki/Travel; education schema: https://www.torn.com/swagger.php.
+
+
+### Company scan and staffing adviser (v0.6.37)
+
+Open Company and choose **Scan Company & Staff**. With permitted company API access, Commander reads company health, employees' working stats and effectiveness, the company type's role requirements, and stock/prices. Public-only responses leave private stats unknown and disable a complete team allocation.
+
+The staff adviser solves a whole-team assignment for maximum combined modeled working-stat effectiveness, including employees below recommended stats. It keeps the current number of each role by default. Under **Role counts and requirements**, adjust local slot counts and choose **Build Staffing Plan** to compare another mix, or **Use Current Role Counts** to reset. Counts must total the scanned staff count. A new scan resets the scenario. These are recommendations: no Torn positions or other company settings are changed.
+
+Working-stat effectiveness uses the [official Company wiki formula](https://wiki.torn.com/wiki/Company#Employee_Effectiveness). At exact recommended stats for a normal two-stat role the modeled score is 90. The optimizer excludes other effectiveness modifiers and cannot forecast sales, support-role effects, star growth or profit. Torn's actual reported scores are displayed separately. Preserve appropriate sales and support coverage when trying another role mix. Account data follows the [official v2 API schema](https://www.torn.com/swagger/openapi.json).
+
+The next-steps panel identifies observed advertising shortfalls, health issues, training gaps, missing accounting, empty shelves and below-cost pricing. API wages are shown separately from manually entered accounting. Inventory quantities and order costs are not treated as daily supplies spending. Each profile stores its own dated scan locally; scans older than 24 hours are flagged.

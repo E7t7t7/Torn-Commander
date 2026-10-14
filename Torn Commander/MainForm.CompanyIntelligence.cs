@@ -44,7 +44,7 @@ public sealed partial class MainForm
         }
         return _companyJournal;
     }
-    private void SaveCompanyJournal() => Storage.Save(CompanyJournalPath(), GetCompanyJournal());
+    private void SaveCompanyJournal() => Storage.SaveAtomic(CompanyJournalPath(), GetCompanyJournal());
     private async Task SyncCompanyIntelligenceAsync()
     {
         if (_companySyncing) return;
@@ -57,6 +57,7 @@ public sealed partial class MainForm
         }
         var profileId = CurrentProfileId;
         _companySyncing = true;
+        UpdateModernDashboard();
         try
         {
             var api = new TornApiClient();
@@ -64,10 +65,47 @@ public sealed partial class MainForm
             // Ignore a completed request if a different Torn profile is now active.
             if (profileId != CurrentProfileId) return;
             var observation = CompanyIntelligence.ReadProfile(json);
+            var team = new CompanyTeamScan { CompanyId = observation.CompanyId };
+            // Optional sections fail independently. Never substitute a previous company's team.
+            async Task ReadSection(string label, string path, Action<string> read)
+            {
+                if (profileId != CurrentProfileId) return;
+                GetCompanyJournal().Status = "Scanning " + label.ToLowerInvariant() + "…";
+                UpdateModernDashboard();
+                try { read(await api.FetchEndpointAsync(path, key)); }
+                catch (Exception ex) { team.Warnings.Add(label + ": " + ex.Message); }
+            }
+            await ReadSection("Employees", "company/employees", body => {
+                team.Employees = CompanyStaffAdvisor.ReadEmployees(body); team.EmployeesLoaded = true;
+            });
+            if (observation.CompanyTypeId > 0)
+                await ReadSection("Job requirements", "torn/" + observation.CompanyTypeId + "/companies",
+                    body => team.Jobs = CompanyStaffAdvisor.ReadJobs(body, observation.CompanyTypeId));
+            else team.Warnings.Add("Company type ID missing; job requirements unavailable.");
+            await ReadSection("Stock", "company/stock", body => {
+                team.Stock = CompanyStaffAdvisor.ReadStock(body); team.StockLoaded = true;
+            });
+            if (profileId != CurrentProfileId) return;
+            // The employee endpoint is account-relative. Confirm company identity after the scan.
+            var confirmed = CompanyIntelligence.ReadProfile(await api.FetchEndpointAsync("company/profile", key));
+            if (profileId != CurrentProfileId) return;
+            if (confirmed.CompanyId != observation.CompanyId || confirmed.CompanyTypeId != observation.CompanyTypeId)
+                throw new InvalidDataException("Your company changed during the scan. Sync again; no mixed-company data was saved.");
+            team.ScannedUtc = DateTime.UtcNow;
             var journal = GetCompanyJournal();
-            CompanyIntelligence.Upsert(journal, observation);
-            journal.Status = $"Last company sync: {DateTime.Now:g}. Daily API values are observations, not guaranteed final daily accounting.";
-            SaveCompanyJournal();
+            var previousDays = journal.Days.ToList();
+            var previousCompany = journal.ActiveCompanyId;
+            var previousTeam = journal.Team;
+            var previousStatus = journal.Status;
+            CompanyIntelligence.Upsert(journal, confirmed);
+            journal.Team = team;
+            journal.Status = $"Last company scan: {DateTime.Now:g}. Daily API values are observations, not final accounts.";
+            try { SaveCompanyJournal(); }
+            catch
+            {
+                journal.Days = previousDays; journal.ActiveCompanyId = previousCompany;
+                journal.Team = previousTeam; journal.Status = previousStatus; throw;
+            }
             FlashStatus("Company snapshot saved: " + observation.CompanyName);
         }
         catch (Exception ex)
@@ -76,6 +114,22 @@ public sealed partial class MainForm
                 GetCompanyJournal().Status = "Sync failed: " + ex.Message;
         }
         finally { _companySyncing = false; UpdateModernDashboard(); }
+    }
+    private void SaveCompanyStaffPlan(JsonElement request)
+    {
+        var journal = GetCompanyJournal();
+        var team = journal.Team;
+        if (team == null || team.CompanyId != journal.ActiveCompanyId || _companySyncing ||
+            !request.TryGetProperty("companyId", out var company) || !company.TryGetInt64(out var id) || id != team.CompanyId ||
+            !request.TryGetProperty("scanToken", out var token) || token.GetString() != team.ScannedUtc.ToString("O"))
+            throw new InvalidDataException("The company scan changed. Review the current scan before rebuilding the plan.");
+        var previous = team.PlannedCounts;
+        team.PlannedCounts = request.TryGetProperty("reset", out var reset) && reset.ValueKind == JsonValueKind.True
+            ? null : CompanyStaffAdvisor.ReadCounts(request, team);
+        try { SaveCompanyJournal(); }
+        catch { team.PlannedCounts = previous; throw; }
+        journal.Status = "Local staffing scenario saved. No Torn positions were changed.";
+        UpdateModernDashboard();
     }
     private void SaveCompanyCosts(JsonElement request)
     {
@@ -138,6 +192,26 @@ public sealed partial class MainForm
             state = advice.State,
             advice = advice.Message,
             business = CompanyIntelligence.BusinessReport(days),
+            health = new { efficiency = latest?.Efficiency, environment = latest?.Environment,
+                popularity = latest?.Popularity, trains = latest?.Trains, capacity = latest?.Capacity, funds = latest?.Funds },
+            team = CompanyStaffAdvisor.Report(latest, journal.Team),
+            scan = journal.Team?.CompanyId == journal.ActiveCompanyId ? new {
+                at = journal.Team.ScannedUtc.ToString("yyyy-MM-dd HH:mm") + " UTC",
+                warnings = journal.Team.Warnings.Concat(
+                    DateTime.UtcNow - journal.Team.ScannedUtc > TimeSpan.FromHours(24)
+                        ? new[] { "This staff scan is over 24 hours old. Scan again before acting on its staffing plan." } : Array.Empty<string>()).ToList(),
+                employeesLoaded = journal.Team.EmployeesLoaded,
+                stockLoaded = journal.Team.StockLoaded,
+                wageTotal = journal.Team.EmployeesLoaded && journal.Team.Employees.Count > 0 &&
+                    latest?.Employees == journal.Team.Employees.Count &&
+                    journal.Team.Employees.All(x => x.Wage.HasValue)
+                        ? (long?)journal.Team.Employees.Sum(x => x.Wage!.Value) : null,
+                stock = journal.Team.Stock,
+                token = journal.Team.ScannedUtc.ToString("O"),
+                jobs = journal.Team.Jobs.Select(j => new { j.Id, j.Name, j.Ability, j.Required,
+                    count = journal.Team.PlannedCounts?.GetValueOrDefault(j.Id) ??
+                        journal.Team.Employees.Count(e => e.PositionId == j.Id) }).ToList()
+            } : null,
             suggested = advice.SuggestedBudget,
             samples = advice.SampleDays,
             syncing = _companySyncing,

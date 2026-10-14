@@ -1,3 +1,14 @@
+v0.6.37 (2026-10-14) — Company staff scan and growth plan
+- Scan company health, employee working stats/effectiveness, live company-type job requirements and stock through the paced Torn API.
+- Find the best combined working-stat fit across all staff, including underqualified employees; preserve current role counts by default.
+- Add editable local role-count scenarios with validation, minimum-change tie breaking and a reset to current staffing.
+- Show per-person current/proposed positions, working stats, required stats, training gaps, actual effectiveness and addiction/inactivity concerns.
+- Build next steps from advertising affordability, company health, available trains, accounting gaps, stock shortages and below-cost pricing.
+- Keep unknown or restricted data explicit, withhold incomplete team allocations, confirm company identity before saving and isolate each profile's scan.
+- Use atomic company journal saves; show scan progress, partial-section warnings and stale-scan warnings.
+- Retain manual accounting and daily history. Recommendations do not change Torn positions, advertising, stock, wages or trains.
+- Verify API fixtures, restricted fields, underqualified swaps, custom staffing counts, company isolation, live dashboard rendering and 25 exhaustive optimizer comparisons.
+
 v0.6.36 (2026-10-14) — Repair the complete solo loss loop
 - Collapse nested player-area matches and recognize the equipped Pillow by item image, identity attributes or name inside the player's controls.
 - Scroll the verified control into view before clicking; continue refusing genuinely ambiguous player areas.

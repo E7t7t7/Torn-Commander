@@ -72,6 +72,7 @@ public sealed partial class MainForm
                 case "companyAuto": SetCompanyAutoCollection(root); break;
                 case "companySync": await SyncCompanyIntelligenceAsync(); break;
                 case "openCompany": NavigateActive("https://www.torn.com/companies.php"); break;
+                case "companyStaffPlan": SaveCompanyStaffPlan(root); break;
                 case "companyCosts": SaveCompanyCosts(root); break;
                 case "travelArrivalScan": await ScanTravelShopAsync(true); break;
                 case "travelArrivalReload": await RefreshTravelShopPageAsync(); break;
@@ -281,7 +282,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.36",
+                    version = "0.6.37",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -501,13 +502,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="casino"><i>♠</i>Casino</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.36</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.37</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.36</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.37</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -629,6 +630,11 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
    <div class="card span4"><div class="eyebrow">INCOME AFTER ADS</div><div class="metric s" id="coAfterAds">—</div><div class="sub">Excludes payroll, stock and other expenses</div></div>
    <div class="card span4"><div class="eyebrow">ACCOUNTED MARGIN</div><div class="metric s" id="coNet">—</div><div class="sub">Only when all entered costs are known; not audited profit</div></div>
   </div>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">BUSINESS SNAPSHOT</div><div class="section" id="coHealth">Sync Company to load company health.</div><div class="sub" id="coScan">No staff scan yet.</div><div class="notice info" id="coScanWarnings"></div></div>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">YOUR NEXT STEPS</div><div id="coActions" class="rows"></div></div>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">STAFF POSITION ADVISOR</div><div class="section" id="coTeamState">Not scanned</div><div class="sub" id="coTeamNote"></div><div class="statusline" id="coTeamScore"></div><div id="coTeamRows" class="rows" style="margin-top:12px"></div></div>
+  <details class="card" style="margin-top:12px"><summary>Role counts and requirements: try a staffing scenario</summary><div class="sub">Keep the total equal to your staff count. The default preserves current job counts. Changing counts may affect sales and support coverage; scores measure working-stat fit only. A fresh scan resets this local scenario.</div><div id="coJobs" class="rows" style="margin-top:12px"></div><div class="actions"><button class="btn primary" onclick="saveCompanyStaffPlan(false)">Build Staffing Plan</button><button class="btn" onclick="saveCompanyStaffPlan(true)">Use Current Role Counts</button></div></details>
+  <details class="card" style="margin-top:12px" open><summary>Stock and pricing checks</summary><div class="sub">Reported stock and order quantities; these are not daily supply costs.</div><div id="coStockRows" class="rows" style="margin-top:12px"></div></details>
   <div class="card" style="margin-top:12px"><div class="eyebrow">ADVERTISING EXPERIMENT ADVISOR</div>
    <div class="section" id="coAdviceState">Building baseline</div>
    <div class="sub" id="coAdvice">A recommendation appears after enough comparable daily observations.</div>
@@ -735,6 +741,12 @@ const emptyMsg=t.hasError&&!rows.length?'The live travel provider is unavailable
 ['tSearch','tCountry','tCategory','tStatus'].forEach(id=>$(id).addEventListener(id==='tSearch'?'input':'change',renderTravelRows));
 
 let coRecordIdentity='';
+let coPlanIdentity='',coPlanCompany=0,coPlanToken='';
+function saveCompanyStaffPlan(reset){
+ const counts=Array.from(document.querySelectorAll('[data-company-role]')).map(x=>({positionId:Number(x.dataset.companyRole),count:Number(x.value)}));
+ if(!reset&&counts.some(x=>!Number.isSafeInteger(x.count)||x.count<0||x.count>200)){alert('Role counts must be whole numbers from 0 to 200.');return}
+ send('companyStaffPlan',{companyId:coPlanCompany,scanToken:coPlanToken,counts,reset});
+}
 function saveCompanyCosts(){
  const parse=id=>{
    const s=$(id).value.trim();
@@ -768,12 +780,30 @@ function renderCompany(c,profile){
   ' · Ads/customer: '+(b.advertisingPerCustomer==null?'unknown':money(b.advertisingPerCustomer))+
   ' · Customers to cover recorded costs at current average revenue: '+(b.breakEvenCustomers??'unknown')+
   ' (scenario, not a sales forecast) · Income vs previous recorded day: '+(b.incomeChange==null?'unknown':money(b.incomeChange));
+ const health=c.health||{},scan=c.scan||{},team=c.team||{};
+ const known=x=>x==null?'Unknown':Number(x).toLocaleString();
+ const stats=x=>x?'MAN '+known(x.manualLabor)+' / INT '+known(x.intelligence)+' / END '+known(x.endurance):'Working stats unavailable';
+ $('coHealth').textContent='Efficiency '+known(health.efficiency)+'% · Environment '+known(health.environment)+'% · Popularity '+known(health.popularity)+'%';
+ $('coScan').textContent=(scan.at?'Scanned '+scan.at:'No staff scan yet')+' · Capacity '+known(c.staff)+' / '+known(health.capacity)+' · Trains '+known(health.trains)+' · Funds '+(health.funds==null?'Unknown':money(health.funds))+' · Scanned wages/day '+(scan.wageTotal==null?'Unknown':money(scan.wageTotal));
+ $('coScanWarnings').textContent=(scan.warnings||[]).join(' | ');
+ $('coScanWarnings').hidden=!(scan.warnings||[]).length;
+ $('coActions').innerHTML=(team.actions||[]).map((x,i)=>'<div class="minirow"><div><b>Step '+(i+1)+'</b><div class="sub">'+esc(x)+'</div></div></div>').join('')||'<div class="empty">Sync Company for a progression plan based on current company data.</div>';
+ $('coTeamState').textContent=team.state||'NOT SCANNED';
+ $('coTeamNote').textContent=team.note||'Sync Company to scan employees and their job requirements.';
+ $('coTeamScore').textContent=team.before==null?'A complete staff list, working stats and current-role requirements are needed for a team allocation.':'Combined modeled working-stat effectiveness: '+known(team.before)+' → '+known(team.after)+' ('+(team.after>=team.before?'+':'')+known(team.after-team.before)+'). Scores exclude other modifiers.';
+ $('coTeamRows').innerHTML=(team.rows||[]).map(x=>'<div class="minirow" style="display:block"><b>'+esc(x.name)+' ['+esc(x.id)+']</b><div>'+esc(x.current)+' → '+esc(x.recommended)+'</div><div class="sub">'+esc(stats(x.stats))+'</div><div class="sub">Recommended role requirements: '+esc(stats(x.required))+'</div><div class="sub">Modeled work-stat score '+known(x.before)+' → '+known(x.after)+' · Torn reported work-stat score '+known(x.actualWorking)+' · Total effectiveness '+known(x.actualTotal)+'</div><div class="sub">'+esc(x.nextStep)+'</div></div>').join('')||'<div class="empty">No employees returned. Sync with company employee-detail access to load working stats.</div>';
+ const planIdentity=String(profile)+'|'+String(c.id||0)+'|'+(scan.token||'')+'|'+JSON.stringify((scan.jobs||[]).map(x=>[x.id,x.count]));
+ if(planIdentity!==coPlanIdentity){
+  coPlanIdentity=planIdentity;coPlanCompany=c.id||0;coPlanToken=scan.token||'';
+  $('coJobs').innerHTML=(scan.jobs||[]).map(x=>'<div class="minirow" style="display:block"><label><b>'+esc(x.name)+'</b> slots <input type="number" min="0" max="200" step="1" data-company-role="'+esc(x.id)+'" value="'+esc(x.count)+'" style="max-width:90px"></label><div class="sub">'+esc(stats(x.required))+' · Role ability: '+esc(x.ability||'None reported')+'</div></div>').join('')||'<div class="empty">Job requirements unavailable.</div>';
+ }
+ $('coStockRows').innerHTML=(scan.stock||[]).map(x=>'<div class="minirow" style="display:block"><b>'+esc(x.name)+'</b><div class="sub">In stock '+known(x.inStock)+' · On order '+known(x.onOrder)+' · Unit cost '+(x.cost==null?'Unknown':money(x.cost))+' · Selling price '+(x.price==null?'Unknown':money(x.price))+'</div></div>').join('')||'<div class="empty">'+(scan.stockLoaded?'No stocked products returned for this company.':'Stock details unavailable. Check company stock API permission.')+'</div>';
  $('coAdviceState').textContent=c.state||'NO BASELINE';
  $('coAdvice').textContent=c.advice||'Collect daily observations first.';
  $('coDays').textContent=(c.samples||0)+' daily records with recorded advertising · Suggested experimental level: '+(c.suggested?money(c.suggested):'Not established');
  $('coAuto').checked=!!c.autoCollect;
  $('coSync').disabled=!!c.syncing;
- $('coSync').textContent=c.syncing?'Syncing…':'Sync Company';
+ $('coSync').textContent=c.syncing?'Scanning…':'Scan Company & Staff';
  $('coSave').disabled=!c.day;
  $('coDate').textContent=c.day?'Editing UTC date '+c.day:'Sync Company before entering costs';
  const identity=String(profile)+'|'+String(c.id||0)+'|'+(c.day||'');
@@ -870,7 +900,7 @@ function renderSection(name,fn){
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.36';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.37';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -878,7 +908,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.36 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.37 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 renderLossStatus(d);
