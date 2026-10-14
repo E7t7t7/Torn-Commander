@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
@@ -178,6 +178,49 @@ Check(CompanyStaffAdvisor.Report(reasonCompany,reasonScan).Rows[0].Explanation!.
 reasonScan.Employees[0].Stats=null;
 Check(CompanyStaffAdvisor.Report(reasonCompany,reasonScan).Rows[0].Explanation!.Summary.Contains("No complete"),"Incomplete scan invented an explanation for a recommendation.");
 Console.WriteLine("COMPANY REASONING TEST PASSED: personal sacrifice, exact constrained alternative, stat coverage, excluded-role reason and score discrepancy warning.");
+// Official v2 faction fixtures and permission-aware role prioritization.
+var faction=FactionIntelligence.ReadBasic("""{"basic":{"id":71,"name":"Fixture Faction","leader_id":10,"co_leader_id":20,"members":3,"capacity":8,"respect":1200,"rank":{"name":"Silver"},"is_enlisted":null}}""");
+FactionIntelligence.ReadViewer(faction,"""{"profile":{"id":10}}""","""{"faction":{"id":71,"position":"Custom Captain"}}""");
+Check(FactionIntelligence.Role(faction)=="Leader"&&faction.Enlisted==null,"Leader identity or unknown enlistment lost.");
+FactionIntelligence.ReadViewer(faction,"""{"profile":{"id":20}}""","""{"faction":{"id":71,"position":"Second"}}""");
+Check(FactionIntelligence.Role(faction)=="Co-leader","Co-leader identity not detected.");
+FactionIntelligence.ReadViewer(faction,"""{"profile":{"id":30}}""","""{"faction":{"id":71,"position":"Captain"}}""");
+Check(FactionIntelligence.Role(faction)=="Member","A custom rank name granted guessed officer status.");
+FactionIntelligence.ReadPositions(faction,"""{"positions":[{"name":"Captain","abilities":["Medical Usage"]}]}""");
+Check(FactionIntelligence.Role(faction)=="Member","Ordinary armory access promoted a member to officer.");
+FactionIntelligence.ReadPositions(faction,"""{"positions":[{"name":"Captain","abilities":["War Management","Organised Crimes"]}]}""");
+Check(FactionIntelligence.Role(faction)=="Officer","Verified position management permissions not recognized.");
+try{FactionIntelligence.ReadViewer(faction,"""{"profile":{"id":30}}""","""{"faction":{"id":99,"position":"Leader"}}""");throw new Exception("Mismatched faction accepted.");}catch(InvalidDataException){}
+Check(FactionIntelligence.AffiliationId("""{"faction":null}""")==null,"No-faction membership not detected.");
+try{FactionIntelligence.AffiliationId("{}");throw new Exception("Missing faction field treated as verified departure.");}catch(InvalidDataException){}
+long epoch=new DateTimeOffset(now).ToUnixTimeSeconds();
+var memberJson="{\"members\":[{\"id\":30,\"name\":\"Officer\",\"position\":\"Captain\",\"level\":10,\"is_in_oc\":true,\"last_action\":{\"timestamp\":"+epoch+",\"status\":\"Online\"},\"status\":{\"state\":\"Okay\"}},{\"id\":40,\"name\":\"Idle\",\"position\":\"Member\",\"last_action\":{\"timestamp\":"+(epoch-5*86400)+",\"status\":\"Offline\"},\"status\":{\"state\":\"Okay\"},\"is_in_oc\":false},{\"id\":50,\"name\":\"Unknown\",\"position\":\"Recruit\",\"status\":{\"state\":\"Hospital\"}}]}";
+FactionIntelligence.ReadMembers(faction,memberJson,now);
+Check(faction.Members.Count==3&&faction.Members[2].InCrime==null&&FactionIntelligence.IdleDays(faction.Members[2],now)==null,"Unknown member fields fabricated.");
+Check(FactionIntelligence.IdleDays(new FactionMemberScan{LastAction=epoch+3600},now)==null,"Future activity treated as reliable.");
+FactionIntelligence.ReadChain(faction,"""{"chain":{"current":15,"max":100,"timeout":90}}""",now);
+Check(faction.ChainDeadline==epoch+90,"Chain deadline not anchored to scan time.");
+FactionIntelligence.ReadWars(faction,"""{"wars":{"ranked":{"war_id":12,"start":0,"end":null,"factions":[{"id":71,"name":"Home","score":100},{"id":72,"name":"Away","score":90}]},"raids":[],"territory":[]}}""");
+Check(faction.WarsLoaded&&faction.Wars.Single().Sides[1].Score==90,"Ranked war payload not parsed.");
+faction.Crimes=FactionIntelligence.ReadCrimes("""{"crimes":[{"id":1,"name":"Recruiting Crime","status":"Recruiting","difficulty":1,"slots":[{"position":"Driver","user":null,"checkpoint_pass_rate":70,"item_requirement":null}]},{"id":2,"name":"Planning Crime","status":"Planning","ready_at":1,"slots":[{"position":"Hacker","user":{"id":30,"progress":80},"checkpoint_pass_rate":52,"item_requirement":{"id":67,"is_available":false}}]}]}""");
+faction.CrimesLoaded=true;
+Check(faction.Crimes[0].Slots[0].UserId==null&&faction.Crimes[0].Slots[0].PassRate==70&&faction.Crimes[1].Slots[0].UserId==30,"Open and assigned CPR contexts mixed.");
+FactionIntelligence.ReadUpgrades(faction,"""{"upgrades":{"core":{"upgrades":[{"name":"Chaining","ability":"Chain bonus","level":1}]},"peace":[],"war":[]}}""");
+Check(faction.UpgradesLoaded&&faction.Upgrades.Single().Level==1,"Installed upgrade levels missing.");
+var factionJournal=new FactionJournal{Snapshot=faction,InactivityDays=3,Goal="crimes"};
+faction.ScannedUtc=now;
+FactionIntelligence.SaveDay(factionJournal,faction);FactionIntelligence.SaveDay(factionJournal,faction);
+Check(factionJournal.Days.Count==1,"Repeated faction scan duplicated daily sample.");
+var leadership=FactionIntelligence.Advice(factionJournal,now);
+Check(leadership.Any(x=>x.Contains("1 members exceed"))&&leadership.Any(x=>x.Contains("missing item"))&&leadership.Any(x=>x.Contains("requesting account"))&&leadership.Any(x=>x.Contains("timestamp alone")),"Leadership actions missed inactivity, CPR ownership or crime blockers.");
+Check(FactionIntelligence.PersonalAdvice(factionJournal,now).Any(x=>x.Contains("Planning Crime")),"Personal assigned crime missing.");
+Check(FactionIntelligence.Advice(factionJournal,now.AddMinutes(16)).Any(x=>x.Contains("15 minutes old")),"Stale scan not flagged.");
+var restricted=new FactionJournal{Snapshot=new FactionSnapshot{Id=71}};
+Check(FactionIntelligence.Advice(restricted,now).Any(x=>x.Contains("details are unavailable")),"Missing permission represented as no crimes.");
+using(var wire=JsonDocument.Parse(DashboardJson.Serialize(faction))){
+ Check(wire.RootElement.GetProperty("viewerPosition").GetString()=="Captain","Faction role casing not compatible with dashboard.");
+}
+Console.WriteLine("FACTION TEST PASSED: leader/co-leader identity, verified officer abilities, no title guessing, membership isolation, null fields, scan deadlines, CPR ownership, crime blockers, installed upgrades and daily samples.");
 // Export only the active company's allowlisted data; never notes, errors or other profiles.
 candleCompany.CompanyTypeId=8;
 var exportJournal=new CompanyJournal {ActiveCompanyId=17,Status="PRIVATE_STATUS_SECRET",Team=candleScan,Days=new(){

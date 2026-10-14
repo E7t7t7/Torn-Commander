@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.40. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.41. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -90,3 +90,16 @@ Each employee card has **Why this position? — Show details**. Expand it to see
 For teams of up to 25 staff, Commander also calculates the best assignment if that person stays in their current role. It shows the exact team-score cost, an equally good alternative, or that the selected counts have no slot for the old role. These are calculated explanations, without an AI service or usage charges.
 
 A current modeled/reported working-score difference of at least five points is flagged for verification, not attributed to a confirmed cause. Proposed scores exclude other effectiveness modifiers and support-role effects. Open explanations remain open during unchanged dashboard updates.
+
+
+### Position-aware Faction Command (v0.6.41)
+
+Open **Faction → Scan Faction**, or use a user-requested **Full Sync**, to read your account identity, faction position, roster, chain, wars, available organized crimes and installed upgrades. Manual Full Sync includes the faction scan; background account refreshes do not repeatedly poll all faction endpoints.
+
+The top priorities adapt automatically. Leaders/co-leaders are verified by account ID against faction leadership IDs. Officers are recognized from position management abilities when the API exposes them; an impressive custom title or ordinary armory access does not establish officer permissions. Members see personal participation first. All panels remain available in every view, while the saved key's actual permissions determine which data can be read.
+
+Choose a local growth/war/crime focus and inactivity review threshold. Inspect member availability, open crime slots, assigned-member CPR, reported missing items, ready times, installed perks and observed membership/respect changes. Empty-slot CPR belongs to the requesting account and cannot rank other members. Available crimes are capped at 100 and marked partial when the cap is reached. No member battle stats or optimal upgrade purchase order are fabricated.
+
+Chain deadlines and war/presence data are saved snapshots, not a live monitor. Refresh in Torn before acting. Personal mission-agent objectives are not imported: the local mission/leadership checklist is manually entered and scoped to the profile and faction. **Copy Faction Report** copies selected saved data locally, excluding API error details and free-text tasks. No messages, purchases, upgrades, crime launches or AI requests are performed.
+
+Endpoint contracts follow the [official v2 schema](https://www.torn.com/swagger/openapi.json). See the official [Faction guide](https://wiki.torn.com/wiki/Faction) and [Organized Crime 2.0 guide](https://wiki.torn.com/wiki/Organized_Crime_2.0) for game mechanics.

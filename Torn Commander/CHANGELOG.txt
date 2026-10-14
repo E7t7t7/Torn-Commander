@@ -1,3 +1,14 @@
+v0.6.41 (2026-10-14) — Position-aware Faction Command
+- Add a Faction tab with member activity, growth priorities, available organized crimes, wars, saved chain deadlines and installed upgrades.
+- Detect the scanning account's position: verify leader/co-leader against faction identity, recognize officers from actual management abilities, and prioritize personal participation for members.
+- Retain every available panel in every view; custom titles never grant inferred permissions, and restricted endpoints remain explicitly unavailable.
+- Add faction scans to user-requested Full Sync, with shared API pacing, partial-section warnings and opening/closing identity checks.
+- Store scans, focus, activity-review policy, dated growth observations and local mission/leadership tasks separately for each profile.
+- Label assigned and empty-slot CPR correctly; identify crime vacancies, reported missing items and ready-time checks without pretending to know every member's success chance.
+- Keep chain/war data clearly labeled as saved snapshots, flag stale scans, and never infer battle strength from member level.
+- Add a local Copy Faction Report action excluding API errors and free-text mission tasks. No messages, game changes or AI requests are sent.
+- Test role detection, ordinary armory permissions versus officer abilities, membership isolation, unknown fields, scan deadlines, CPR context, blockers, upgrade parsing and dashboard priority ordering.
+
 v0.6.40 (2026-10-14) — Explain each company position recommendation
 - Keep employee cards concise and add an expandable Why this position? detailed view.
 - Explain individual improvements, unchanged scores and personal sacrifices within the selected whole-team role counts.

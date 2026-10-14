@@ -69,6 +69,12 @@ public sealed partial class MainForm
                 case "openCrimes": NavigateActive(TornRoutes.Crimes); break;
                 case "openTravel": NavigateActive("https://www.torn.com/travelagency.php"); break;
                 case "travelRefresh": await RefreshTravelForecastAsync(true); break;
+                case "factionScan": await SyncFactionIntelligenceAsync(); break;
+                case "factionFocus": SetFactionFocus(root); break;
+                case "factionTask": SetFactionTask(root); break;
+                case "factionCopy": CopyFactionReport(); break;
+                case "openFaction": NavigateActive("https://www.torn.com/factions.php"); break;
+                case "openMissions": NavigateActive("https://www.torn.com/loader.php?sid=missions"); break;
                 case "companyAuto": SetCompanyAutoCollection(root); break;
                 case "companyCopyReport": CopyCompanyReport(); break;
                 case "companySync": await SyncCompanyIntelligenceAsync(); break;
@@ -283,7 +289,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.40",
+                    version = "0.6.41",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -295,6 +301,7 @@ public sealed partial class MainForm
                         .ToList(),
                     theme = _settings.UiTheme,
                     company = CompanyDashboardData(),
+                    faction = FactionDashboardData(),
                     progression = ProgressionDashboardData(),
                     apiActivity = new { syncing = _syncing, queued = TornRequestCoordinator.Shared.Queued, cooldownSeconds = TornRequestCoordinator.Shared.CooldownSeconds, cooldownUntil = TornRequestCoordinator.Shared.CooldownUntil.ToString("O") },
                     apiConnected = hasKey,
@@ -498,18 +505,19 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="cart"><i>▤</i>Cart</button>
  <button class="nav" data-page="losses"><i>⊞</i>Loss Desk</button>
  <button class="nav" data-page="trading"><i>⇄</i>Trading</button>
+ <button class="nav" data-page="faction"><i>⚐</i>Faction</button>
  <button class="nav" data-page="company"><i>▦</i>Company</button>
  <button class="nav" data-page="racing"><i>⚑</i>Racing</button>
  <button class="nav" data-page="casino"><i>♠</i>Casino</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.40</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.41</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.40</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.41</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -616,6 +624,21 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
 <div class="section">Other bets - expected value</div><div class="sub">For roulette, dice or other known payouts, enter the actual chance and net win multiplier.</div><div class="formgrid adviser-fields"><label>Win chance (%)<input id="evChance" type="number" placeholder="Win chance %"></label><label>Net win multiplier<input id="evPayout" type="number" placeholder="Net win multiplier"></label><label>Stake ($)<input id="evStake" type="number" placeholder="Stake"></label><button class="btn" onclick="casinoAdvice('expected')">Evaluate bet</button></div>
 <div id="casinoAdvice" class="notice info" role="status">Choose a hand above.</div><div class="sub">Rules: <a href="https://wiki.torn.com/wiki/Black_Jack" target="_blank">Torn Blackjack</a> / <a href="https://wiki.torn.com/wiki/Poker" target="_blank">Poker</a> / <a href="https://wiki.torn.com/wiki/High-Low" target="_blank">High-Low</a></div></div><div class="notice info" style="margin-top:12px">Assistance and session tracking only. No unattended gambling runs are started from this dashboard.</div></section>
  <section class="page" id="scripts"><div class="top"><div><div class="eyebrow">Native userscript engine</div><div class="bigtitle">Scripts & Helpers</div></div><div class="actions"><button class="btn primary" onclick="classic('Tools')">Manage Userscripts</button></div></div><div class="card"><div class="section">Installed assistants</div><div class="sub">Open a helper below to enable it and load its Torn page in Commander. Script menu commands appear in the Commander helpers menu on the game page. Manage Userscripts installs and updates tools.</div><div id="scriptToolsList" class="statusline">Loading helpers…</div></div></section>
+ <section class="page" id="faction">
+  <div class="top"><div><div class="eyebrow">Position-aware faction helper</div><div class="bigtitle">Faction Command</div><div class="sub">Membership, growth, organized crimes, wars and your local mission checklist</div></div><div class="actions"><button class="btn primary" id="faScan" onclick="send('factionScan')">Scan Faction</button><button class="btn" id="faCopy" onclick="send('factionCopy')">Copy Faction Report</button><button class="btn" onclick="send('openFaction')">Open Torn Faction</button></div></div>
+  <div class="notice info" id="faStatus">Scan your faction to begin.</div>
+  <div class="grid" style="margin-top:12px"><div class="card span6"><div class="eyebrow">FACTION</div><div class="metric s" id="faName">Not scanned</div><div class="sub" id="faMeta"></div></div><div class="card span6"><div class="eyebrow">YOUR POSITION</div><div class="metric s" id="faRole">Unknown</div><div class="sub" id="faPermissions"></div></div></div>
+  <div class="notice" id="faWarnings" style="margin-top:12px"></div>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px">
+   <div class="card" id="faPersonalPanel"><div class="eyebrow">YOUR PARTICIPATION</div><div id="faPersonal" class="rows"></div></div>
+   <div class="card" id="faLeadershipPanel"><div class="eyebrow" id="faPriorityTitle">Management and growth priorities</div><div class="sub">All panels remain available. Your verified position determines which priorities appear first; access still depends on your saved API key.</div><div class="formgrid" style="margin:12px 0"><label>Faction focus<select id="faGoal"><option value="balanced">Balanced growth</option><option value="war">War and chains</option><option value="crimes">Organized crimes</option></select></label><label>Review inactivity after (days)<input id="faIdle" type="number" min="1" max="30" value="3"></label></div><button class="btn" onclick="saveFactionFocus()">Save Local Focus</button><div id="faAdvice" class="rows" style="margin-top:12px"></div><div class="sub" id="faGrowth"></div></div>
+   <div class="card" id="faOperationsPanel"><div class="eyebrow">CHAINS AND WARS — SAVED SNAPSHOT</div><div id="faChain" class="section"></div><div class="sub">Refresh in Torn before acting. This is not a live chain monitor or an assessment of member battle stats.</div><div id="faWars" class="rows" style="margin-top:12px"></div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">MEMBER ACTIVITY AND CRIME PARTICIPATION</div><div class="sub">Candidates are unassigned, recently active members marked Okay, excluding the Recruit title. Check actual eligibility and role suitability in Torn; level does not reveal battle stats.</div><div id="faMembers" class="rows" style="margin-top:12px"></div></div>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">ORGANIZED CRIMES</div><div class="sub">Assigned-slot CPR belongs to that participant. Empty-slot CPR is for the scanning account only; it cannot rank other members for that slot.</div><div id="faCrimes" class="rows" style="margin-top:12px"></div></div>
+  <details class="card" style="margin-top:12px"><summary>Installed upgrades and growth context</summary><div class="sub">These are current levels, not next-level costs or an automatically optimized spending plan. Reported respect is not a verified unspent budget.</div><div id="faUpgrades" class="rows" style="margin-top:12px"></div></details>
+  <div class="card" style="margin-top:12px"><div class="eyebrow">MISSION AND LEADERSHIP CHECKLIST — LOCAL ONLY</div><div class="sub">Track your agent mission objectives or faction jobs here. Tasks are manually entered, scoped to this profile and faction; nothing is sent to members or marked complete in Torn.</div><div class="formgrid" style="margin:12px 0"><label>Mission or leadership task<input id="faTaskTitle" type="text" maxlength="240" placeholder="e.g., Confirm weekend chain coverage"></label></div><div class="actions"><button class="btn" id="faTaskAdd" onclick="addFactionTask()">Add Local Task</button><button class="btn" onclick="send('openMissions')">Open Torn Missions</button></div><div id="faTasks" class="rows" style="margin-top:12px"></div></div>
+ </section>
  <section class="page" id="company">
   <div class="top">
    <div><div class="eyebrow">Local company intelligence</div><div class="bigtitle">Company Growth Advisor</div><div class="sub">Daily outcomes, advertising experiments and business trends — read-only recommendations</div></div>
@@ -742,6 +765,53 @@ function renderTravelRows(){const t=S.travel||{},rows=t.rows||[];const q=$('tSea
 const emptyMsg=t.hasError&&!rows.length?'The live travel provider is unavailable and Commander has no saved stock history yet. Refresh again later, or open Torn Travel Agency and build local observations over time.':t.hasError?'No routes match the current filters. Live provider data is unavailable, so Commander is only using cached/local observations right now.':(!rows.length?'No travel data yet. Press Save + Refresh to load opportunities.':'No matching viable travel opportunities. Try a different filter, budget, flight method, or refresh the feed.');$('travelRows').innerHTML=filtered.length?filtered.slice(0,70).map(x=>`<article class="opportunity"><div class="tleft"><div class="name">${esc(x.item)}</div><div class="sub">${esc(x.country)} · ${esc(x.category||'Item')} · ${esc(x.source)}</div><div style="margin-top:7px">${badge(x)}</div></div><div class="right"><div class="moneybig money">${x.priceKnown?money(x.profitHr)+'/hr':'Price unknown'}</div><div class="sub">${x.priceKnown?money(x.trip)+' net / trip · '+Number(x.roi).toFixed(1)+'% ROI':'No market valuation — stock only'}</div></div><div class="details"><span><strong>${Number(x.units||0).toLocaleString()}</strong> units planned</span><span>Cash <strong>${money(x.cash)}</strong></span><span>${x.flight}m flight each way</span><span>Stock <strong>${x.stock==null?'unknown':Number(x.stock).toLocaleString()}</strong></span>${x.stockAgeMinutes!=null?`<span>Stock age <strong>${x.stockAgeMinutes}m</strong></span>`:''}${x.priceAgeMinutes!=null?`<span>Valuation retrieved <strong>${x.priceAgeMinutes}m ago</strong></span>`:''}${x.restock?`<span>Restock est. <strong>${esc(x.restock)}</strong></span>`:''}${x.leave?`<span>Fly out ~ <strong>${esc(x.leave)}</strong></span>`:''}${x.note?`<span title="${esc(x.note)}">${esc(x.note)}</span>`:''}</div></article>`).join('')+(filtered.length>70?`<div class="statusline">Showing first 70 matching routes. Use filters to narrow the list.</div>`:''):`<div class="empty">${esc(emptyMsg)}</div>`;}
 ['tSearch','tCountry','tCategory','tStatus'].forEach(id=>$(id).addEventListener(id==='tSearch'?'input':'change',renderTravelRows));
 
+let factionFormIdentity='';
+function saveFactionFocus(){
+ const days=Number($('faIdle').value);
+ if(!Number.isSafeInteger(days)||days<1||days>30){alert('Choose an inactivity review threshold from 1 to 30 days.');return}
+ send('factionFocus',{profileId:S.profileId,goal:$('faGoal').value,inactivityDays:days});
+}
+function addFactionTask(){
+ const title=$('faTaskTitle').value.trim();if(!title){alert('Enter a mission or leadership task.');return}
+ send('factionTask',{profileId:S.profileId,factionId:S.faction?.id,title});
+ $('faTaskTitle').value='';
+}
+function factionTaskAction(id,done,remove){
+ send('factionTask',{profileId:S.profileId,factionId:S.faction?.id,id,done,remove});
+}
+function renderFaction(f,profile){
+ f=f||{};const num=x=>x==null?'Unknown':Number(x).toLocaleString();
+ const when=x=>x?new Date(Number(x)*1000).toISOString().replace('T',' ').slice(0,16)+' UTC':'Unknown';
+ const line=x=>'<div class="minirow"><div class="sub">'+esc(x)+'</div></div>';
+ $('faStatus').textContent=(f.status||'Scan your faction to begin.')+(f.at?' · '+f.at+' · '+num(f.ageMinutes)+' minutes old':'');
+ $('faName').textContent=f.name||'Not scanned';
+ $('faMeta').textContent='Rank '+(f.rank||'Unknown')+' · Members '+num(f.count)+' / '+num(f.capacity)+' · Reported respect '+num(f.respect);
+ $('faRole').textContent=(f.position||'Unknown position')+' · '+(f.role||'Unknown')+' priorities';
+ $('faPermissions').textContent=f.abilitiesLoaded?'Position abilities: '+((f.abilities||[]).join(', ')||'None returned'):'Position permissions not exposed. Leader/co-leader identity can still be verified; custom officer titles are not guessed.';
+ $('faWarnings').textContent=(f.warnings||[]).join(' | ');
+ $('faWarnings').hidden=!(f.warnings||[]).length;
+ $('faScan').disabled=!!f.scanning;$('faScan').textContent=f.scanning?'Scanning…':'Scan Faction';
+ $('faCopy').disabled=!f.id||!!f.scanning;$('faTaskAdd').disabled=!f.id;
+ const isMember=!['Leader','Co-leader','Officer'].includes(f.role);
+ $('faPersonalPanel').style.order=isMember?'-3':'1';
+ $('faLeadershipPanel').style.order=isMember?'1':'-3';
+ $('faOperationsPanel').style.order=f.role==='Officer'?'-2':'0';
+ $('faPriorityTitle').textContent=f.role==='Officer'?'Coordination and growth priorities':'Management and growth priorities';
+ $('faPersonal').innerHTML=(f.personal||[]).map(line).join('')||line('Scan the faction for your personal participation.');
+ $('faAdvice').innerHTML=(f.advice||[]).map(line).join('')||line('Scan the faction to build a data-based action list.');
+ $('faGrowth').textContent=f.previousDay?'Compared with '+f.previousDay+': respect change '+num(f.respectChange)+' · member change '+num(f.membersChange)+'. Observed change, not a forecast.':'Collect another UTC day to compare membership and respect.';
+ const identity=String(profile)+'|'+String(f.id||0)+'|'+(f.goal||'balanced')+'|'+String(f.inactivityDays||3);
+ if(identity!==factionFormIdentity){factionFormIdentity=identity;$('faGoal').value=f.goal||'balanced';$('faIdle').value=f.inactivityDays||3;$('faTaskTitle').value='';}
+ const chain=f.chain||{};
+ $('faChain').textContent=!chain.loaded?'Chain data unavailable':chain.count==null?'Chain count unknown':chain.count===0?'No active chain recorded at scan':'Recorded chain '+num(chain.count)+' / '+num(chain.max)+' · '+(chain.remaining==null?'Deadline unavailable':chain.remaining<=0?'Saved hit deadline passed; refresh now':num(chain.remaining)+' seconds to the saved hit deadline');
+ $('faWars').innerHTML=(f.wars||[]).map(w=>'<div class="minirow" style="display:block"><b>'+esc(w.kind)+' #'+esc(w.id)+'</b><div class="sub">Start '+when(w.start)+' · End '+when(w.end)+'</div><div class="sub">'+esc((w.sides||[]).map(s=>s.name+' (score '+num(s.score)+')').join(' vs '))+'</div></div>').join('')||line(f.warsLoaded?'No wars returned in this snapshot.':'War data unavailable.');
+ const members=[...(f.members||[])].sort((a,b)=>Number(b.isMe)-Number(a.isMe)||Number(b.needsReview)-Number(a.needsReview)||(b.idleDays??-1)-(a.idleDays??-1));
+ $('faMembers').innerHTML=members.map(m=>'<div class="minirow" style="display:block"><b>'+esc(m.name)+(m.isMe?' · You':'')+'</b><div class="sub">'+esc(m.position)+' · Level '+num(m.level)+' · '+esc(m.status||'Unknown status')+' · '+esc(m.activity||'Unknown presence')+'</div><div class="sub">Last action '+(m.idleDays==null?'Unknown':Number(m.idleDays).toFixed(1)+' days ago')+' · In organized crime: '+(m.inCrime==null?'Unknown':m.inCrime?'Yes':'No')+(m.needsReview?' · Inactivity review':'')+(m.candidate?' · Candidate to review for an open crime slot':'')+'</div></div>').join('')||line(f.membersLoaded?'No members returned.':'Member roster unavailable.');
+ $('faCrimes').innerHTML=(f.crimes||[]).map(c=>'<div class="minirow" style="display:block"><b>'+esc(c.name)+' #'+esc(c.id)+'</b><div class="sub">'+esc(c.status)+' · Difficulty '+num(c.difficulty)+' · Ready '+when(c.readyAt)+' · Expires '+when(c.expiresAt)+'</div>'+
+ (c.slots||[]).map(x=>'<div class="sub" style="margin-top:8px">'+esc(x.position)+' — '+esc(x.name)+(x.isMe?' · You':'')+' · '+(x.userId?'Assigned member CPR ':'Your CPR for open slot ')+num(x.passRate)+' · Planning progress '+num(x.progress)+' · Required item '+(x.itemAvailable==null?'not reported / not required':x.itemAvailable?'available':'MISSING')+'</div>').join('')+'</div>').join('')||line(f.crimesLoaded?'No available organized crimes returned.':'Organized crimes unavailable: check faction API access on this key.');
+ $('faUpgrades').innerHTML=(f.upgrades||[]).map(u=>'<div class="minirow" style="display:block"><b>'+esc(u.name)+' · Level '+num(u.level)+'</b><div class="sub">'+esc(u.branch)+' · '+esc(u.ability)+'</div></div>').join('')||line(f.upgradesLoaded?'No upgrades returned.':'Upgrade details unavailable for this key.');
+ $('faTasks').innerHTML=(f.tasks||[]).map(t=>'<div class="minirow"><label style="flex:1"><input type="checkbox" data-faction-task="'+esc(t.id)+'" '+(t.done?'checked ':'')+'onchange="factionTaskAction(this.dataset.factionTask,this.checked,false)"> '+esc(t.title)+'</label><button class="btn small" data-faction-task="'+esc(t.id)+'" onclick="factionTaskAction(this.dataset.factionTask,false,true)">Remove</button></div>').join('')||line('No local mission or leadership tasks yet.');
+}
 let coRecordIdentity='';
 let coPlanIdentity='',coPlanCompany=0,coPlanToken='';
 let coStaffIdentity='';
@@ -928,7 +998,7 @@ function renderSection(name,fn){
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.40';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.41';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -936,13 +1006,13 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.40 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.41 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 renderLossStatus(d);
 $('tradeCount').textContent=d.trading?.entries??0;$('tradeProfit').textContent=money(d.trading?.profit);$('casinoSessions').textContent=d.casino?.sessions??0;$('casinoNet').textContent=money(d.casino?.net);
 const t=d.travel||{};for(const [id,value] of [['tCapacity',t.capacity??29],['tFlight',t.flightType||'Airstrip'],['tBudget',t.budget??0],['tHorizon',String(t.horizon??24)],['tConfidence',t.confidence??35]]){if(document.activeElement!==$(id))$(id).value=value;}$('tTax').checked=!!t.marketTax;$('tBook').checked=!!t.book;$('tStockOnly').checked=!!t.stockOnly;$('tLow').checked=!!t.includeLow;$('tAutoMonitor').checked=!!t.monitor;$('tMonitorEvery').value=String(t.monitorMinutes??15);if(document.activeElement!==$('tTransfer'))$('tTransfer').value=t.transferMinutes??10;$('tPlanNow').checked=t.planNow!==false;$('tPauseUntilHome').checked=!!t.pauseUntilHome;$('tCustomStartWrap').style.display=t.planNow===false?'flex':'none';if(t.planCustomStart&&document.activeElement!==$('tPlanStart')){const date=new Date(t.planCustomStart);if(!Number.isNaN(date.getTime())){$('tPlanStart').value=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-')+'T'+String(date.getHours()).padStart(2,'0')+':'+String(date.getMinutes()).padStart(2,'0')}}renderItinerary(t);renderArrival(t);
-$('travelSource').textContent=(t.source||'Not loaded')+(t.updated?' · Updated '+t.updated:'')+(t.ageMinutes!=null?' · '+t.ageMinutes+' min ago':'');let feedStatus='Ready';let feedMode='Using live feed results.';let warn='Forecasts are estimates, not guaranteed restocks. Reported stock can sell out before arrival.';let warnClass='notice info';if(t.hasError){feedStatus='Partial provider outage';feedMode=t.hasRows?(String(t.source||'').includes('YATA')?'Using YATA backup stock; primary forecast service unavailable.':'Using saved observations or partial live data.'):'No cached travel results are available yet.';warn='Live travel provider issue: '+(t.error||'Unknown error')+' Commander will preserve older results when it can, but you should verify manually before flying.';warnClass='notice';}else if(t.warning||t.ageMinutes>30){feedStatus='Stale data';feedMode='Showing older prices or stock snapshots.';warn='Some prices or stock snapshots are stale. Verify abroad before spending.';warnClass='notice';}$('travelFeedStatus').textContent=feedStatus;$('travelFeedSource').textContent=(t.source||'Not loaded')+(t.updated?' · Updated '+t.updated:'')+(t.ageMinutes!=null?' · '+t.ageMinutes+' min ago':'');$('travelFeedMode').textContent=feedMode;$('travelWarning').textContent=warn;$('travelWarning').className=warnClass;setFilters(t.rows||[]);renderTravelRows();renderSection('Trading',()=>renderTrading(d.trading?.advice,d.profileId));renderSection('Helpers',()=>renderScriptTools(d.scripts));renderSection('Company',()=>renderCompany(d.company,d.profileId));renderSection('Progression',()=>renderProgression(d.progression,d.profileId));}
+$('travelSource').textContent=(t.source||'Not loaded')+(t.updated?' · Updated '+t.updated:'')+(t.ageMinutes!=null?' · '+t.ageMinutes+' min ago':'');let feedStatus='Ready';let feedMode='Using live feed results.';let warn='Forecasts are estimates, not guaranteed restocks. Reported stock can sell out before arrival.';let warnClass='notice info';if(t.hasError){feedStatus='Partial provider outage';feedMode=t.hasRows?(String(t.source||'').includes('YATA')?'Using YATA backup stock; primary forecast service unavailable.':'Using saved observations or partial live data.'):'No cached travel results are available yet.';warn='Live travel provider issue: '+(t.error||'Unknown error')+' Commander will preserve older results when it can, but you should verify manually before flying.';warnClass='notice';}else if(t.warning||t.ageMinutes>30){feedStatus='Stale data';feedMode='Showing older prices or stock snapshots.';warn='Some prices or stock snapshots are stale. Verify abroad before spending.';warnClass='notice';}$('travelFeedStatus').textContent=feedStatus;$('travelFeedSource').textContent=(t.source||'Not loaded')+(t.updated?' · Updated '+t.updated:'')+(t.ageMinutes!=null?' · '+t.ageMinutes+' min ago':'');$('travelFeedMode').textContent=feedMode;$('travelWarning').textContent=warn;$('travelWarning').className=warnClass;setFilters(t.rows||[]);renderTravelRows();renderSection('Trading',()=>renderTrading(d.trading?.advice,d.profileId));renderSection('Helpers',()=>renderScriptTools(d.scripts));renderSection('Faction',()=>renderFaction(d.faction,d.profileId));renderSection('Company',()=>renderCompany(d.company,d.profileId));renderSection('Progression',()=>renderProgression(d.progression,d.profileId));}
 if(window.chrome?.webview){window.chrome.webview.addEventListener('message',e=>{if(e.data?.type==='state')render(e.data.data);else if(e.data?.type==='lossStatus'){Object.assign(S,e.data.data);renderLossStatus(e.data.data)}});send('refresh')}else{$('travelSource').textContent='Preview mode: Commander backend not connected.'}
 </script>
 </body>
