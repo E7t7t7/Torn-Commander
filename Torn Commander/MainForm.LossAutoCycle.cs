@@ -18,6 +18,7 @@ public sealed partial class MainForm
     private Panel _lossWorkerHostA = null!;
     private Panel _lossWorkerHostB = null!;
     private NumericUpDown _lossMaxKits = null!;
+    private NumericUpDown _lossAttackDelay = null!;
 
     private sealed class LossClaimLease
     {
@@ -54,9 +55,19 @@ public sealed partial class MainForm
         _lossMaxKits = Num(4, 1, 8);
         _lossMaxKits.Width = 70;
         settingsRow.Controls.Add(_lossMaxKits);
+        var timingRow = new FlowLayoutPanel { AutoSize = true, BackColor = PanelBg, WrapContents = true };
+        timingRow.Controls.Add(new Label { Text = "Pillow delay (ms):", Width = 110, Height = 28, TextAlign = ContentAlignment.MiddleLeft, ForeColor = TextMain });
+        _lossAttackDelay = Num(Math.Clamp(_settings.LossAttackDelayMs, 500, 5000), 500, 5000);
+        _lossAttackDelay.Width = 85; _lossAttackDelay.Increment = 100;
+        timingRow.Controls.Add(_lossAttackDelay);
+        timingRow.Controls.Add(MakeButton("Apply timing", async (_, _) => {
+            try { await SaveLossAttackTimingAsync((int)_lossAttackDelay.Value); }
+            catch (Exception ex) { FlashStatus("Timing not applied: " + ex.Message); }
+        }, 100));
         settingsRow.Controls.Add(MakeButton("Initialize A", async (_, _) => await InitializeLossWorkerAsync(true), 92));
         settingsRow.Controls.Add(MakeButton("Initialize B", async (_, _) => await InitializeLossWorkerAsync(false), 92));
         p.Controls.Add(settingsRow);
+        p.Controls.Add(timingRow);
 
         var startRow = new FlowLayoutPanel { AutoSize = true, BackColor = PanelBg, WrapContents = true };
         startRow.Controls.Add(MakeButton("START AUTO A", async (_, _) => await StartLossAutoCycleAsync(true), 105));
@@ -105,9 +116,16 @@ public sealed partial class MainForm
 
     private void ShowLossWorkerBrowser(bool accountA)
     {
+        _lossWorkerPanel.Visible=true;
         _lossWorkerDeck.Visible=true;
         _lossWorkerDeck.SelectedIndex=accountA?0:1;
         _companionShell.SelectedIndex=0;
+    }
+
+    private void HideLossWorkerBrowsers()
+    {
+        if (_lossWorkerPanel != null) _lossWorkerPanel.Visible = false;
+        FlashStatus("Worker browsers hidden. Running workers keep their state; use Show Workers to reopen.");
     }
 
     private async Task<LossAutoCycleWorker> InitializeLossWorkerAsync(bool accountA, string? forcedProfileId = null)
@@ -253,10 +271,29 @@ public sealed partial class MainForm
             orderId = order.Id,
             targetId = order.TargetPlayerId,
             selfName = profileSnapshot.PlayerName,
-            maxKits = (int)_lossMaxKits.Value
+            maxKits = (int)_lossMaxKits.Value,
+            attackDelayMs = Math.Clamp(_settings.LossAttackDelayMs, 500, 5000)
         });
         FlashStatus($"Auto-cycle {(accountA ? "A" : "B")} armed for order {order.Id}. The worker will pause on ambiguous Torn UI instead of guessing.");
         return true;
+    }
+
+    private async Task SaveLossAttackTimingAsync(int milliseconds)
+    {
+        if (milliseconds is < 500 or > 5000) throw new InvalidDataException("Pillow delay must be 500–5000 milliseconds.");
+        int previous = _settings.LossAttackDelayMs;
+        _settings.LossAttackDelayMs = milliseconds;
+        try { Storage.SaveSettings(_settings); }
+        catch { _settings.LossAttackDelayMs = previous; throw; }
+        if (_lossAttackDelay != null) _lossAttackDelay.Value = milliseconds;
+        var warnings = new List<string>();
+        foreach (var worker in new[] { _lossWorkerA, _lossWorkerB })
+            if (worker?.IsInitialized == true && worker.IsArmed)
+                try { await worker.SetAttackDelayAsync(milliseconds); }
+                catch { warnings.Add(worker.Slot); }
+        UpdateModernDashboard();
+        FlashStatus(warnings.Count == 0 ? "Pillow delay saved and applied: " + milliseconds + " ms."
+            : "Delay saved. Pause/restart worker " + string.Join(", ", warnings) + " to apply it.");
     }
 
     private async Task PauseLossWorkerAsync(bool accountA)
@@ -362,10 +399,10 @@ public sealed partial class MainForm
         {
             var orderId = ReadWorkerString(root, "orderId");
             var order = _lossOrders.FirstOrDefault(x => x.Id.Equals(orderId, StringComparison.OrdinalIgnoreCase));
-            if (order is not null && order.Remaining <= 0)
+            if (order is not null && order.Remaining <= 0 &&
+                (worker.Slot == "A" ? order.ProfileAId : order.ProfileBId).Equals(worker.ProfileId, StringComparison.OrdinalIgnoreCase))
             {
-                order.Status = "Complete";
-                SaveLossOrders();
+                if (LossAccounting.NormalizeCompletion(order)) SaveLossOrders();
                 RebindLossOrders();
                 FlashStatus($"Loss order {order.Id} completed after final recovery. Gross tracked: ${order.Gross:N0}.");
             }

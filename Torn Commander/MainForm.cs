@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.41";
+        Text = "Torn Commander v0.6.42";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -133,6 +133,11 @@ public sealed partial class MainForm : Form
         _milestones = Storage.Load(Storage.MilestonesPath, new List<NnbMilestone>());
         _trades = Storage.Load(Storage.TradesPath, new List<TradeEntry>());
         _lossOrders = Storage.Load(Storage.LossOrdersPath, new List<LossOrder>());
+        bool correctedLossOrders = false;
+        foreach (var order in _lossOrders) correctedLossOrders |= LossAccounting.NormalizeCompletion(order);
+        if (correctedLossOrders)
+            try { SaveLossOrders(); }
+            catch (Exception ex) { Program.TraceStartup("Loss completion reconciliation save failed: " + ex.GetType().Name); }
         _casino = Storage.Load(Storage.CasinoPath, new List<CasinoSession>());
 
         Program.TraceStartup("MainForm constructor: building controls.");
@@ -278,7 +283,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.41 — {target.Name}";
+        Text = $"Torn Commander v0.6.42 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -389,7 +394,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.41 — {name}";
+        Text = $"Torn Commander v0.6.42 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -453,7 +458,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.41 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.42 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1006,6 +1011,7 @@ public sealed partial class MainForm : Form
         _lossOrders.Insert(0, order);
         SaveLossOrders();
         RebindLossOrders();
+        SelectLossOrder(order.Id);
         FlashStatus($"Loss order {order.Id} created: {order.RequestedLosses} losses.");
     }
 
@@ -1020,7 +1026,7 @@ public sealed partial class MainForm : Form
                 if (hit is not null) return hit;
             }
         }
-        return _lossOrders.FirstOrDefault(x => x.Status != "Complete");
+        return _lossOrders.FirstOrDefault(x => x.Status != "Complete" && x.Remaining > 0);
     }
 
     private async Task NextLossActionAsync(bool accountA)
@@ -1028,7 +1034,7 @@ public sealed partial class MainForm : Form
         var order = SelectedLossOrder();
         if (order is null) { MessageBox.Show("Create or select an order first.", "Loss Desk"); return; }
         if (order.Status == "Paused") { MessageBox.Show("This order is paused. Resume it first.", "Loss Desk"); return; }
-        if (order.Remaining <= 0) { MessageBox.Show("Requested losses are already complete. Use FINISH + COMPLETE.", "Loss Desk"); return; }
+        if (order.Remaining <= 0) { MessageBox.Show("This contract is fulfilled. No further attack is needed; recovery can be handled separately.", "Loss Desk"); return; }
         var profileId = accountA ? order.ProfileAId : order.ProfileBId;
         if (!profileId.Equals(CurrentProfileId, StringComparison.OrdinalIgnoreCase)) await SwitchProfileAsync(profileId);
         var next = accountA ? order.NextA : order.NextB;
@@ -1059,10 +1065,16 @@ public sealed partial class MainForm : Form
         if (order is null) return;
         if (order.Status == "Paused") { FlashStatus("Order is paused."); return; }
         if (order.Remaining <= 0) { FlashStatus("Order is already at the requested total."); return; }
+        var previous = (order.CompletedA, order.CompletedB, order.NextA, order.NextB, order.Status);
         if (accountA) { order.CompletedA++; order.NextA = "Heal"; }
         else { order.CompletedB++; order.NextB = "Heal"; }
-        if (order.Remaining == 0) order.Status = "Ready to finish";
-        SaveLossOrders();
+        LossAccounting.NormalizeCompletion(order);
+        try { SaveLossOrders(); }
+        catch (Exception ex)
+        {
+            (order.CompletedA, order.CompletedB, order.NextA, order.NextB, order.Status) = previous;
+            FlashStatus("Loss progress was not saved: " + ex.Message); return;
+        }
         RebindLossOrders();
         FlashStatus($"Recorded {(accountA ? "A" : "B")} loss. {order.CompletedTotal}/{order.RequestedLosses} complete.");
     }
@@ -1071,6 +1083,11 @@ public sealed partial class MainForm : Form
     {
         var order = SelectedLossOrder();
         if (order is null) return;
+        if (order.Remaining <= 0)
+        {
+            LossAccounting.NormalizeCompletion(order); SaveLossOrders(); RebindLossOrders();
+            FlashStatus("This contract is already fulfilled."); return;
+        }
         order.Status = order.Status == "Paused" ? (order.Remaining == 0 ? "Ready to finish" : "Active") : "Paused";
         SaveLossOrders(); RebindLossOrders();
     }
@@ -1079,9 +1096,16 @@ public sealed partial class MainForm : Form
     {
         var order = SelectedLossOrder();
         if (order is null) return;
-        order.Status = "Complete";
-        SaveLossOrders(); RebindLossOrders();
-        FlashStatus($"Order {order.Id} completed. Gross tracked: ${order.Gross:N0}.");
+        if (order.Remaining > 0)
+        {
+            FlashStatus($"Cannot mark fulfilled: {order.Remaining} confirmed losses still remain."); return;
+        }
+        var previous = (order.Status, order.NextA, order.NextB);
+        LossAccounting.NormalizeCompletion(order);
+        try { SaveLossOrders(); }
+        catch (Exception ex) { (order.Status, order.NextA, order.NextB) = previous; FlashStatus("Completion not saved: " + ex.Message); return; }
+        RebindLossOrders();
+        FlashStatus($"Order {order.Id} completed. Gross tracked: {order.Gross:C0}.");
     }
 
     private void DeleteLossOrder()
@@ -1097,11 +1121,13 @@ public sealed partial class MainForm : Form
     private void RebindLossOrders()
     {
         if (_lossGrid is null) return;
+        string? selected = _lossGrid.SelectedRows.Count > 0 ? _lossGrid.SelectedRows[0].Cells["Id"]?.Value?.ToString() : null;
         _lossGrid.DataSource = null;
         _lossGrid.DataSource = _lossOrders.Select(x => new
         {
             x.Id,
             Buyer = x.BuyerName,
+            x.Status,
             Target = x.TargetPlayerId,
             Progress = $"{x.CompletedTotal}/{x.RequestedLosses}",
             A = x.CompletedA,
@@ -1110,10 +1136,20 @@ public sealed partial class MainForm : Form
             NextB = x.NextB,
             Remaining = x.Remaining,
             Pay = x.PayPerLoss,
-            Gross = x.Gross,
-            x.Status
+            Gross = x.Gross
         }).ToList();
         if (_lossGrid.Columns.Count > 0) _lossGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
+        if (selected != null) SelectLossOrder(selected);
+    }
+    private void SelectLossOrder(string orderId)
+    {
+        if (_lossGrid == null) return;
+        foreach (DataGridViewRow row in _lossGrid.Rows)
+            if (string.Equals(row.Cells["Id"]?.Value?.ToString(), orderId, StringComparison.OrdinalIgnoreCase))
+            {
+                _lossGrid.ClearSelection(); row.Selected = true;
+                _lossGrid.CurrentCell = row.Cells["Id"]; return;
+            }
     }
 
     private void AddService(FlowLayoutPanel p, string name, string description, string discord, string forum)
@@ -1248,7 +1284,7 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.41");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.42");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
@@ -1476,7 +1512,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.41 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.42 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -2912,7 +2948,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.41; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.42; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);

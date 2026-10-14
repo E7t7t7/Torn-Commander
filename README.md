@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.41. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.42. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -103,3 +103,15 @@ Choose a local growth/war/crime focus and inactivity review threshold. Inspect m
 Chain deadlines and war/presence data are saved snapshots, not a live monitor. Refresh in Torn before acting. Personal mission-agent objectives are not imported: the local mission/leadership checklist is manually entered and scoped to the profile and faction. **Copy Faction Report** copies selected saved data locally, excluding API error details and free-text tasks. No messages, purchases, upgrades, crime launches or AI requests are performed.
 
 Endpoint contracts follow the [official v2 schema](https://www.torn.com/swagger/openapi.json). See the official [Faction guide](https://wiki.torn.com/wiki/Faction) and [Organized Crime 2.0 guide](https://wiki.torn.com/wiki/Organized_Crime_2.0) for game mechanics.
+
+
+### Loss recovery, timing and fulfillment (v0.6.42)
+
+Workers now expand a verified collapsed First Aid Kit entry before looking for its Use control. They wait at most 15 seconds after opening it, then pause with a diagnostic rather than repeatedly toggling the item or guessing another medicine.
+
+In **Loss Desk**, set **Pillow attack delay (milliseconds)** and choose **Apply Attack Timing**. The allowed range is 500–5000 ms; the default remains 1900 ms. The same setting is available in the Full Loss Desk. It applies to running workers and future starts. Actual turns may be slower while Torn loads or disables controls.
+
+Local contracts become **Complete** as soon as their confirmed count reaches the requested quota; Next A/B then show **Done**. Final healing continues independently in the worker and does not hold up contract fulfillment. Older fully delivered orders are corrected on load without adding any losses. Partial orders are not automatically completed. This is local order tracking, not an automatic external Loss Exchange settlement.
+
+
+The docked worker panel has **Hide ×** and **Stop & Close** controls. Hide reclaims screen space while preserving worker state; Stop & Close first stops both workers. Use **Loss Desk → Show Workers** to reopen the A/B tabs. The same actions are available beside Full Loss Desk.

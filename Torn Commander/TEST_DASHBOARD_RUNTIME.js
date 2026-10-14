@@ -69,3 +69,12 @@ console.log('PROFILE STATE RENDER PASSED: both accounts load even when the compa
 
 context.renderLossStatus({workers:{a:'Paused',b:'Pillow selected'},loss:{buyer:'Fixture',target:'123',completed:1,requested:2,remaining:1,gross:100,status:'Recovering'}});
 assert.strictEqual(nodes.workerB.textContent,'Pillow selected');assert(nodes.lossCard.innerHTML.includes('1 / 2'));
+
+context.renderLossStatus({lossAttackDelayMs:700});
+assert.strictEqual(nodes.lossAttackDelay.value,700);
+nodes.lossAttackDelay.value=500;
+context.renderLossStatus({lossAttackDelayMs:700});
+assert.strictEqual(nodes.lossAttackDelay.value,500,'Worker heartbeat overwrote an unsaved timing edit');
+context.renderLossStatus({lossAttackDelayMs:900});
+assert.strictEqual(nodes.lossAttackDelay.value,900);
+console.log('LOSS TIMING DASHBOARD PASSED: saved timing rendering and unsaved draft preservation.');

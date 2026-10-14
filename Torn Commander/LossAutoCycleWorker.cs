@@ -13,7 +13,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
     private readonly string _slot;
     private readonly string _profileId;
     private readonly string _profileName;
-    private readonly System.Windows.Forms.Timer _heartbeat = new() { Interval = 900 };
+    private readonly System.Windows.Forms.Timer _heartbeat = new() { Interval = 250 };
     private bool _pumping;
     private bool _initialized;
     private bool _disposed;
@@ -107,6 +107,8 @@ internal sealed class LossAutoCycleWorker : IDisposable
         await InvokeAsync("start", config);
         IsArmed = true;
     }
+
+    public async Task SetAttackDelayAsync(int milliseconds) => await InvokeAsync("setAttackDelay", milliseconds);
 
     public async Task PauseAsync() => await InvokeNoArgAsync("pause");
     public async Task ResumeAsync() => await InvokeNoArgAsync("resume");

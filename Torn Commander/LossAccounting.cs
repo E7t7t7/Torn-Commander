@@ -9,6 +9,13 @@ public sealed class LossCommitReceipt
 public sealed record LossCommitResult(bool Ok, int Remaining, string Message, bool Duplicate = false);
 public static class LossAccounting
 {
+    public static bool NormalizeCompletion(LossOrder order)
+    {
+        if (order.RequestedLosses <= 0 || order.CompletedTotal < order.RequestedLosses) return false;
+        bool changed = order.Status != "Complete" || order.NextA != "Done" || order.NextB != "Done";
+        order.Status = "Complete"; order.NextA = "Done"; order.NextB = "Done";
+        return changed;
+    }
     public static LossCommitResult? Replay(LossOrder order, string claimId, string profileId, string slot)
     {
         order.CommitReceipts ??= new();
@@ -33,7 +40,7 @@ public static class LossAccounting
         if (slot == "A") { order.CompletedA++; order.NextA = "Auto recovery"; }
         else { order.CompletedB++; order.NextB = "Auto recovery"; }
         order.CommitReceipts.Add(receipt);
-        if (order.Status != "Paused") order.Status = order.Remaining <= 0 ? "Final recovery" : "Auto cycling";
+        if (!NormalizeCompletion(order) && order.Status != "Paused") order.Status = "Auto cycling";
         try { save(); }
         catch
         {

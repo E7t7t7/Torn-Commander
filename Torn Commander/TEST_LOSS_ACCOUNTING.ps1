@@ -22,7 +22,7 @@ Check(LossAccounting.Replay(order,"claim1","two","B")?.Ok==false,"Receipt crosse
 var reloaded=JsonSerializer.Deserialize<LossOrder>(File.ReadAllText(path))!;
 Check(LossAccounting.Replay(reloaded,"claim1","one","A")?.Duplicate==true,"Receipt lost across restart.");
 var second=LossAccounting.Commit(order,"claim2","two","B",Save);
-Check(second.Ok && order.CompletedB==1 && order.CompletedTotal==2 && order.Status=="Final recovery","Second worker accounting wrong.");
+Check(second.Ok && order.CompletedB==1 && order.CompletedTotal==2 && order.Status=="Complete" && order.NextA=="Done" && order.NextB=="Done","Second worker accounting wrong.");
 Check(!LossAccounting.Commit(order,"extra","one","A",Save).Ok && order.CompletedTotal==2,"Quota over-counted.");
 Check(LossAccounting.Commit(order,"claim2","two","B",Save).Duplicate,"Final loss retry failed.");
 var prior=File.ReadAllText(path);
@@ -41,6 +41,14 @@ foreach(var slot in new[]{"A","B"}){
 }
 var legacy=JsonSerializer.Deserialize<LossOrder>("""{"RequestedLosses":4,"CompletedA":2}""")!;
 Check(legacy.CommitReceipts.Count==0 && legacy.CompletedA==2,"Old order migration changed count.");
+var delivered=new LossOrder{RequestedLosses=14,CompletedB=14,NextA="Attack",NextB="Heal",Status="Ready to finish"};
+Check(LossAccounting.NormalizeCompletion(delivered)&&delivered.Status=="Complete"&&delivered.NextA=="Done"&&delivered.NextB=="Done"&&delivered.CompletedTotal==14,"Legacy fulfilled order not reconciled.");
+Check(!LossAccounting.NormalizeCompletion(delivered),"Completion reconciliation not idempotent.");
+var partial=new LossOrder{RequestedLosses=14,CompletedB=13};
+Check(!LossAccounting.NormalizeCompletion(partial)&&partial.Status=="Active"&&partial.CompletedTotal==13,"Partial order marked complete.");
+var finalRollback=new LossOrder{RequestedLosses=1,ProfileAId="one"};
+try{LossAccounting.Commit(finalRollback,"final-fail","one","A",()=>throw new IOException("fixture"));throw new Exception("Expected completion save failure.");}catch(IOException){}
+Check(finalRollback.Status=="Active"&&finalRollback.CompletedTotal==0&&finalRollback.NextA=="Attack"&&finalRollback.CommitReceipts.Count==0,"Failed final commit left an order fulfilled.");
 Console.WriteLine("LOSS ACCOUNTING PASSED: receipt replay, profiles, restart, quota, failed-save rollback, atomic preservation and legacy orders.");
 '@
 Set-Content -LiteralPath (Join-Path $project 'Program.cs') -Value $prog -Encoding UTF8

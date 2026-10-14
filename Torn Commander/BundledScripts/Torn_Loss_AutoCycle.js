@@ -8,7 +8,8 @@
   const ATTACK_URL = id => `https://www.torn.com/page.php?sid=attack&user2ID=${encodeURIComponent(id)}`;
   const ITEMS_URL = 'https://www.torn.com/item.php';
   const MAX_PILLOW_TURNS = 20;
-  const TICK_MS = 900;
+  const TICK_MS = 250;
+  const attackDelay = value => Number.isFinite(Number(value)) ? Math.max(500, Math.min(5000, Math.round(Number(value)))) : 1900;
   let busy = false;
 
   const now = () => Date.now();
@@ -101,7 +102,8 @@
     for(const marker of markers){
       let fallback=null,control=null;
       for(let node=marker,depth=0;node&&node!==area&&depth<8;node=node.parentElement,depth++){
-        if(!visible(node)||node.disabled||node.getAttribute?.('aria-disabled')==='true')continue;
+        if(!visible(node))continue;
+        if(node.disabled||node.getAttribute?.('aria-disabled')==='true'){control=null;fallback=null;break;}
         const tag=String(node.tagName||'').toLowerCase(),role=node.getAttribute?.('role');
         if(tag==='button'||tag==='a'||role==='button'){control=node;break;}
         if(!fallback&&/weapon|melee|slot|equipment/i.test(String(node.className?.baseVal??node.className??'')))fallback=node;
@@ -148,6 +150,24 @@
     return roots.length===1?roots[0]:null;
   }
 
+  function firstAidExpandControl() {
+    const row=firstAidRow();if(!row)return null;
+    // An open or temporarily disabled item must not be toggled closed while its controls settle.
+    if([row,...row.querySelectorAll('[aria-expanded]')].some(el=>el.getAttribute?.('aria-expanded')==='true'))return null;
+    if(Array.from(row.querySelectorAll('button,a,[role="button"]')).some(el=>visible(el)&&
+      /^(use|use item|use first aid kit)$/i.test(labelOf(el))&&(el.disabled||el.getAttribute?.('aria-disabled')==='true')))return null;
+    // Click only the verified item's own name/image/header; never a generic page control.
+    const names=Array.from(row.querySelectorAll('span,strong,b,h3,h4,a,button,div'))
+      .filter(el=>visible(el)&&!el.children?.length&&/^first aid kit$/i.test(clean(el.textContent)));
+    const expanded=Array.from(row.querySelectorAll('[aria-expanded]')).filter(el=>visible(el)&&el.getAttribute?.('aria-expanded')==='false');
+    const own=expanded.filter(el=>/first aid kit/i.test(clean(el.textContent))&&!/small first aid kit/i.test(clean(el.textContent)));
+    if(own.length===1)return own[0];
+    if(names.length===1)return names[0];
+    const images=Array.from(row.querySelectorAll('img')).filter(el=>visible(el)&&
+      (/^first aid kit$/i.test(clean(el.getAttribute?.('alt')||el.getAttribute?.('title')))||/\/items\/67(?:[/.?]|$)/i.test(el.getAttribute?.('src')||'')));
+    return images.length===1?images[0]:null;
+  }
+
   function aidCount() {
     const row=firstAidRow();if(!row)return null;
     const counts=[row,...row.querySelectorAll('[data-qty],[data-quantity]')];
@@ -155,7 +175,9 @@
       const value=node.getAttribute?.(key);if(value!==null&&value!==undefined&&/^\d+$/.test(value))return Number(value);
     }
     const match=clean(row.textContent).match(/First Aid Kit\s*[x×]\s*(\d+)\b/i);
-    return match?Number(match[1]):null;
+    if(match)return Number(match[1]);
+    const before=clean(row.textContent).match(/(?:^|\s)[x×]\s*(\d+)\s*First Aid Kit\b/i);
+    return before?Number(before[1]):null;
   }
 
   function firstAidUseButton() {
@@ -319,7 +341,7 @@
             return;
           }
           state.stage = 'heal-open';
-          state.healEnteredAt = 0;
+          state.healEnteredAt = 0; state.aidExpandedAt = 0;
           state.status = 'Hospital block detected. Opening Items for recovery.';
           save(state);
           openPage(state,ITEMS_URL,'Items / Medical');
@@ -372,11 +394,11 @@
           save(state);
           return;
         }
-        if (now() - Number(state.lastPillowAt || 0) < 1900) return;
+        if (now() - Number(state.lastPillowAt || 0) < attackDelay(state.attackDelayMs ?? 1900)) return;
         const pillow = pillowControl();
         if (!pillow) {
           state.pillowMissingSince = state.pillowMissingSince || now();
-          state.status = 'Pillow control not found yet. Waiting for Torn combat UI to settle.';
+          state.status = 'Pillow control not found or not ready yet. Waiting for Torn combat UI to settle.';
           save(state);
           if (now() - state.pillowMissingSince > 45000) pauseState(state, 'Pillow control could not be identified for 45 seconds. Auto-cycle paused.', false);
           return;
@@ -429,9 +451,21 @@
         }
         const use = firstAidUseButton();
         if (!use) {
-          if (now() - state.healEnteredAt > 65000) pauseState(state, 'First Aid Kit Use/checkmark could not be identified. Auto-cycle paused before consuming anything.', true);
+          if(aidCount()===0){pauseState(state,'No First Aid Kits remain in the verified item row.',true);return;}
+          if(state.aidExpandedAt){
+            if(now()-state.aidExpandedAt>15000)pauseState(state,'First Aid Kit was opened, but its Use control did not appear within 15 seconds. Copy the worker diagnostic; no item was consumed.',true);
+            return;
+          }
+          const expand=firstAidExpandControl();
+          if(expand){
+            state.aidExpandedAt=now();
+            state.status='Expanding the First Aid Kit item; waiting for its Use control.';
+            save(state);click(expand);return;
+          }
+          if (now() - state.healEnteredAt > 65000) pauseState(state, 'First Aid Kit Use/checkmark or item header could not be identified. Auto-cycle paused before consuming anything.', true);
           return;
         }
+        state.aidExpandedAt=0;
         state.healBeforeCount = aidCount();
         state.healClickedAt = now();
         state.confirmClicked = false;
@@ -498,7 +532,7 @@
             return;
           }
           state.stage = 'heal-open';
-          state.healEnteredAt = 0;
+          state.healEnteredAt = 0; state.aidExpandedAt = 0;
           state.medicalClickedAt = 0;
           state.status = 'Still hospitalized. Returning to Medical for one more First Aid Kit.';
           save(state);
@@ -549,6 +583,7 @@
         orderId: String(config.orderId || ''),
         targetId: String(config.targetId || ''),
         selfName: String(config.selfName || ''),
+        attackDelayMs: attackDelay(config.attackDelayMs ?? 1900),
         maxKits: Math.max(1, Math.min(8, Number(config.maxKits || 4))),
         running: true,
         stage: 'claim',
@@ -561,6 +596,12 @@
       };
       save(state);
       return true;
+    },
+    setAttackDelay(milliseconds) {
+      const value=Number(milliseconds);
+      if(!Number.isFinite(value)||value<500||value>5000)return false;
+      const state=load();if(!state)return false;
+      state.attackDelayMs=attackDelay(value);save(state);return true;
     },
     pause() {
       const state = load();
@@ -630,7 +671,7 @@
       if (!claimId) { pauseState(state,'Commander granted an empty claim. No attack started.',false); return false; }
       state.claimId = String(claimId || '');
       state.kitsThisLoss = 0;
-      state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
+      state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;state.aidExpandedAt=0;
       state.stage = 'attack-open';
       state.navigationUrl='';
       state.status = 'Loss slot granted. Opening target attack page.';
@@ -651,9 +692,9 @@
       state.finishAfterRecovery = Number(remaining || 0) <= 0;
       state.stage = state.finishAfterRecovery ? 'final-recovery' : 'heal-open';
       state.probeStartedAt = now();
-      state.healEnteredAt = 0;
+      state.healEnteredAt = 0; state.aidExpandedAt = 0;
       state.medicalClickedAt = 0;
-      state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
+      state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;state.aidExpandedAt=0;
       state.kitsThisLoss = 0;
       state.status = state.finishAfterRecovery
         ? 'Final loss committed. Verifying recovery before completing the order.'
@@ -667,7 +708,7 @@
       const summary=el=>el?{tag:el.tagName,className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
       return {stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
-        pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
+        pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },
     pump() { void tick(); return true; },
     getState() { return load(); }

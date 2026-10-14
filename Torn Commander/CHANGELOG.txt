@@ -1,3 +1,15 @@
+v0.6.42 (2026-10-14) — Expand medical items, tune attack timing and fulfill contracts
+- Expand the verified First Aid Kit name/image/header when its Use control is hidden in a collapsed inventory row; wait for that item's controls with a bounded timeout.
+- Avoid toggling explicitly open items or visible disabled Use controls, and recognize quantities preceding the item name.
+- Add saved 500-5000 ms Pillow attack timing in both Loss Desk interfaces, applying it to running workers and future starts.
+- Use a finer worker heartbeat while retaining per-attack spacing and disabled-control checks.
+- Mark local contracts Complete and both next-action labels Done when the confirmed loss quota is reached; let workers finish recovery independently.
+- Reconcile legacy fully delivered contracts on load without recounting losses, keep partial contracts open, and move Status beside Buyer.
+- Preserve selected orders through accounting updates and select newly created orders explicitly.
+- Retain atomic final-commit rollback, receipt replay and quota limits; reject manual fulfillment before the confirmed quota is reached.
+- Add Hide and Stop & Close controls to the docked worker panel, plus Show/Hide/Stop & Close buttons in Loss Desk to reclaim the dashboard and reopen worker tabs.
+- Test collapsed inventory rows, bounded expansion failure, ambiguous-kit refusal, disabled Pillow controls, adjustable timing, legacy completion and final-save rollback.
+
 v0.6.41 (2026-10-14) — Position-aware Faction Command
 - Add a Faction tab with member activity, growth priorities, available organized crimes, wars, saved chain deadlines and installed upgrades.
 - Detect the scanning account's position: verify leader/co-leader against faction identity, recognize officers from actual management abilities, and prioritize personal participation for members.
