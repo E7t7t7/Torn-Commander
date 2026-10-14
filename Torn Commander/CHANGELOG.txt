@@ -1,3 +1,11 @@
+v0.6.39 (2026-10-14) — Copy company report for optional chat advice
+- Add Copy Company Report beside the company scan controls; copy a structured prompt and the saved active-company snapshot to the local clipboard.
+- Include working stats, named assignments, role counts, starting-layout tradeoffs, health, stock, costs and up to 30 dated observations.
+- Use an explicit export allowlist excluding credentials, browser state, free-text notes, HTTP error details and other companies' data.
+- Explain unknown values, partial reporting days, scan age and the limits of modeled scores and trial layouts.
+- Disable copying before a company observation exists or while scanning. No AI request, subscription integration or paid dependency is introduced.
+- Verify report parsing, real-zero/unknown costs, cross-company isolation and private text exclusion.
+
 v0.6.38 (2026-10-14) — Practical Candle Shop staffing layouts
 - Add one-click core-business, staff-growth, contribution-visibility and environment-recovery trial layouts sized to 4-10 scanned staff.
 - Protect making/selling coverage and compare a bounded core-role split using the team's actual working stats; place underqualified staff rather than requiring maxed employees.

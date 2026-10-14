@@ -11,6 +11,7 @@ vm.runInContext(script.slice(script.indexOf('let coRecordIdentity='),script.inde
 context.renderCompany({name:'Fixture Company',business:{state:'SPENDING ALERT',note:'Fixture'},rows:[]},'one');
 assert.strictEqual(nodes.coName.textContent,'Fixture Company');
 assert.strictEqual(nodes.coBusinessState.textContent,'SPENDING ALERT');
+assert.strictEqual(nodes.coCopyReport.disabled,true);
 context.renderCompany({id:7,name:'Fixture Company',health:{efficiency:71,environment:83,popularity:42,trains:3},
  scan:{token:'one',at:'fixture UTC',warnings:['Restricted stock access'],jobs:[{id:1,name:'Manual',required:{manualLabor:100,intelligence:0,endurance:50},count:1}],stock:[{name:'Candle',inStock:0,onOrder:2,cost:10,price:9}]},
  team:{state:'TEAM PLAN READY',before:8,after:72,note:'Fixture plan',actions:['Train staff'],rows:[{name:'Worker',id:11,current:'Manual',recommended:'Office',stats:{manualLabor:10,intelligence:80,endurance:0},before:4,after:36,nextStep:'INT gap'}]},rows:[]},'one');

@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.38. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.39. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -74,3 +74,10 @@ The planner protects both Chandler and Salesperson coverage, starts with one Cle
 The [official Candle Shop role list](https://wiki.torn.com/wiki/Candle_Shop) and [company support-role descriptions](https://wiki.torn.com/wiki/Company#Special_Positions) inform role coverage. Live API job requirements remain authoritative for placement. Other company types retain the existing custom-count builder rather than inheriting Candle Shop business assumptions.
 
 Compare the next complete daily report after a trial, including income, customers, health, wages, supplies and any actual extra trains. The planner does not predict income or star gains. Individual API contribution estimates are shown only when exposed; their reporting period is not assumed to be daily.
+
+
+### Optional company report for chat advice (v0.6.39)
+
+Choose **Company → Copy Company Report** after scanning. Paste the clipboard text into your chosen chat to request a researched review of the actual staff and selected plan. The report includes company/staff names, working stats, assignments, costs, stock and up to 30 daily observations. It excludes API keys, browser sessions, free-text notes, request-error text and other companies' records.
+
+Copying is entirely local. Commander does not send this report, call an AI service or consume AI credits. Sharing it in a chat is your separate action, under that service's normal limits. The app continues to scan and calculate independently.

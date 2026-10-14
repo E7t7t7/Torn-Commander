@@ -183,6 +183,20 @@ public sealed partial class MainForm
         UpdateModernDashboard();
     }
 
+    private void CopyCompanyReport()
+    {
+        if (_companySyncing)
+        {
+            FlashStatus("Wait for the company scan to finish before copying its report.");
+            return;
+        }
+        var report = CompanyReportExport.Build(GetCompanyJournal(), DateTime.UtcNow);
+        Clipboard.SetText(report);
+        GetCompanyJournal().Status = "Company report copied. Paste it into your chosen chat for advice. No automatic AI request was made.";
+        UpdateModernDashboard();
+        FlashStatus("Company report copied to clipboard.");
+    }
+
     private object CompanyDashboardData()
     {
         var journal = GetCompanyJournal();

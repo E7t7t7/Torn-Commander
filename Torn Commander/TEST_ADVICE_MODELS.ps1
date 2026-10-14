@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
@@ -161,6 +161,27 @@ candleCompany.CompanyId=17;candleCompany.CompanyTypeId=7;
 Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Options.Count==0,"Candle business assumptions applied to another company type.");
 var valueFixture=CompanyStaffAdvisor.ReadEmployees("""{"employees":[{"id":44,"value":-20,"wage":0},{"id":45,"value":null}]}""");
 Check(valueFixture[0].ContributionValue==-20&&valueFixture[0].Wage==0&&valueFixture[1].ContributionValue==null,"Contribution loss/unknown or zero wage lost.");
+// Export only the active company's allowlisted data; never notes, errors or other profiles.
+candleCompany.CompanyTypeId=8;
+var exportJournal=new CompanyJournal {ActiveCompanyId=17,Status="PRIVATE_STATUS_SECRET",Team=candleScan,Days=new(){
+ new(){CompanyId=17,CompanyName="Fixture Candle",CompanyTypeId=8,DayUtc="2026-10-14",Employees=10,Notes="PRIVATE_NOTE_SECRET",DailyIncome=0},
+ new(){CompanyId=999,CompanyName="OTHER_COMPANY_SECRET",DayUtc="2026-10-13",Notes="OTHER_NOTE_SECRET"}
+}};
+candleScan.Warnings.Add("PRIVATE_ERROR_SECRET");
+var exported=CompanyReportExport.Build(exportJournal,now.AddDays(2));
+Check(exported.Contains("Fixture Candle")&&!exported.Contains("PRIVATE_")&&!exported.Contains("OTHER_"),"Report leaked free-text/private or another company's data.");
+using(var parsed=JsonDocument.Parse(exported[(exported.IndexOf("JSON DATA:")+10)..])){
+ Check(parsed.RootElement.GetProperty("accounting").GetProperty("dailyIncome").GetInt64()==0 &&
+ parsed.RootElement.GetProperty("accounting").GetProperty("dailyPayroll").ValueKind==JsonValueKind.Null,"Export lost real zero or unknown costs.");
+ Check(parsed.RootElement.GetProperty("recentDailyObservations").GetArrayLength()==1,"Export mixed company histories.");
+}
+candleScan.CompanyId=999;
+var isolated=CompanyReportExport.Build(exportJournal,now);
+using(var parsed=JsonDocument.Parse(isolated[(isolated.IndexOf("JSON DATA:")+10)..])){
+ Check(parsed.RootElement.GetProperty("scan").ValueKind==JsonValueKind.Null&&parsed.RootElement.GetProperty("staffPlan").GetProperty("rows").GetArrayLength()==0,"Mismatched company staff leaked into clipboard report.");
+}
+try{CompanyReportExport.Build(new CompanyJournal(),now);throw new Exception("Empty export accepted.");}catch(InvalidDataException){}
+Console.WriteLine("COMPANY EXPORT TEST PASSED: clipboard allowlist, unknown/zero values, active-company isolation and no unscanned reports.");
 Console.WriteLine("COMPANY LAYOUT TEST PASSED: one-star nine-person underqualified team, all 4-10 staff counts, protected role coverage, cash/environment priorities, named-assignment consistency, restricted stats and company-type isolation.");
 Console.WriteLine("COMPANY STAFF TEST PASSED: official API fixtures, unknown access fields, underqualified swaps, role-count scenarios, 25 exhaustive optimizer comparisons, company isolation, penalties and stock guidance.");
 Console.WriteLine("COMPANY / ARRIVAL TEST PASSED: unknown values, costs, daily schedule, history, quote age, mixed budgets, forecast limits.");
