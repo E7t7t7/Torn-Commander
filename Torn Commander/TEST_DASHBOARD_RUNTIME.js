@@ -18,6 +18,13 @@ context.renderCompany({id:7,name:'Fixture Company',health:{efficiency:71,environ
 assert(nodes.coTeamRows.innerHTML.includes('Office')&&nodes.coTeamRows.innerHTML.includes('INT 80'),'Staff scan not rendered');
 assert(nodes.coTeamScore.textContent.includes('72')&&nodes.coJobs.innerHTML.includes('data-company-role="1"'),'Allocation or role counts not rendered');
 assert(nodes.coStockRows.innerHTML.includes('Candle')&&!nodes.coScanWarnings.hidden,'Stock details or scan warnings missing');
+
+assert(nodes.coTeamRows.innerHTML.includes('<details')&&nodes.coTeamRows.innerHTML.includes('Why this position?'),'Expandable position reasoning missing');
+const retainedRows=nodes.coTeamRows.innerHTML;
+nodes.coTeamRows.innerHTML='DETAILS_REMAIN_OPEN';
+context.renderCompany({id:7,team:{rows:[{name:'Worker',id:11,current:'Manual',recommended:'Office',stats:{manualLabor:10,intelligence:80,endurance:0},before:4,after:36,nextStep:'INT gap'}]},rows:[]},'one');
+assert.strictEqual(nodes.coTeamRows.innerHTML,'DETAILS_REMAIN_OPEN','Identical staff refresh replaces open details');
+nodes.coTeamRows.innerHTML=retainedRows;
 context.renderCompany({id:7,layouts:{stage:'1-star Candle Shop · 9 scanned staff',selected:'Cash and staff growth',note:'Trial layout',options:[{id:'growth',name:'Cash and staff growth',suggested:true,countsText:'3 Chandler · 3 Salesperson',workingScore:300,underqualified:9,reason:'Training tradeoff'}],checks:['Compare a full daily report']},rows:[]},'one');
 assert(nodes.coLayoutStage.textContent.includes('9 scanned')&&nodes.coLayouts.innerHTML.includes('data-company-layout="growth"')&&nodes.coLayoutSelected.textContent.includes('Cash and staff growth'),'Guided nine-person layout not rendered');
 context.send=(cmd,data)=>{context.layoutMessage={cmd,...data}};

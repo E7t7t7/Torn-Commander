@@ -40,7 +40,9 @@ internal static class CompanyReportExport
                 }),
                 stock = scan.Stock.Select(x => new { x.Name, x.Cost, x.Price, x.InStock, x.OnOrder })
             },
-            staffPlan = new { selectedLayout = layouts.Selected, plan.State, plan.Note, plan.Before, plan.After, plan.Rows },
+            staffPlan = new { selectedLayout = layouts.Selected, plan.State, plan.Note, plan.Before, plan.After,
+                rows = plan.Rows.Select(x => new { x.Id, x.Name, x.Current, x.Recommended, x.Stats,
+                    x.Required, x.Before, x.After, x.ActualWorking, x.ActualTotal, x.NextStep, x.Wage, x.ContributionValue }) },
             startingLayouts = layouts.Options.Select(x => new {
                 x.Name, x.Reason, x.Suggested, x.CountsText, x.WorkingScore, x.Underqualified, x.TrainerWorkingFit
             }),

@@ -51,7 +51,12 @@ internal sealed class CompanyTeamScan
 }
 internal sealed record CompanyAssignment(long Id, string Name, string Current, string Recommended,
     CompanyWorkStats? Stats, CompanyWorkStats? Required, int? Before, int? After,
-    int? ActualWorking, int? ActualTotal, string NextStep, long? Wage, long? ContributionValue);
+    int? ActualWorking, int? ActualTotal, string NextStep, long? Wage, long? ContributionValue)
+{
+    public CompanyPositionExplanation? Explanation { get; init; }
+}
+internal sealed record CompanyPositionExplanation(string Summary, List<string> Reasons,
+    List<string> StatComparison, string Reliability);
 internal sealed record CompanyTeamReport(string State, string Note, int? Before, int? After,
     List<CompanyAssignment> Rows, List<string> Actions);
 
@@ -198,6 +203,79 @@ internal static class CompanyStaffAdvisor
             throw new InvalidDataException("The total number of role slots must equal the scanned employee count.");
         return counts;
     }
+    private static CompanyPositionExplanation Explain(IReadOnlyList<CompanyEmployeeScan> staff,
+        IReadOnlyList<CompanyJobScan> slots, int[]? assignment, int index, CompanyJobScan? current,
+        int? teamBefore, int? teamAfter)
+    {
+        var e = staff[index];
+        if (assignment == null || e.Stats == null)
+            return new("No complete position recommendation is available.", new() {
+                "A whole-team plan requires every employee's working stats and a matching live role catalogue.",
+                "Missing stats are unknown, not zero. Scan again before changing positions."
+            }, new(), "Incomplete data: no claim about a better assignment.");
+        var target = slots[assignment[index]];
+        int before = current?.Required == null ? 0 : Fit(e.Stats, current.Required);
+        int after = Fit(e.Stats, target.Required!);
+        var reasons = new List<string> {
+            "The plan reserves " + slots.Count(j => j.Id == target.Id) + " " + target.Name +
+                " slot(s). It assigns each employee once to maximize the combined working-stat score for those exact role counts.",
+            "Whole-team modeled score: " + teamBefore + " in current positions → " + teamAfter +
+                " in the selected plan. A higher score is not a prediction of income or total effectiveness."
+        };
+        string summary = current?.Id == target.Id
+            ? "Keep this employee in " + target.Name + " within the selected team layout."
+            : after > before ? "This move improves this employee's modeled working-stat fit by " + (after - before) + " points."
+            : after < before ? "This employee loses " + (before - after) + " modeled points to fill a role in the selected team layout."
+            : "This move keeps this employee's modeled score unchanged while meeting the selected role counts.";
+        if (after < before)
+            reasons.Add("This is a team-allocation tradeoff, not an individual improvement. Review whether the selected role mix is worthwhile before applying the move.");
+        var best = slots.DistinctBy(j => j.Id).OrderByDescending(j => Fit(e.Stats, j.Required!))
+            .ThenBy(j => j.Id == e.PositionId ? 0 : 1).First();
+        int bestFit = Fit(e.Stats, best.Required!);
+        reasons.Add("Best individual fit among roles included in this layout: " + best.Name + " (" + bestFit +
+            "). Giving everyone their favorite role would not necessarily fill the required team slots.");
+        if (current?.Id != target.Id && staff.Count <= 25)
+        {
+            var heldSlot = slots.ToList().FindIndex(j => j.Id == current?.Id);
+            if (heldSlot < 0)
+                reasons.Add("Keeping the current position is impossible under these selected counts because that role has zero slots. Try Current Role Counts or a different layout to keep it.");
+            else
+            {
+                var remainingStaff = staff.Where((_, i) => i != index).ToList();
+                var remainingSlots = slots.Where((_, j) => j != heldSlot).ToList();
+                var held = Allocate(remainingStaff, remainingSlots);
+                int constrained = before + remainingStaff.Select((worker, i) =>
+                    Fit(worker.Stats!, remainingSlots[held[i]].Required!)).Sum();
+                int cost = teamAfter!.Value - constrained;
+                reasons.Add(cost > 0 ? "If this employee stays in " + current!.Name +
+                    " and everyone else is reassigned optimally, the best team score falls to " + constrained +
+                    " (" + cost + " below this plan)."
+                    : "An equally scoring team plan can keep this employee in the current role. This particular arrangement is not uniquely necessary.");
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(target.Ability) && !target.Ability.Equals("None", StringComparison.OrdinalIgnoreCase))
+            reasons.Add("This position provides the " + target.Ability + " support function. Its actual company-wide benefit is not included in the working-stat score.");
+        if (!string.IsNullOrWhiteSpace(target.Description)) reasons.Add("Role description from the company catalogue: " + target.Description);
+        var a = e.Stats; var r = target.Required!;
+        var comparisons = new List<string>();
+        foreach (var stat in new[] { ("MAN", a.ManualLabor, r.ManualLabor), ("INT", a.Intelligence, r.Intelligence), ("END", a.Endurance, r.Endurance) })
+            comparisons.Add(stat.Item1 + ": " + stat.Item2.ToString("N0") + " actual / " + stat.Item3.ToString("N0") +
+                " recommended" + (stat.Item3 > 0 ? " (" + ((double)stat.Item2 / stat.Item3 * 100).ToString("0.#") + "% covered; " +
+                Math.Max(0, stat.Item3 - stat.Item2).ToString("N0") + " short)." : " (not required for this role)."));
+        string reliability = "Model estimates exclude addiction, inactivity, settled-in bonuses, merits, director bonuses and support effects. Actual total effectiveness may differ.";
+        if (e.WorkingEffectiveness.HasValue)
+        {
+            int difference = Math.Abs(e.WorkingEffectiveness.Value - before);
+            reliability = difference >= 5
+                ? "VERIFY BEFORE MOVING: current modeled working-stat score " + before + " differs from Torn's reported " +
+                    e.WorkingEffectiveness.Value + " by " + difference +
+                    " points. Scan again and verify current positions, requirements and report timing. The cause is not established; do not treat this projection as confirmed."
+                : "Current modeled working-stat score " + before + " vs Torn-reported " + e.WorkingEffectiveness.Value +
+                    ". The proposed score is still an estimate; other effectiveness modifiers and support effects are excluded.";
+        }
+        return new(summary, reasons, comparisons, reliability);
+    }
+
     public static CompanyTeamReport Report(CompanyObservation? company, CompanyTeamScan? scan)
     {
         var actions = new List<string>();
@@ -225,11 +303,15 @@ internal static class CompanyStaffAdvisor
             scan.Jobs.SelectMany(j => Enumerable.Repeat(j, Math.Clamp(scan.PlannedCounts.GetValueOrDefault(j.Id), 0, 200))).ToList();
         complete = complete && targetSlots.Count == staff.Count && targetSlots.All(x => x.Required != null);
         var assignment = complete ? Allocate(staff, targetSlots) : null;
+        int? modeledBefore = complete ? staff.Select((e, i) => Fit(e.Stats!, slots[i]!.Required!)).Sum() : null;
+        int? modeledAfter = complete ? staff.Select((e, i) => Fit(e.Stats!, targetSlots[assignment![i]].Required!)).Sum() : null;
         var rows = staff.Select((e, i) => {
             var current = slots[i]; var target = assignment == null ? current : targetSlots[assignment[i]];
             return new CompanyAssignment(e.Id, e.Name, e.Position, assignment == null ? "Plan unavailable" : target!.Name,
                 e.Stats, target?.Required, e.Stats != null && current?.Required != null ? Fit(e.Stats, current.Required) : null,
-                assignment != null ? Fit(e.Stats!, target!.Required!) : null, e.WorkingEffectiveness, e.TotalEffectiveness, Gap(e, target), e.Wage, e.ContributionValue);
+                assignment != null ? Fit(e.Stats!, target!.Required!) : null, e.WorkingEffectiveness, e.TotalEffectiveness, Gap(e, target), e.Wage, e.ContributionValue) {
+                    Explanation = Explain(staff, targetSlots, assignment, i, current, modeledBefore, modeledAfter)
+                };
         }).ToList();
         int? before = complete ? rows.Sum(x => x.Before!.Value) : null;
         int? after = complete ? rows.Sum(x => x.After!.Value) : null;

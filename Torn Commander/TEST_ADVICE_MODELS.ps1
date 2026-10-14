@@ -161,6 +161,23 @@ candleCompany.CompanyId=17;candleCompany.CompanyTypeId=7;
 Check(CompanyStaffLayouts.Build(candleCompany,candleScan).Options.Count==0,"Candle business assumptions applied to another company type.");
 var valueFixture=CompanyStaffAdvisor.ReadEmployees("""{"employees":[{"id":44,"value":-20,"wage":0},{"id":45,"value":null}]}""");
 Check(valueFixture[0].ContributionValue==-20&&valueFixture[0].Wage==0&&valueFixture[1].ContributionValue==null,"Contribution loss/unknown or zero wage lost.");
+// Explanations must disclose personal sacrifices and prove the stay-put alternative.
+var reasonScan=new CompanyTeamScan{CompanyId=55,EmployeesLoaded=true,
+ Jobs=new(){new(){Id=1,Name="Manual",Required=new(100,0,0)},new(){Id=2,Name="Office",Required=new(0,100,0)}},
+ Employees=new(){new(){Id=1,Name="Flexible",Position="Manual",PositionId=1,Stats=new(100,80,0),WorkingEffectiveness=45},
+ new(){Id=2,Name="Specialist",Position="Office",PositionId=2,Stats=new(90,0,0),WorkingEffectiveness=98}}};
+var reasonCompany=new CompanyObservation{CompanyId=55,Employees=2};
+var reasonPlan=CompanyStaffAdvisor.Report(reasonCompany,reasonScan);
+Check(reasonPlan.Before==45&&reasonPlan.After==76,"Reason fixture scores changed.");
+var detail=reasonPlan.Rows[0].Explanation!;
+Check(detail.Summary.Contains("loses 9")&&detail.Reasons.Any(x=>x.Contains("falls to 45 (31 below")),"Explanation hid individual loss or failed constrained-stay comparison.");
+Check(detail.StatComparison.Any(x=>x.Contains("80% covered"))&&detail.Reasons.Any(x=>x.Contains("Best individual fit")),"Stat ratios or alternative role missing.");
+Check(reasonPlan.Rows[1].Explanation!.Reliability.Contains("VERIFY BEFORE MOVING"),"Major Torn score mismatch was hidden.");
+reasonScan.PlannedCounts=new(){{1,0},{2,2}};
+Check(CompanyStaffAdvisor.Report(reasonCompany,reasonScan).Rows[0].Explanation!.Reasons.Any(x=>x.Contains("zero slots")),"Role excluded by selected counts was not explained.");
+reasonScan.Employees[0].Stats=null;
+Check(CompanyStaffAdvisor.Report(reasonCompany,reasonScan).Rows[0].Explanation!.Summary.Contains("No complete"),"Incomplete scan invented an explanation for a recommendation.");
+Console.WriteLine("COMPANY REASONING TEST PASSED: personal sacrifice, exact constrained alternative, stat coverage, excluded-role reason and score discrepancy warning.");
 // Export only the active company's allowlisted data; never notes, errors or other profiles.
 candleCompany.CompanyTypeId=8;
 var exportJournal=new CompanyJournal {ActiveCompanyId=17,Status="PRIVATE_STATUS_SECRET",Team=candleScan,Days=new(){

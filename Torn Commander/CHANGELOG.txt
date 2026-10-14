@@ -1,3 +1,13 @@
+v0.6.40 (2026-10-14) — Explain each company position recommendation
+- Keep employee cards concise and add an expandable Why this position? detailed view.
+- Explain individual improvements, unchanged scores and personal sacrifices within the selected whole-team role counts.
+- Show team totals, best individual fit among included roles, stat coverage/gaps and API role descriptions.
+- For teams up to 25 staff, solve the alternative where that employee stays in their current role; report the exact team-score cost or an equally scoring alternative.
+- Explain when selected counts eliminate the current role, and distinguish support-role function from modeled working-stat fit.
+- Flag current modeled/reported score discrepancies of five or more points in both the simple and detailed views; do not claim the cause is established.
+- Preserve open detail panels across unchanged dashboard refreshes and keep clipboard exports on an explicit fixed-field allowlist.
+- Verify individual-score sacrifices, constrained alternatives, stat coverage, role removal, incomplete data, score warnings and persistent disclosure markup.
+
 v0.6.39 (2026-10-14) — Copy company report for optional chat advice
 - Add Copy Company Report beside the company scan controls; copy a structured prompt and the saved active-company snapshot to the local clipboard.
 - Include working stats, named assignments, role counts, starting-layout tradeoffs, health, stock, costs and up to 30 dated observations.
