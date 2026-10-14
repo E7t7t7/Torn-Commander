@@ -131,6 +131,8 @@ jobs:
         run: |
           node 'Torn Commander/TEST_LOSS_PROTOCOL.js' 'Torn Commander/BundledScripts/Torn_Loss_AutoCycle.js'
           if ($LASTEXITCODE -ne 0) { throw 'Loss worker protocol test failed.' }
+          node 'Torn Commander/TEST_LOSS_CYCLE.js' 'Torn Commander/BundledScripts/Torn_Loss_AutoCycle.js'
+          if ($LASTEXITCODE -ne 0) { throw 'Full loss cycle regression failed.' }
           & 'Torn Commander/TEST_LOSS_ACCOUNTING.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Loss accounting test failed; release withheld.' }
       - name: Check shared API pacing and cooldown

@@ -17,6 +17,7 @@
   const visible = el => Boolean(el && el.getClientRects?.().length && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none');
   const click = el => {
     if (!el || !visible(el) || el.disabled || el.getAttribute?.('aria-disabled') === 'true') return false;
+    el.scrollIntoView?.({block:'center',inline:'nearest',behavior:'instant'});
     if (typeof el.click === 'function') el.click();
     else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
     return true;
@@ -82,43 +83,33 @@
     return exact.length === 1 ? exact[0] : null;
   }
 
-  function pillowControl() {
-    // Scope Pillow selection to Torn's own player weapon area. If the layout exposes
-    // multiple possible player areas, fail closed rather than risk clicking a defender control.
-    const areas = Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible);
-    if (areas.length !== 1) return null;
-    const area = areas[0];
-    const markers = Array.from(area.querySelectorAll('[data-item-id="440"],[data-id="440"],[data-itemid="440"],[alt],[title],[aria-label],[data-tooltip],[data-tippy-content]'))
-      .filter(visible)
-      .filter(el => ['data-item-id','data-id','data-itemid'].some(k => el.getAttribute?.(k) === '440') ||
-        /^pillow(?:\s*\([^)]*\))?$/i.test(clean(el.getAttribute?.('alt') || el.getAttribute?.('title') || el.getAttribute?.('aria-label') || el.getAttribute?.('data-tooltip') || el.getAttribute?.('data-tippy-content') || '')));
-
-    for (const leaf of area.querySelectorAll('span,div,strong,p')) {
-      if (leaf.children?.length === 0 && clean(leaf.textContent) === 'Pillow' && visible(leaf)) markers.push(leaf);
-    }
-
-    const candidates = [];
-    for (const marker of markers) {
-      let node = marker;
-      for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) {
-        if (node === area) break;
-        if (!visible(node)) continue;
-        const tag = String(node.tagName || '').toLowerCase();
-        const role = node.getAttribute?.('role') || '';
-        const cls = String(node.className?.baseVal ?? node.className ?? '');
-        if ((tag === 'button' || role === 'button' || /weapon|melee|slot|equipment/i.test(cls)) && !node.disabled && node.getAttribute?.('aria-disabled') !== 'true') {
-          if (!candidates.includes(node)) candidates.push(node);
-          break;
-        }
+  const outerRoots = nodes => [...new Set(nodes)].filter(a=>!nodes.some(b=>b!==a&&b.contains?.(a)));
+  function playerArea() {
+    const roots=outerRoots(Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible));
+    return roots.length===1?roots[0]:null;
+  }
+  function pillowControl(reveal=true) {
+    const area=playerArea();if(!area)return null;
+    if(reveal)area.scrollIntoView?.({block:'center',inline:'nearest'});
+    const attributes=['alt','title','aria-label','data-tooltip','data-tippy-content'];
+    const markers=Array.from(area.querySelectorAll('[data-item-id="440"],[data-id="440"],[data-itemid="440"],[alt],[title],[aria-label],[data-tooltip],[data-tippy-content],img'))
+      .filter(visible).filter(el=>['data-item-id','data-id','data-itemid'].some(k=>el.getAttribute?.(k)==='440')||
+        attributes.some(k=>/^pillow(?:\s*\([^)]*\))?$/i.test(clean(el.getAttribute?.(k))))||
+        /\/(?:items|weapons)\/440(?:[/.?]|$)/i.test(el.getAttribute?.('src')||''));
+    for(const leaf of area.querySelectorAll('span,div,strong,p'))if(!leaf.children?.length&&/^pillow$/i.test(clean(leaf.textContent))&&visible(leaf))markers.push(leaf);
+    const candidates=[];
+    for(const marker of markers){
+      let fallback=null,control=null;
+      for(let node=marker,depth=0;node&&node!==area&&depth<8;node=node.parentElement,depth++){
+        if(!visible(node)||node.disabled||node.getAttribute?.('aria-disabled')==='true')continue;
+        const tag=String(node.tagName||'').toLowerCase(),role=node.getAttribute?.('role');
+        if(tag==='button'||tag==='a'||role==='button'){control=node;break;}
+        if(!fallback&&/weapon|melee|slot|equipment/i.test(String(node.className?.baseVal??node.className??'')))fallback=node;
       }
-      if (marker !== area && visible(marker) && typeof marker.click === 'function' && !candidates.includes(marker)) candidates.push(marker);
+      if(control||fallback)candidates.push(control||fallback);
     }
-    if (candidates.length === 1) return candidates[0];
-    if (candidates.length > 1) {
-      const roots = candidates.filter(a => !candidates.some(b => a !== b && b.contains?.(a)));
-      return roots.length === 1 ? roots[0] : null;
-    }
-    return null;
+    const roots=outerRoots(candidates);
+    return roots.length===1?roots[0]:null;
   }
 
   function detectFightResult(state) {
@@ -137,30 +128,34 @@
   }
 
   function firstAidRow() {
-    const direct = Array.from(document.querySelectorAll('[data-item-id="67"],[data-id="67"],[data-item="67"]')).filter(visible);
-    if (direct.length === 1) return direct[0];
-    const leaves = Array.from(document.querySelectorAll('span,div,strong,b,h3,h4,p'))
-      .filter(el => visible(el) && el.children.length === 0 && clean(el.textContent) === 'First Aid Kit');
-    const rows = [];
-    for (const leaf of leaves) {
-      let node = leaf;
-      for (let d = 0; node && d < 8; d++, node = node.parentElement) {
-        const txt = clean(node.textContent);
-        if (txt.length > 600) continue;
-        if (/\bSmall First Aid Kit\b/i.test(txt)) continue;
-        if (/\bFirst Aid Kit(?:\s*[x×]\s*\d+)?\b/i.test(txt)) {
-          if (!rows.includes(node)) rows.push(node);
-          break;
-        }
+    const markers=Array.from(document.querySelectorAll('[data-item-id="67"],[data-id="67"],[data-item="67"],[data-itemid="67"]')).filter(visible);
+    for(const leaf of document.querySelectorAll('span,div,strong,b,h3,h4,p'))if(visible(leaf)&&!leaf.children?.length&&clean(leaf.textContent)==='First Aid Kit')markers.push(leaf);
+    const rows=[];
+    for(const marker of markers){
+      for(let node=marker,depth=0;node&&depth<8;node=node.parentElement,depth++){
+        const text=clean(node.textContent);
+        if(text.length>1500||/\bSmall First Aid Kit\b/i.test(text))break;
+        const id=['data-item-id','data-item','data-itemid'].map(k=>node.getAttribute?.(k)).find(Boolean);
+        if(id&&id!=='67')break;
+        const structural=['li','tr'].includes(String(node.tagName||'').toLowerCase())||id==='67'||node.getAttribute?.('data-id')==='67';
+        const hasUse=Array.from(node.querySelectorAll('button,a,[role="button"],[data-action]')).some(el=>/^(use|use item|use first aid kit)$/i.test(labelOf(el))||el.getAttribute?.('data-action')==='use');
+        const others=Array.from(node.querySelectorAll('[data-item-id],[data-item],[data-itemid]')).some(el=>['data-item-id','data-item','data-itemid'].some(k=>{const v=el.getAttribute?.(k);return v&&v!=='67'}));
+        if(others)break;
+        if((structural||hasUse)&&(id==='67'||/\bFirst Aid Kit\b/i.test(text))){rows.push(node);break;}
       }
     }
-    return rows.length === 1 ? rows[0] : null;
+    const roots=outerRoots(rows);
+    return roots.length===1?roots[0]:null;
   }
 
   function aidCount() {
-    const raw = String(document.body?.innerText || '');
-    const m = raw.match(/(?:^|\n)\s*First Aid Kit\s*[x×]\s*(\d+)\b/im);
-    return m ? Number(m[1]) : null;
+    const row=firstAidRow();if(!row)return null;
+    const counts=[row,...row.querySelectorAll('[data-qty],[data-quantity]')];
+    for(const node of counts)for(const key of ['data-qty','data-quantity']){
+      const value=node.getAttribute?.(key);if(value!==null&&value!==undefined&&/^\d+$/.test(value))return Number(value);
+    }
+    const match=clean(row.textContent).match(/First Aid Kit\s*[x×]\s*(\d+)\b/i);
+    return match?Number(match[1]):null;
   }
 
   function firstAidUseButton() {
@@ -183,7 +178,9 @@
     const nodes = Array.from(document.querySelectorAll('button,a,[role="tab"],[role="button"],li'))
       .filter(visible)
       .filter(el => /^(medical|medicine|medical items)$/i.test(clean(el.getAttribute?.('title') || el.getAttribute?.('aria-label') || el.innerText || '')));
-    return nodes.length === 1 ? nodes[0] : null;
+    const actions=nodes.filter(el=>['a','button'].includes(String(el.tagName||'').toLowerCase())||['tab','button'].includes(el.getAttribute?.('role')));
+    const unique=(actions.length?actions:nodes).filter(a=>!(actions.length?actions:nodes).some(b=>b!==a&&a.contains?.(b)));
+    return unique.length===1?unique[0]:null;
   }
 
   function medicalVisible() {
@@ -200,7 +197,7 @@
     if (!roots.length) {
       const buttons = Array.from(document.querySelectorAll('button,[role="button"],input[type="button"],a')).filter(visible);
       const anchored = buttons.filter(el => {
-        if (!/^(okay|ok|confirm|use)$/i.test(clean(el.innerText || el.value || el.getAttribute?.('aria-label') || ''))) return false;
+        if (!/^(okay|ok|confirm)$/i.test(clean(el.innerText || el.value || el.getAttribute?.('aria-label') || ''))) return false;
         let node = el;
         for (let d = 0; node && d < 7; d++, node = node.parentElement) {
           const text = clean(node.textContent);
@@ -232,21 +229,19 @@
     return save(state);
   }
 
-  function openAttack(state) {
+  function openPage(state,url,label,abandon=false) {
     const time=now();
-    if(!state.attackNavigationStartedAt)state.attackNavigationStartedAt=time;
-    if(time-state.attackNavigationStartedAt>=30000){
-      pauseState(state,'Attack page did not open within 30 seconds. Inspect the worker browser for login, verification or a navigation failure.',true);return;
+    if(state.navigationUrl!==url){state.navigationUrl=url;state.navigationStartedAt=time;state.navigationAttempts=0;}
+    if(time-state.navigationStartedAt>=30000){
+      pauseState(state,label+' did not open within 30 seconds. Inspect the worker browser for login, verification or navigation errors.',abandon);return;
     }
-    if(state.attackNavigationAttempts && time-Number(state.attackNavigationLastAt||0)<15000)return;
-    if(Number(state.attackNavigationAttempts||0)>=2)return;
-    state.attackNavigationAttempts=Number(state.attackNavigationAttempts||0)+1;
-    state.attackNavigationLastAt=time;
-    state.status='Opening target attack page ('+state.attackNavigationAttempts+'/2). Check the worker browser below.';
-    save(state);
-    try{location.assign(ATTACK_URL(state.targetId))}
-    catch(error){pauseState(state,'Attack navigation failed. Inspect the worker browser: '+error.message,true);}
+    if(state.navigationAttempts&&time-Number(state.navigationLastAt||0)<15000)return;
+    if(Number(state.navigationAttempts||0)>=2)return;
+    state.navigationAttempts=Number(state.navigationAttempts||0)+1;state.navigationLastAt=time;
+    state.status='Opening '+label+' ('+state.navigationAttempts+'/2).';save(state);
+    try{location.assign(url)}catch(error){pauseState(state,'Navigation failed: '+error.message,abandon);}
   }
+  function openAttack(state){openPage(state,ATTACK_URL(state.targetId),'attack page',true);}
 
   async function tick() {
     if (busy) return;
@@ -256,6 +251,8 @@
       if (!state) return;
       report(state);
       if (!state.running) return;
+      if(state.navigationUrl&&((state.navigationUrl===ITEMS_URL&&isItemsPage())||
+          (state.navigationUrl!==ITEMS_URL&&isAttackPage(state.targetId)))){state.navigationUrl='';save(state);}
 
       const session = sessionStorage.getItem(SESSION_KEY);
       if (!session || session !== state.sessionToken) {
@@ -325,12 +322,12 @@
           state.healEnteredAt = 0;
           state.status = 'Hospital block detected. Opening Items for recovery.';
           save(state);
-          location.assign(ITEMS_URL);
+          openPage(state,ITEMS_URL,'Items / Medical');
           return;
         }
         const join = joinFightButton();
         if (!join) {
-          state.attackWaitStartedAt = state.attackWaitStartedAt || now();
+          if(!state.attackWaitStartedAt){state.attackWaitStartedAt=now();state.status='Waiting for a verified Join Fight control.';save(state);}
           if (now() - state.attackWaitStartedAt > 60000) {
             pauseState(state, 'JOIN FIGHT was not found for 60 seconds. Torn layout may have changed.', true);
           }
@@ -397,10 +394,10 @@
         if (!isItemsPage()) {
           state.status = 'Opening Items / Medical.';
           save(state);
-          location.assign(ITEMS_URL);
+          openPage(state,ITEMS_URL,'Items / Medical');
           return;
         }
-        state.healEnteredAt = state.healEnteredAt || now();
+        if(!state.healEnteredAt){state.healEnteredAt=now();save(state);}
         if (!medicalVisible()) {
           if (!state.medicalClickedAt) {
             const tab = medicalTab();
@@ -474,7 +471,7 @@
           state.probeStartedAt = now();
           state.status = `One First Aid Kit consumed. Checking hospital status before the next attack.`;
           save(state);
-          location.assign(ATTACK_URL(state.targetId));
+          openPage(state,ATTACK_URL(state.targetId),'attack recovery page');
           return;
         }
         // Some inventory layouts hide the count. Once the confirmation disappears, probe the attack page rather than consuming another kit blindly.
@@ -484,14 +481,14 @@
           state.probeStartedAt = now();
           state.status = 'Item confirmation closed. Probing the attack page before deciding whether another kit is needed.';
           save(state);
-          location.assign(ATTACK_URL(state.targetId));
+          openPage(state,ATTACK_URL(state.targetId),'attack recovery page');
         }
         return;
       }
 
       if (state.stage === 'recovery-probe' || state.stage === 'final-recovery') {
         if (!isAttackPage(state.targetId)) {
-          location.assign(ATTACK_URL(state.targetId));
+          openPage(state,ATTACK_URL(state.targetId),'attack recovery page');
           return;
         }
         if (now() - Number(state.probeStartedAt || now()) < 1600) return;
@@ -505,7 +502,7 @@
           state.medicalClickedAt = 0;
           state.status = 'Still hospitalized. Returning to Medical for one more First Aid Kit.';
           save(state);
-          location.assign(ITEMS_URL);
+          openPage(state,ITEMS_URL,'Items / Medical');
           return;
         }
         const join = joinFightButton();
@@ -633,8 +630,9 @@
       if (!claimId) { pauseState(state,'Commander granted an empty claim. No attack started.',false); return false; }
       state.claimId = String(claimId || '');
       state.kitsThisLoss = 0;
+      state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
       state.stage = 'attack-open';
-      state.attackNavigationStartedAt=0;state.attackNavigationAttempts=0;
+      state.navigationUrl='';
       state.status = 'Loss slot granted. Opening target attack page.';
       save(state);
       if (!isAttackPage(state.targetId)) openAttack(state);
@@ -655,14 +653,21 @@
       state.probeStartedAt = now();
       state.healEnteredAt = 0;
       state.medicalClickedAt = 0;
+      state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
       state.kitsThisLoss = 0;
       state.status = state.finishAfterRecovery
         ? 'Final loss committed. Verifying recovery before completing the order.'
         : `Loss committed. ${remaining} remaining; opening Items to recover.`;
       save(state);
-      if (state.finishAfterRecovery) location.assign(ATTACK_URL(state.targetId));
-      else location.assign(ITEMS_URL);
+      if (state.finishAfterRecovery) openPage(state,ATTACK_URL(state.targetId),'attack recovery page');
+      else openPage(state,ITEMS_URL,'Items / Medical');
       return true;
+    },
+    diagnostics() {
+      const summary=el=>el?{tag:el.tagName,className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
+      return {stage:load()?.stage,status:load()?.status,path:location.pathname,
+        playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
+        pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },
     pump() { void tick(); return true; },
     getState() { return load(); }

@@ -20,6 +20,7 @@ console.log('DASHBOARD RUNTIME PASSED: real markup IDs, company rendering, profi
 
 for(const node of Object.values(nodes)) node.replaceChildren=function(...children){this.options=children};
 Object.assign(context,{S:{},casinoAdviceGeneration:0,Option:function(name,id){this.text=name;this.value=id},applyTheme:()=>{},renderApiActivity:()=>{},renderItinerary:()=>{},renderArrival:()=>{},setFilters:()=>{},renderTravelRows:()=>{},renderProgression:()=>{},renderScriptTools:()=>{},renderTrading:()=>{}});
+vm.runInContext(script.slice(script.indexOf('function renderLossStatus(d)'),script.indexOf('function renderSection(')),context);
 vm.runInContext(render,context);
 const state={profileId:'one',profiles:[{id:'one',name:'Account A'},{id:'two',name:'Account B'}],buildPath:'Fixture.exe',company:{name:'Fixture Company',rows:[]}};
 context.render(state);
@@ -32,3 +33,6 @@ context.render(state);
 assert.strictEqual(nodes.profileSelect.options.length,2);
 assert.strictEqual(nodes.dashboardRenderWarning.hidden,false);
 console.log('PROFILE STATE RENDER PASSED: both accounts load even when the company panel fails.');
+
+context.renderLossStatus({workers:{a:'Paused',b:'Pillow selected'},loss:{buyer:'Fixture',target:'123',completed:1,requested:2,remaining:1,gross:100,status:'Recovering'}});
+assert.strictEqual(nodes.workerB.textContent,'Pillow selected');assert(nodes.lossCard.innerHTML.includes('1 / 2'));

@@ -328,6 +328,7 @@ public sealed partial class MainForm
                     if (_lossClaims.TryGetValue(claimId, out var lease)) lease.LastSeen = DateTime.UtcNow;
                 }
             }
+            UpdateLossDashboardStatus();
             return;
         }
 
@@ -346,6 +347,7 @@ public sealed partial class MainForm
             var claimId = ReadWorkerString(root, "claimId");
             var result = CommitLossClaim(worker, orderId, claimId);
             await worker.ReplyCommitAsync(claimId, result.Ok, result.Remaining, result.Message);
+            UpdateLossDashboardStatus();
             return;
         }
 
@@ -368,6 +370,17 @@ public sealed partial class MainForm
                 FlashStatus($"Loss order {order.Id} completed after final recovery. Gross tracked: ${order.Gross:N0}.");
             }
         }
+    }
+
+    private void UpdateLossDashboardStatus()
+    {
+        if(!_modernDashboardReady||_modernDashboard.CoreWebView2 is null)return;
+        var order=SelectedLossOrder();
+        var data=new{
+            workers=new{a=_lossWorkerA?.LastStatus??"Not initialized",b=_lossWorkerB?.LastStatus??"Not initialized"},
+            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,status=order.Status}
+        };
+        _modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossStatus",data}));
     }
 
     private (bool Ok, string ClaimId, string Message) RequestLossClaim(LossAutoCycleWorker worker, string orderId)

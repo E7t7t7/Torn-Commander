@@ -1,3 +1,13 @@
+v0.6.36 (2026-10-14) — Repair the complete solo loss loop
+- Collapse nested player-area matches and recognize the equipped Pillow by item image, identity attributes or name inside the player's controls.
+- Scroll the verified control into view before clicking; continue refusing genuinely ambiguous player areas.
+- Locate the complete First Aid Kit row instead of stopping at its name; disambiguate nested Medical-tab elements.
+- Separate inventory Use controls from confirmation buttons and clear prior healing state between losses.
+- Persist Join Fight and Medical wait deadlines, and bound both healing and recovery navigation attempts.
+- Send live worker status/count updates to the dashboard without waiting for an API refresh.
+- Add Copy worker diagnostic for read-only control summaries without exporting API keys, cookies or page HTML.
+- Test two consecutive solo losses through Pillow, medical selection, confirmation, return and final recovery, plus ambiguous-control refusal.
+
 v0.6.35 (2026-10-13) — Visible loss workers and reliable heartbeat
 - Dock the actual A/B worker browsers beneath the Commander dashboard and reveal the selected worker when initialized or started.
 - Make clear that the main Torn tab is separate from the browser performing the contract.

@@ -56,6 +56,16 @@ internal sealed class LossAutoCycleWorker : IDisposable
 
         box.Controls.Add(_webView);
         box.Controls.Add(_status);
+        var diagnostic=new Button { Dock=DockStyle.Top,Height=28,Text="Copy worker diagnostic" };
+        diagnostic.Click+=async (_,_)=>{
+            try {
+                if(_webView.CoreWebView2 is null)return;
+                var json=await _webView.CoreWebView2.ExecuteScriptAsync("JSON.stringify(window.TornCommanderLossCycle?.diagnostics())");
+                var text=JsonSerializer.Deserialize<string>(json);
+                if(!string.IsNullOrWhiteSpace(text))Clipboard.SetText(text);
+            }catch(Exception ex){SetStatus("Could not copy diagnostic: "+ex.Message);}
+        };
+        box.Controls.Add(diagnostic);
         View = box;
     }
 
