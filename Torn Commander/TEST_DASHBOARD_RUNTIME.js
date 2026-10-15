@@ -67,6 +67,7 @@ assert.strictEqual(nodes.profileSelect.options.length,2);
 assert.strictEqual(nodes.profileSelect.value,'one');
 assert.strictEqual(nodes.actualBuildPath.textContent,'Fixture.exe');
 assert(nodes.profilesSummary.textContent.startsWith('2 of'));
+const realCompanyRenderer=context.renderCompany;
 context.renderCompany=()=>{throw Error('broken optional panel')};
 context.render(state);
 assert.strictEqual(nodes.profileSelect.options.length,2);
@@ -84,3 +85,11 @@ assert.strictEqual(nodes.lossAttackDelay.value,500,'Worker heartbeat overwrote a
 context.renderLossStatus({lossAttackDelayMs:900});
 assert.strictEqual(nodes.lossAttackDelay.value,900);
 console.log('LOSS TIMING DASHBOARD PASSED: saved timing rendering and unsaved draft preservation.');
+
+context.renderCompany=realCompanyRenderer;
+context.renderCompany({market:{available:true,weeklyIncome:200,scannedUtc:'fixture',stale:true,rows:[{stars:2,count:3,beatenPercent:33.3,lowest:100,median:200,next:true}]},rows:[]},'one');
+assert(nodes.coMarketRows.innerHTML.includes('33.3%') && nodes.coMarketRows.innerHTML.includes('next star'),'Market comparison missing');
+assert(nodes.coMarketSummary.textContent.includes('OLD DATA'),'Stale market warning missing');
+context.renderCompany({rows:[]},'two');
+assert(nodes.coMarketRows.innerHTML==='','Market rows leaked between profiles');
+console.log('COMPANY MARKET DASHBOARD PASSED: peer percentage, next-star marker, stale warning and profile clearing.');

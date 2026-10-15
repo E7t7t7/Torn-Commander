@@ -1,3 +1,9 @@
+v0.6.44 (2026-10-15) — Company star outlook
+- Manual paginated same-type company listing scan, using paced API requests.
+- Weekly sales comparisons for every star level, next-star highlight, lowest/middle sales and percentage of peers outsold.
+- Promotion odds remain unknown: explains hidden lifetime-income unlocks, cached listings and declining incumbents.
+- Company/profile isolation, atomic save, stale-data warning and synthetic comparisons.
+
 v0.6.43 (2026-10-14) — Correct new-company staffing logic
 - Stop treating scan results, saved old suggestions or guessed job counts as endorsed recommendations.
 - Remove near-even Chandler ratios, automatically suggested extra cleaners, default Trainer/Bookkeeper variants and arbitrary environment/Trainer triggers.

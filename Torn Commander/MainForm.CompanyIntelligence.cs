@@ -115,6 +115,53 @@ public sealed partial class MainForm
         }
         finally { _companySyncing = false; UpdateModernDashboard(); }
     }
+    private async Task ScanCompanyMarketAsync()
+    {
+        if (_companySyncing) return;
+        var profile = CurrentProfileId;
+        var key = CredentialManager.LoadApiKey(profile);
+        if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Save this profile's API key first.");
+        _companySyncing = true;
+        UpdateModernDashboard();
+        try
+        {
+            var api = new TornApiClient();
+            var own = CompanyIntelligence.ReadProfile(await api.FetchEndpointAsync("company/profile", key));
+            var scan = new CompanyMarketScan { CompanyId = own.CompanyId, TypeId = own.CompanyTypeId };
+            var seen = new HashSet<long>();
+            bool finished = false;
+            for (int offset = 0; offset < 10000; offset += 100)
+            {
+                if (profile != CurrentProfileId) return;
+                var rows = CompanyMarket.ReadPage(await api.FetchEndpointAsync(
+                    $"company/{own.CompanyTypeId}/companies?limit=100&offset={offset}", key), own.CompanyTypeId);
+                if (profile != CurrentProfileId) return;
+                foreach (var row in rows)
+                    if (!seen.Add(row.Id)) throw new InvalidDataException("Listings changed during pagination. Retry the scan.");
+                scan.Companies.AddRange(rows);
+                GetCompanyJournal().Status = $"Scanning company standings: {scan.Companies.Count} listings…";
+                UpdateModernDashboard();
+                if (rows.Count < 100) { finished = true; break; }
+            }
+            if (!finished) throw new InvalidDataException("Listing safety limit reached; no partial comparison saved.");
+            var confirmed = CompanyIntelligence.ReadProfile(await api.FetchEndpointAsync("company/profile", key));
+            if (profile != CurrentProfileId) return;
+            if (confirmed.CompanyId != own.CompanyId || confirmed.CompanyTypeId != own.CompanyTypeId)
+                throw new InvalidDataException("Company changed during scan. Retry.");
+            scan.ScannedUtc = DateTime.UtcNow;
+            var journal = GetCompanyJournal();
+            var previous = journal.Market;
+            var days = journal.Days.ToList();
+            var active = journal.ActiveCompanyId;
+            CompanyIntelligence.Upsert(journal, confirmed);
+            journal.Market = scan;
+            try { SaveCompanyJournal(); }
+            catch { journal.Market = previous; journal.Days = days; journal.ActiveCompanyId = active; throw; }
+            journal.Status = "Company standings saved. Sales comparisons are not promotion probabilities.";
+        }
+        catch (Exception ex) { if (profile == CurrentProfileId) GetCompanyJournal().Status = "Standings scan failed: " + ex.Message; }
+        finally { _companySyncing = false; UpdateModernDashboard(); }
+    }
     private void SaveCompanyStaffPlan(JsonElement request)
     {
         var journal = GetCompanyJournal();
@@ -227,6 +274,7 @@ public sealed partial class MainForm
             state = advice.State,
             advice = advice.Message,
             business = CompanyIntelligence.BusinessReport(days),
+            market = CompanyMarket.Report(latest, journal.Market),
             health = new { efficiency = latest?.Efficiency, environment = latest?.Environment,
                 popularity = latest?.Popularity, trains = latest?.Trains, capacity = latest?.Capacity, funds = latest?.Funds },
             team = CompanyStaffAdvisor.Report(latest, journal.Team),

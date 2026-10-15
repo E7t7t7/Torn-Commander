@@ -2,13 +2,24 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('CompanyMarket.cs','CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
 using System.Text.Json;
 using TornCommander;
 void Check(bool value,string message){if(!value)throw new Exception(message);}
+var marketOwn = new CompanyObservation {CompanyId=1,CompanyTypeId=8,Rating=1,WeeklyIncome=200};
+var marketScan = new CompanyMarketScan {CompanyId=1,TypeId=8,ScannedUtc=DateTime.UtcNow,Companies=new(){new(1,1,200),new(2,2,100),new(3,2,200),new(4,2,300)}};
+var marketJson=JsonSerializer.Serialize(CompanyMarket.Report(marketOwn,marketScan));
+using(var m=JsonDocument.Parse(marketJson)){
+ var next=m.RootElement.GetProperty("rows")[2];
+ Check(next.GetProperty("count").GetInt32()==3 && next.GetProperty("beatenPercent").GetDouble()==33.3,"Peer percentage must exclude own company and ties.");
+}
+marketOwn.CompanyId=99;
+Check(JsonSerializer.Serialize(CompanyMarket.Report(marketOwn,marketScan)).Contains("false"),"Market data leaked to another company.");
+Check(CompanyMarket.ReadPage("""{"companies":[{"id":2,"type":{"id":8},"rating":2,"income":{"weekly":0}}]}""",8)[0].WeeklyIncome==0,"Listing zero lost.");
+try { CompanyMarket.ReadPage("""{"companies":[{"id":2,"type":{"id":9},"rating":2,"income":{"weekly":0}}]}""",8); throw new Exception("Wrong type accepted."); } catch(InvalidDataException){}
 var now=new DateTime(2026,10,13,0,0,0,DateTimeKind.Utc);
 var missing=CompanyIntelligence.ReadProfile("""{"profile":{"id":1}}""");
 Check(missing.DailyIncome is null && missing.Employees is null && missing.FullCostMargin is null,"Missing API data must remain unknown.");

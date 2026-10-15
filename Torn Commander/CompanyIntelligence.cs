@@ -18,6 +18,7 @@ internal sealed class CompanyObservation
     public long? Funds { get; set; }
     public int? Rating { get; set; }
     public int? Employees { get; set; }
+    public long? WeeklyIncome { get; set; }
     public long? DailyIncome { get; set; }
     public int? DailyCustomers { get; set; }
     public long? DailyAdvertising { get; set; }
@@ -35,6 +36,7 @@ internal sealed class CompanyJournal
     public long ActiveCompanyId { get; set; }
     public string Status { get; set; } = "Connect a Torn API key and sync your company to begin collecting daily results.";
     public List<CompanyObservation> Days { get; set; } = new();
+    public CompanyMarketScan? Market { get; set; }
     public CompanyTeamScan? Team { get; set; }
 }
 internal sealed record CompanyRecommendation(string State, string Message, long SuggestedBudget, int SampleDays);
@@ -87,6 +89,7 @@ internal static class CompanyIntelligence
             Capacity = p.TryGetProperty("employees", out var capacity) ? OptionalInt(capacity, "capacity") : null,
             Rating = OptionalInt(p, "rating"),
             Employees = p.TryGetProperty("employees", out var e) ? OptionalInt(e, "hired") : null,
+            WeeklyIncome = p.TryGetProperty("income", out var weekly) ? OptionalLong(weekly, "weekly") : null,
             DailyIncome = p.TryGetProperty("income", out var income) ? OptionalLong(income, "daily") : null,
             DailyCustomers = p.TryGetProperty("customers", out var cust) ? OptionalInt(cust, "daily") : null,
             DailyAdvertising = OptionalLong(p, "advertisement_budget"),
