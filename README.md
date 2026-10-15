@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.42. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.43. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -58,23 +58,24 @@ Home now includes Cash while growing: profile-specific training allocation, cash
 
 Open Company and choose **Scan Company & Staff**. With permitted company API access, Commander reads company health, employees' working stats and effectiveness, the company type's role requirements, and stock/prices. Public-only responses leave private stats unknown and disable a complete team allocation.
 
-The staff adviser solves a whole-team assignment for maximum combined modeled working-stat effectiveness, including employees below recommended stats. It keeps the current number of each role by default. Under **Role counts and requirements**, adjust local slot counts and choose **Build Staffing Plan** to compare another mix, or **Use Current Role Counts** to reset. Counts must total the scanned staff count. A new scan resets the scenario. These are recommendations: no Torn positions or other company settings are changed.
+The scan reviews current jobs without endorsing them. Preview the corrected new-company starter draft for key-role coverage, or explicitly compare your own counts under **Advanced: compare your own job counts**. All employees remain included, even below recommended stats. Counts must total the scanned staff count, and a new scan resets the local preview. No Torn positions or other company settings are changed.
 
 Working-stat effectiveness uses the [official Company wiki formula](https://wiki.torn.com/wiki/Company#Employee_Effectiveness). At exact recommended stats for a normal two-stat role the modeled score is 90. The optimizer excludes other effectiveness modifiers and cannot forecast sales, support-role effects, star growth or profit. Torn's actual reported scores are displayed separately. Preserve appropriate sales and support coverage when trying another role mix. Account data follows the [official v2 API schema](https://www.torn.com/swagger/openapi.json).
 
 The next-steps panel identifies observed advertising shortfalls, health issues, training gaps, missing accounting, empty shelves and below-cost pricing. API wages are shown separately from manually entered accounting. Inventory quantities and order costs are not treated as daily supplies spending. Each profile stores its own dated scan locally; scans older than 24 hours are flagged.
 
 
-### Practical Candle Shop layouts (v0.6.38)
+### New-company Candle Shop review and draft (v0.6.43)
 
-After **Scan Company & Staff**, the Company page offers named-assignment previews for **Core business first**, **Cash and staff growth**, **Measure employee contribution**, and **Test extra cleaning coverage**. These trial layouts support 4–10 scanned Candle Shop employees, including a one-star company with nine staff below recommended working stats. Select **Show Named Assignments** to preview the actual people for that layout; this only saves a local plan.
+A scan now shows **Current setup — review only**. It does not endorse the current mix or recommend moves automatically. Old generated suggestions are marked for rebuilding; the app does not undo positions you already changed in Torn.
 
-The planner protects both Chandler and Salesperson coverage, starts with one Cleaner and one Quality Control, and searches a 40–60% split of the remaining core roles using actual staff stats. Larger teams can compare a Trainer, Bookkeeper or second Cleaner. Team size, recorded cash shortfalls, environment below 90%, and assigned Trainer working-stat fit below 50 guide the suggested starting trial. These percentages, support counts and screening thresholds are explicit Commander heuristics, not Torn requirements or proven profit optima. Other effectiveness modifiers may change a Trainer's actual benefit.
+The **New-company starter draft** keeps all 4–10 scanned staff, including new players and zero-stat fillers. It reserves one Chandler, one Quality Control and one Cleaner as a simple coverage assumption; remaining employees fill Salesperson places. This is an unvalidated starting arrangement, not a proven profitable mix. There is no fixed near-even Chandler split, automatic second Cleaner, dedicated Trainer or Bookkeeper.
 
-The [official Candle Shop role list](https://wiki.torn.com/wiki/Candle_Shop) and [company support-role descriptions](https://wiki.torn.com/wiki/Company#Special_Positions) inform role coverage. Live API job requirements remain authoritative for placement. Other company types retain the existing custom-count builder rather than inheriting Candle Shop business assumptions.
+Placement protects the weakest key-job coverage first, then balances adequate key-job coverage and the other roles. It cannot improve its objective merely by dumping the weakest employee into a demanding key job to free a stronger person for an easier job. Full recommended stats are not required. Scores above the normal recommended-stat baseline do not justify sacrificing another key job's coverage.
 
-Compare the next complete daily report after a trial, including income, customers, health, wages, supplies and any actual extra trains. The planner does not predict income or star gains. Individual API contribution estimates are shown only when exposed; their reporting period is not assumed to be daily.
+**Preview Staff Placements** shows named draft assignments with plain-language purposes. The draft explains weak roles and keeps everyone included; it does not recommend firing fillers. **Advanced: compare your own job counts** remains a separate explicit comparison that maximizes total working-stat fit for the counts you choose. That total is not a business-value or revenue objective.
 
+Check complete daily outcomes and the actual Environment/staff-room situation before deciding whether a different role mix helps. Guided draft counts remain assumptions and are never labeled a validated recommendation.
 
 ### Optional company report for chat advice (v0.6.39)
 
@@ -87,7 +88,7 @@ Copying is entirely local. Commander does not send this report, call an AI servi
 
 Each employee card has **Why this position? — Show details**. Expand it to see the selected role counts, individual and team score tradeoffs, best individual fit among included roles, recommended-stat coverage, role function and reliability limits. An individual can lose modeled points while the team gains; the explanation states that directly.
 
-For teams of up to 25 staff, Commander also calculates the best assignment if that person stays in their current role. It shows the exact team-score cost, an equally good alternative, or that the selected counts have no slot for the old role. These are calculated explanations, without an AI service or usage charges.
+For explicit custom-count comparisons with up to 25 staff, Commander also calculates the best assignment if that person stays in their current role. It shows the exact team-score cost, an equally good alternative, or that the selected counts have no slot for the old role. These are calculated explanations, without an AI service or usage charges.
 
 A current modeled/reported working-score difference of at least five points is flagged for verification, not attributed to a confirmed cause. Proposed scores exclude other effectiveness modifiers and support-role effects. Open explanations remain open during unchanged dashboard updates.
 

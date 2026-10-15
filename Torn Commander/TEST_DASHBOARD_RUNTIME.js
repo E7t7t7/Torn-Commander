@@ -31,6 +31,12 @@ assert(nodes.coLayoutStage.textContent.includes('9 scanned')&&nodes.coLayouts.in
 context.send=(cmd,data)=>{context.layoutMessage={cmd,...data}};
 context.previewCompanyLayout('growth');
 assert.strictEqual(context.layoutMessage.scenarioId,'growth');
+context.renderCompany({id:7,team:{state:'CURRENT SETUP — REVIEW ONLY',rows:[]},layouts:{selected:'Old planner suggestion — rebuild before using',options:[]},rows:[]},'one');
+assert(nodes.coTeamScore.textContent.includes('not an endorsement'),'Current setup was endorsed on scan');
+assert(nodes.coLayoutSelected.textContent.includes('Old planner'),'Old plan invalidation not displayed');
+context.renderCompany({id:7,team:{state:'STARTER DRAFT — REVIEW BEFORE APPLYING',rows:[{id:2,name:'Filler',current:'Chandler',recommended:'Salesperson',explanation:{summary:'Keep this person included in the general sales team'}}]},layouts:{options:[{id:'starter-v2',name:'Starter draft',suggested:false,countsText:'1 Cleaner',underqualified:9,workingScore:100}]},rows:[]},'one');
+assert(nodes.coTeamRows.innerHTML.includes('Keep this person included'),'Plain-language filler explanation missing from simple view');
+assert(!nodes.coLayouts.innerHTML.includes('Suggested starting trial')&&nodes.coLayouts.innerHTML.includes('Unvalidated draft'),'Draft presented as endorsed optimal plan');
 context.renderCompany({id:999,name:'Other',rows:[]},'two');
 assert(!nodes.coTeamRows.innerHTML.includes('Worker')&&!nodes.coJobs.innerHTML.includes('Manual')&&!nodes.coStockRows.innerHTML.includes('Candle'),'Previous profile company data retained in view');
 assert(!nodes.coLayouts.innerHTML.includes('Cash and staff growth'),'Previous company guided layouts retained');

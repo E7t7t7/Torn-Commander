@@ -1,3 +1,13 @@
+v0.6.43 (2026-10-14) — Correct new-company staffing logic
+- Stop treating scan results, saved old suggestions or guessed job counts as endorsed recommendations.
+- Remove near-even Chandler ratios, automatically suggested extra cleaners, default Trainer/Bookkeeper variants and arbitrary environment/Trainer triggers.
+- Add a plainly labelled starter draft: one Chandler, one Quality Control, one Cleaner and remaining staff in sales, with these counts disclosed as unvalidated coverage assumptions.
+- Protect the weakest key-job coverage before optimizing other job fits, so low-stat fillers are not sacrificed into key jobs just to raise easier-job totals.
+- Retain every employee, including zero-stat fillers; recommended job stats are not eligibility requirements and nobody is automatically removed.
+- Keep custom-count total-fit comparisons separate, preserve current positions in review mode, and require rebuilding older saved suggestions.
+- Add plain-language role purposes to the simple employee view and flag score discrepancies before changes.
+- Verify a nine-person new-company regression with filler stats, 4-10 zero-stat teams, legacy invalidation, review-only scans and 15 exhaustive protected-allocation comparisons.
+
 v0.6.42 (2026-10-14) — Expand medical items, tune attack timing and fulfill contracts
 - Expand the verified First Aid Kit name/image/header when its Use control is hidden in a collapsed inventory row; wait for that item's controls with a bounded timeout.
 - Avoid toggling explicitly open items or visible disabled Use controls, and recognize quantities preceding the item name.

@@ -48,6 +48,8 @@ internal sealed class CompanyTeamScan
     public List<string> Warnings { get; set; } = new();
     public Dictionary<long, int>? PlannedCounts { get; set; }
     public string PlanSource { get; set; } = "Current role counts";
+    public string PlanPolicy { get; set; } = "total-fit";
+    public int PlanVersion { get; set; }
 }
 internal sealed record CompanyAssignment(long Id, string Name, string Current, string Recommended,
     CompanyWorkStats? Stats, CompanyWorkStats? Required, int? Before, int? After,
@@ -148,6 +150,11 @@ internal static class CompanyStaffAdvisor
         int n = staff.Count;
         if (n != slots.Count || n > 200 || staff.Any(x => x.Stats == null) || slots.Any(x => x.Required == null))
             throw new InvalidDataException("Allocation requires one known job slot per employee and complete working stats.");
+        return Assign(n, (i, j) => -Fit(staff[i].Stats!, slots[j].Required!) * 1000L +
+            (staff[i].PositionId == slots[j].Id ? 0 : 1));
+    }
+    private static int[] Assign(int n, Func<int, int, long> costAt)
+    {
         var u = new long[n + 1]; var v = new long[n + 1]; var p = new int[n + 1]; var way = new int[n + 1];
         for (int i = 1; i <= n; i++)
         {
@@ -158,8 +165,7 @@ internal static class CompanyStaffAdvisor
                 used[j0] = true; int i0 = p[j0], j1 = 0; long delta = long.MaxValue;
                 for (int j = 1; j <= n; j++) if (!used[j])
                 {
-                    long cost = -Fit(staff[i0 - 1].Stats!, slots[j - 1].Required!) * 1000L +
-                        (staff[i0 - 1].PositionId == slots[j - 1].Id ? 0 : 1);
+                    long cost = costAt(i0 - 1, j - 1);
                     long cur = cost - u[i0] - v[j];
                     if (cur < min[j]) { min[j] = cur; way[j] = j0; }
                     if (min[j] < delta) { delta = min[j]; j1 = j; }
@@ -174,6 +180,56 @@ internal static class CompanyStaffAdvisor
         for (int j = 1; j <= n; j++) assignment[p[j] - 1] = j - 1;
         return assignment;
     }
+    // Maximize the weakest key-job coverage first, then capped key-role coverage,
+    // then total fit, then fewer moves. Low-stat staff remain in the assignment.
+    public static int[] AllocateProtected(IReadOnlyList<CompanyEmployeeScan> staff,
+        IReadOnlyList<CompanyJobScan> slots, HashSet<long> keyRoles)
+    {
+        int n = staff.Count;
+        if (n != slots.Count || n > 200 || staff.Any(x => x.Stats == null) || slots.Any(x => x.Required == null))
+            throw new InvalidDataException("Complete staff and role stats are needed.");
+        const long forbidden = 1_000_000_000_000_000;
+        int[] Solve(int floor) => Assign(n, (i, j) => {
+            int fit = Fit(staff[i].Stats!, slots[j].Required!);
+            bool key = keyRoles.Contains(slots[j].Id);
+            if (key && fit < floor) return forbidden;
+            return -(key ? Math.Min(90, fit) * 1_000_000_000L : 0) - fit * 10000L +
+                (staff[i].PositionId == slots[j].Id ? 0 : 1);
+        });
+        int lo = 0, hi = 90;
+        while (lo < hi)
+        {
+            int mid = (lo + hi + 1) / 2; var candidate = Solve(mid);
+            bool feasible = Enumerable.Range(0, n).All(i => !keyRoles.Contains(slots[candidate[i]].Id) ||
+                Fit(staff[i].Stats!, slots[candidate[i]].Required!) >= mid);
+            if (feasible) lo = mid; else hi = mid - 1;
+        }
+        return Solve(lo);
+    }
+    private static CompanyPositionExplanation StarterExplanation(CompanyEmployeeScan e, CompanyJobScan target, CompanyJobScan? current)
+    {
+        var reasons = new List<string>();
+        bool sales = target.Name.Equals("Salesperson", StringComparison.OrdinalIgnoreCase);
+        string summary = sales
+            ? "Keep this person included in the general sales team while their working stats grow."
+            : "Use this person's available stats to cover " + target.Name + " before filling general sales places.";
+        reasons.Add(sales
+            ? "The draft gives stronger available coverage to candle-making, Quality Control and cleaning first. The rest of the team fills Salesperson places. This includes very new players; it is not a hiring or firing decision."
+            : "This is one key coverage place in a starter draft. The planner first avoids leaving a key job with the weakest possible coverage just to make easier jobs score higher.");
+        if (target.Name.Equals("Chandler", StringComparison.OrdinalIgnoreCase)) reasons.Add("This place covers candle-making. It is not filled with the lowest-stat person merely to tick a box. The draft does not assume you need two or three Chandlers.");
+        if (target.Ability.Equals("Cleaner", StringComparison.OrdinalIgnoreCase)) reasons.Add("The draft reserves one cleaner, not two. Extra cleaning needs evidence from Environment and staff-room checks.");
+        if (target.Ability.Equals("Manager", StringComparison.OrdinalIgnoreCase)) reasons.Add("Quality Control covers the management function. Its actual benefit to the other employees is not included in the displayed working-stat score.");
+        if (!sales && e.Stats != null && target.Required != null && Fit(e.Stats, target.Required) == 0)
+            reasons.Add("This person currently adds no calculated working-stat contribution in this job. Everyone is still included, but a filled place is not the same as good coverage. Plan training before expecting this role to help much.");
+        reasons.Add("Nobody has to meet every recommended stat. With a new team, a job may still be weak even after using the best available person. Use the gaps below to plan training.");
+        reasons.Add("These job counts are a conservative coverage trial, not a proven most-profitable setup. Compare complete daily results before keeping it.");
+        string reliability = "This is an estimate of how the working stats suit the job, not an earnings forecast. Check the next complete company report before keeping the arrangement.";
+        if (e.WorkingEffectiveness.HasValue && current?.Required != null && e.Stats != null &&
+            Math.Abs(Fit(e.Stats, current.Required) - e.WorkingEffectiveness.Value) >= 5)
+            reliability = "VERIFY BEFORE MOVING: Torn's current reported job score differs from this calculation. Scan again and check the current role/report. The cause is not established, so this draft is not confirmed.";
+        return new(summary, reasons, new(), reliability);
+    }
+
     private static string Gap(CompanyEmployeeScan employee, CompanyJobScan? job)
     {
         if (employee.Stats == null) return "Working stats unavailable: use a key with company employee-detail access, then scan again.";
@@ -301,8 +357,13 @@ internal static class CompanyStaffAdvisor
             staff.All(e => e.Stats != null) && slots.All(j => j?.Required != null);
         var targetSlots = scan.PlannedCounts == null ? slots.Where(x => x != null).Select(x => x!).ToList() :
             scan.Jobs.SelectMany(j => Enumerable.Repeat(j, Math.Clamp(scan.PlannedCounts.GetValueOrDefault(j.Id), 0, 200))).ToList();
+        bool legacy = CompanyStaffLayouts.IsLegacyPlan(scan);
+        bool reviewing = scan.PlannedCounts == null || legacy;
+        if (reviewing) targetSlots = slots.Where(x => x != null).Select(x => x!).ToList();
         complete = complete && targetSlots.Count == staff.Count && targetSlots.All(x => x.Required != null);
-        var assignment = complete ? Allocate(staff, targetSlots) : null;
+        bool protectedPlan = !reviewing && scan.PlanPolicy == "protect-key-roles";
+        var assignment = !complete ? null : reviewing ? Enumerable.Range(0, staff.Count).ToArray() :
+            protectedPlan ? AllocateProtected(staff, targetSlots, CompanyStaffLayouts.KeyRoles(scan.Jobs)) : Allocate(staff, targetSlots);
         int? modeledBefore = complete ? staff.Select((e, i) => Fit(e.Stats!, slots[i]!.Required!)).Sum() : null;
         int? modeledAfter = complete ? staff.Select((e, i) => Fit(e.Stats!, targetSlots[assignment![i]].Required!)).Sum() : null;
         var rows = staff.Select((e, i) => {
@@ -310,19 +371,28 @@ internal static class CompanyStaffAdvisor
             return new CompanyAssignment(e.Id, e.Name, e.Position, assignment == null ? "Plan unavailable" : target!.Name,
                 e.Stats, target?.Required, e.Stats != null && current?.Required != null ? Fit(e.Stats, current.Required) : null,
                 assignment != null ? Fit(e.Stats!, target!.Required!) : null, e.WorkingEffectiveness, e.TotalEffectiveness, Gap(e, target), e.Wage, e.ContributionValue) {
-                    Explanation = Explain(staff, targetSlots, assignment, i, current, modeledBefore, modeledAfter)
+                    Explanation = reviewing ? new CompanyPositionExplanation(
+                        "Current position shown for review — this is not a recommendation to keep this setup.",
+                        new() { legacy ? "An older saved suggestion is no longer endorsed. Preview the corrected starter draft or explicitly compare custom counts."
+                            : "A scan shows what you have now. It does not establish that your current job counts are right.",
+                            "Everyone stays on the roster, including low-stat players. Preview a draft before making more changes." }, new(),
+                        "No profit improvement has been established.")
+                        : protectedPlan && target != null ? StarterExplanation(e, target, current)
+                        : Explain(staff, targetSlots, assignment, i, current, modeledBefore, modeledAfter)
                 };
         }).ToList();
         int? before = complete ? rows.Sum(x => x.Before!.Value) : null;
         int? after = complete ? rows.Sum(x => x.After!.Value) : null;
-        if (complete)
+        if (complete && !reviewing && !protectedPlan)
             actions.Add(after > before ? "Apply the proposed staff swaps manually, preserving the listed number of each role. Review the next company report before making further changes."
                 : "The proposed staffing mix has no modeled working-stat gain over the current allocation. Compare role coverage, training and effectiveness penalties before changing roles.");
         if (rows.Any(x => x.Before.HasValue && x.ActualWorking.HasValue && x.Before != x.ActualWorking))
             actions.Add("Some modeled current scores differ from Torn's reported working-stat effectiveness. Treat swaps as estimates and verify the role requirements and next report.");
         if (actions.Count == 0) actions.Add("Record daily results and keep staffing stable to establish a useful baseline before changing budgets or capacity.");
-        return new(complete ? "TEAM PLAN READY" : "INCOMPLETE SCAN",
-            "Best combined working-stat fit for the selected job counts (current staffing mix by default); includes underqualified staff. Changing role counts is a scenario: preserve the sales and support coverage your business needs. This does not choose a profitable role mix or predict profit. Other effectiveness modifiers and support-role effects are excluded. No positions are changed automatically.",
+        if (reviewing) actions.Add("Review the current setup, then preview the corrected starter draft. Do not change jobs solely to raise a calculated score.");
+        if (protectedPlan) actions.Add("This draft protects key-job coverage first and keeps every employee included. Check the named placements and compare complete daily results; a higher total score is not its deciding rule.");
+        return new(!complete ? "INCOMPLETE SCAN" : reviewing ? "CURRENT SETUP — REVIEW ONLY" : protectedPlan ? "STARTER DRAFT — REVIEW BEFORE APPLYING" : "CUSTOM COUNTS — COMPARISON ONLY",
+            "Scanning does not recommend changes. The starter draft covers key jobs with the best available people, including underqualified staff. Custom counts only compare the mix you entered. Neither plan proves which setup earns the most. No positions are changed automatically.",
             before, after, rows, actions);
     }
 }

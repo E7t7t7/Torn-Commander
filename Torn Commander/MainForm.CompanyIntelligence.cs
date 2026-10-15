@@ -125,6 +125,9 @@ public sealed partial class MainForm
             throw new InvalidDataException("The company scan changed. Review the current scan before rebuilding the plan.");
         var previous = team.PlannedCounts;
         var previousSource = team.PlanSource;
+        var previousPolicy = team.PlanPolicy;
+        var previousVersion = team.PlanVersion;
+        string policy = "total-fit";
         Dictionary<long, int>? counts;
         string source;
         if (request.TryGetProperty("scenarioId", out var scenario))
@@ -135,7 +138,7 @@ public sealed partial class MainForm
             var option = CompanyStaffLayouts.Build(latest, team).Options.FirstOrDefault(x => x.Id == scenario.GetString())
                 ?? throw new InvalidDataException("That layout is unavailable for the current scan. Scan again and choose an available plan.");
             counts = new Dictionary<long, int>(option.Counts);
-            source = option.Name;
+            source = option.Name; policy = option.Policy;
         }
         else
         {
@@ -143,9 +146,9 @@ public sealed partial class MainForm
             counts = resetting ? null : CompanyStaffAdvisor.ReadCounts(request, team);
             source = resetting ? "Current role counts" : "Custom role-count scenario";
         }
-        team.PlannedCounts = counts; team.PlanSource = source;
+        team.PlannedCounts = counts; team.PlanSource = source; team.PlanPolicy = policy; team.PlanVersion = CompanyStaffLayouts.PlanVersion;
         try { SaveCompanyJournal(); }
-        catch { team.PlannedCounts = previous; team.PlanSource = previousSource; throw; }
+        catch { team.PlannedCounts = previous; team.PlanSource = previousSource; team.PlanPolicy = previousPolicy; team.PlanVersion = previousVersion; throw; }
         journal.Status = "Local staffing scenario saved. No Torn positions were changed.";
         UpdateModernDashboard();
     }
