@@ -106,3 +106,12 @@ assert(nodes.faActivityEnabled.checked && nodes.faHeatmap.innerHTML.includes('50
 context.renderFaction({},'activity-two');
 assert(!nodes.faActivityEnabled.checked && nodes.faActivityMembers.innerHTML==='','Activity profile clearing failed');
 console.log('STOCK / ACTIVITY DASHBOARD PASSED: cards, filters, targets, heatmap and profile clearing.');
+
+context.renderWar({warId:7,factionId:8,budget:100,attackPercent:70,minimumAttacks:2,cap:50,unallocated:10,rows:[{id:1,name:'Fixture fighter',attacks:5,score:2,amount:50,eligible:true}]},'war-one');
+assert(nodes.warRows.innerHTML.includes('Fixture fighter')&&nodes.warSummary.textContent.includes('10'),'War preview missing');
+nodes.warId.value='99';
+context.renderWar({warId:7,rows:[]},'war-one');
+assert(nodes.warId.value==='99','Typed war ID overwritten by refresh');
+context.renderWar({},'war-two');
+assert(nodes.warRows.innerHTML===''&&nodes.warId.value==='','War profile isolation failed');
+console.log('WAR PAYOUT DASHBOARD PASSED: preview, typed report ID and profile isolation.');

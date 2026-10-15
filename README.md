@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.45. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.46. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -127,3 +127,8 @@ Company → Scan Company Standings reads paginated public company listings for y
 - Faction → Local Activity History optionally records every five minutes, only while the app is open on that profile. Percentages count observed online/idle/offline samples, not hours played. Collection ignores incomplete or changed-faction rosters, uses shared API pacing and retains 30 days.
 - Intel Tools opens Torn Intel in an ordinary in-app browser tab. The site requires its own login and any relevant subscriptions. Commander does not insert credentials or copy its private data/model.
 - [Feature audit](INTEL_FEATURE_AUDIT.md) tracks what remains; this is not full native parity.
+
+### Ranked-war payout previews and CSV reports (v0.6.46)
+War Payouts → enter the ranked war ID → Scan War Report. The report must include the API account's current faction. Set a cash budget, attacks weight (remaining weight uses the report's war score), minimum attacks and optional per-person cap. Calculate and Save Preview never transfers money. Whole-dollar rounding is deterministic; unused money is shown separately. Historical participants remain in the report even if they later leave the faction.
+
+Export CSV is available for war payout previews, Company history and Stocks. Unknown values remain blank; formula-like text is escaped for spreadsheets. Exports contain the selected profile's report only.

@@ -2,13 +2,31 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('StockIntelligence.cs','FactionActivity.cs','CompanyMarket.cs','CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('WarPayouts.cs','StockIntelligence.cs','FactionActivity.cs','CompanyMarket.cs','CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
 using System.Text.Json;
 using TornCommander;
 void Check(bool value,string message){if(!value)throw new Exception(message);}
+var warFixture=new WarPayoutJournal {Budget=100,AttackPercent=100,Members=new(){new(1,"A",1,1),new(2,"B",1,1),new(3,"C",1,1)}};
+var paid=WarPayouts.Calculate(warFixture);
+Check(paid.Sum(x=>x.Amount)==100&&paid.Single(x=>x.Id==1).Amount==34,"Payout rounding must conserve budget deterministically.");
+warFixture.Cap=20;
+Check(WarPayouts.Calculate(warFixture).Sum(x=>x.Amount)==60,"Capped unused budget must remain unallocated.");
+warFixture.Cap=null;warFixture.MinimumAttacks=2;
+Check(WarPayouts.Calculate(warFixture).All(x=>x.Amount==0&&!x.Eligible),"Minimum attacks ignored.");
+var payoutRandom=new Random(83);
+for(int trial=0;trial<100;trial++){
+ var plan=new WarPayoutJournal {Budget=payoutRandom.Next(1,100000),AttackPercent=payoutRandom.Next(101),
+    Cap=trial%2==0?payoutRandom.Next(0,10000):null,
+    Members=Enumerable.Range(1,10).Select(i=>new WarParticipant(i,"Fixture "+i,payoutRandom.Next(1,100),payoutRandom.Next(1,100))).ToList()};
+ var result=WarPayouts.Calculate(plan);
+ long expected=Math.Min(plan.Budget,plan.Cap.HasValue?plan.Cap.Value*10:plan.Budget);
+ Check(result.Sum(x=>x.Amount)==expected&&result.All(x=>x.Amount>=0&&(!plan.Cap.HasValue||x.Amount<=plan.Cap)),"Random payout conservation/cap invariant failed.");
+}
+Check(ReportCsv.Cell(" =SUM(A1)")=="\"' =SUM(A1)\""&&ReportCsv.Cell(-20)=="\"-20\"","CSV formula safety / numeric preservation failed.");
+try{WarPayouts.Read("""{"rankedwarreport":{"id":1,"end":0,"factions":[{"id":99,"members":[]}]}}""",1,2);throw new Exception("Foreign faction report accepted.");}catch(InvalidDataException){}
 var quoteFixture="""{"stocks":[{"id":1,"name":"Fixture Stock","acronym":"FIX","market":{"price":100},"bonus":{"requirement":1000,"description":"Fixture benefit","passive":false}}]}""";
 var stockQuotes=StockIntelligence.ReadQuotes(quoteFixture);
 var held=StockIntelligence.ReadHoldings("""{"stocks":[{"id":1,"shares":10,"transactions":[{"shares":10,"price":90}],"bonus":{"increment":0,"available":false}}]}""");

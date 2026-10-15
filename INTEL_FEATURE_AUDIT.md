@@ -14,7 +14,7 @@ This is an implementation inventory, not a claim of full parity. No site source 
 | Activity charts and heatmaps | New opt-in 5-minute local observations, member percentages, hourly/week-day heatmap | Not continuous uptime or imported site history; only active profile while app runs |
 | Player/faction/alliance profiles | Existing own-faction scan | Arbitrary faction comparison, player histories and shared alliance backend |
 | Personal-stat library, gym history | Existing personal progression summary | Per-member history access and permission-aware time series |
-| Chain reports and war reporting | Current chain/war snapshots | Per-hit report import, milestones, contribution analysis and payout calculations |
+| Chain reports and war reporting | Current chain/war snapshots | Native official ranked-war report import, attacks/score cash payout preview and CSV now added; detailed per-hit and milestone analysis remains |
 | Dibs and shared war coordination | Website workspace only if entitled | Shared server, identity, conflict handling, expiry and access controls |
 | Spies, battle-stat distribution, enemy loadouts | Website workspace only if entitled | Explicit provider integration or import; never infer battle stats from level |
 | Recruitment and transfers | Website workspace only if entitled | Long-running player index and change history; no fabricated retrospective data |
@@ -24,7 +24,7 @@ This is an implementation inventory, not a claim of full parity. No site source 
 | Shared chat, sticky notes, family/alliance | Website workspace | Hosted collaboration service and consent/access model |
 | Discord, phone and remote notifications | Website workspace | User-configured external bot/push service; not implied by a local checkbox |
 | AI briefings and assistant | Local deterministic advice; optional report copying | No paid AI dependency added; not a copy of Torn Intel's model |
-| CSV/Excel reports | Still pending native implementation | Safe CSV export and spreadsheet formatting |
+| CSV/Excel reports | Native UTF-8 CSV for company, stock and payout reports | Native formatted Excel workbook export remains |
 | Graffiti wall | Existing game helper is unrelated | Shared pixel canvas requires separate service; do not label helper as equivalent |
 | Appearance | New Intel Night theme | Original charcoal/cyan/teal styling, not copied branding or art |
 

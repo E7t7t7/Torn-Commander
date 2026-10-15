@@ -1,3 +1,11 @@
+v0.6.46 (2026-10-15) — Native ranked-war payouts and CSV reports
+- Import an official ranked-war report for the current faction, with identity checks and profile-local storage.
+- Preview cash payouts by attacks and war score, minimum attacks and per-person cap.
+- Deterministic whole-dollar rounding preserves the budget; capped or ineligible amounts remain explicitly unallocated when necessary.
+- Export payout previews, company history and stock holdings as UTF-8 CSV with formula-safe text fields.
+- No money is sent, no one is marked paid, and no faction balance is reserved.
+- Synthetic conservation/cap/eligibility tests and dashboard profile-isolation regressions.
+
 v0.6.45 (2026-10-15) — Intel workspace, stock portfolio and local faction activity
 - New Intel Night appearance: charcoal panels, cyan controls and teal accents; choose it in Settings.
 - Native stock scan: official Torn prices/holdings, fee-adjusted unrealized P/L, sampled 30-day range/charts, first-block cost and saved price targets.
