@@ -1,14 +1,39 @@
-﻿# Synthetic model tests; no credentials, browser sessions or real user data.
+# Synthetic model tests; no credentials, browser sessions or real user data.
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('CompanyMarket.cs','CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('StockIntelligence.cs','FactionActivity.cs','CompanyMarket.cs','CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
 using System.Text.Json;
 using TornCommander;
 void Check(bool value,string message){if(!value)throw new Exception(message);}
+var quoteFixture="""{"stocks":[{"id":1,"name":"Fixture Stock","acronym":"FIX","market":{"price":100},"bonus":{"requirement":1000,"description":"Fixture benefit","passive":false}}]}""";
+var stockQuotes=StockIntelligence.ReadQuotes(quoteFixture);
+var held=StockIntelligence.ReadHoldings("""{"stocks":[{"id":1,"shares":10,"transactions":[{"shares":10,"price":90}],"bonus":{"increment":0,"available":false}}]}""");
+Check(StockIntelligence.NetProfit(held[0],100)==99m,"Stock fee / purchase basis wrong.");
+var unmatched=StockIntelligence.ReadHoldings("""{"stocks":[{"id":1,"shares":10,"transactions":[{"shares":9,"price":90}],"bonus":{"increment":0,"available":false}}]}""");
+Check(unmatched[0].Cost==null,"Incomplete cost basis fabricated.");
+var stockJournal=new StockJournal {Quotes=stockQuotes,Holdings=held};
+var sampleTime=new DateTime(2026,10,15,12,0,0,DateTimeKind.Utc);
+StockIntelligence.Record(stockJournal,sampleTime);
+StockIntelligence.Record(stockJournal,sampleTime.AddMinutes(10));
+Check(stockJournal.History.Count==1,"Stock hourly dedup failed.");
+stockJournal.Targets[1]=new StockTarget{Buy=100,Payout=10,Days=7};
+Check(JsonSerializer.Serialize(StockIntelligence.Report(stockJournal)).Contains("BUY TARGET REACHED"),"Stock target threshold wrong.");
+var activityJournal=new FactionJournal();
+var activitySnapshot=new FactionSnapshot {Id=1,Count=2,MembersLoaded=true,Members=new(){new(){Id=1,Name="Online fixture",Activity="Online"},new(){Id=2,Name="Idle fixture",Activity="Idle"}}};
+activityJournal.Snapshot=activitySnapshot;
+FactionActivity.Record(activityJournal,activitySnapshot,sampleTime);
+FactionActivity.Record(activityJournal,activitySnapshot,sampleTime.AddMinutes(1));
+Check(activityJournal.Activity.Count==2&&activityJournal.Activity.Sum(x=>x.Online+x.Idle)==2,"Activity dedup failed.");
+activitySnapshot.Members[0].Activity="Offline";
+FactionActivity.Record(activityJournal,activitySnapshot,sampleTime.AddMinutes(5));
+Check(activityJournal.Activity.Single(x=>x.MemberId==1).Offline==1,"Activity counter failed.");
+activityJournal.Snapshot=new FactionSnapshot{Id=2};
+using(var activityDoc=JsonDocument.Parse(JsonSerializer.Serialize(FactionActivity.Report(activityJournal,sampleTime.AddMinutes(10)))))
+ Check(activityDoc.RootElement.GetProperty("members").GetArrayLength()==0,"Activity leaked between factions.");
 var marketOwn = new CompanyObservation {CompanyId=1,CompanyTypeId=8,Rating=1,WeeklyIncome=200};
 var marketScan = new CompanyMarketScan {CompanyId=1,TypeId=8,ScannedUtc=DateTime.UtcNow,Companies=new(){new(1,1,200),new(2,2,100),new(3,2,200),new(4,2,300)}};
 var marketJson=JsonSerializer.Serialize(CompanyMarket.Report(marketOwn,marketScan));

@@ -93,3 +93,16 @@ assert(nodes.coMarketSummary.textContent.includes('OLD DATA'),'Stale market warn
 context.renderCompany({rows:[]},'two');
 assert(nodes.coMarketRows.innerHTML==='','Market rows leaked between profiles');
 console.log('COMPANY MARKET DASHBOARD PASSED: peer percentage, next-star marker, stale warning and profile clearing.');
+
+context.renderStocks({report:{holdingsKnown:true,value:100,rows:[{id:1,name:'<Unsafe>',symbol:'FIX',price:10,shares:2,history:[],target:{days:7},signal:'Watching'}]}},'stock-one');
+assert(nodes.stockRows.innerHTML.includes('FIX') && nodes.stockRows.innerHTML.includes('Net P/L'),'Stock card missing');
+nodes.stockSearch.value='does-not-match';
+context.renderStocks({report:{rows:[{id:1,name:'Fixture',symbol:'FIX'}]}},'stock-one');
+assert(nodes.stockRows.innerHTML.includes('No matching stocks'),'Stock search failed');
+context.renderStocks({report:{rows:[]}},'stock-two');
+assert(nodes.stockSearch.value==='' && !nodes.stockRows.innerHTML.includes('FIX'),'Stock profile clearing failed');
+context.renderFaction({activity:{enabled:true,hours:1,heatmap:[{day:4,hour:12,samples:2,activePercent:50}],members:[{name:'Fixture',activePercent:50,online:1,idle:0,offline:1}]}},'activity-one');
+assert(nodes.faActivityEnabled.checked && nodes.faHeatmap.innerHTML.includes('50% active') && nodes.faActivityMembers.innerHTML.includes('Fixture'),'Activity view missing');
+context.renderFaction({},'activity-two');
+assert(!nodes.faActivityEnabled.checked && nodes.faActivityMembers.innerHTML==='','Activity profile clearing failed');
+console.log('STOCK / ACTIVITY DASHBOARD PASSED: cards, filters, targets, heatmap and profile clearing.');

@@ -62,6 +62,10 @@ internal sealed class FactionTask
 }
 internal sealed class FactionJournal
 {
+    public bool ActivityEnabled { get; set; }
+    public DateTime ActivityLastBucket { get; set; }
+    public long ActivityLastFaction { get; set; }
+    public List<FactionActivityHour> Activity { get; set; } = new();
     public FactionSnapshot? Snapshot { get; set; }
     public string Goal { get; set; } = "balanced";
     public int InactivityDays { get; set; } = 3;

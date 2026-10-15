@@ -22,6 +22,49 @@ public sealed partial class MainForm
         return _factionJournal;
     }
     private void SaveFactionJournal() => Storage.SaveAtomic(FactionJournalPath(), GetFactionJournal());
+    private readonly Dictionary<string,DateTime> _activityNext = new();
+    private void TickFactionActivity()
+    {
+        if(_factionScanning||_syncing)return;
+        var j=GetFactionJournal();
+        if(!j.ActivityEnabled||j.Snapshot==null)return;
+        var now=DateTime.UtcNow;
+        if(_activityNext.TryGetValue(CurrentProfileId,out var next)&&now<next)return;
+        _activityNext[CurrentProfileId]=now.AddMinutes(5);
+        _=CollectFactionActivityAsync();
+    }
+    private async Task CollectFactionActivityAsync()
+    {
+        string profile=CurrentProfileId;
+        var key=CredentialManager.LoadApiKey(profile);
+        if(string.IsNullOrWhiteSpace(key))return;
+        _factionScanning=true;
+        try {
+            var api=new TornApiClient();
+            var s=FactionIntelligence.ReadBasic(await api.FetchEndpointAsync("faction/basic",key));
+            if(profile!=CurrentProfileId)return;
+            FactionIntelligence.ReadMembers(s,await api.FetchEndpointAsync("faction/members",key),DateTime.UtcNow);
+            if(profile!=CurrentProfileId)return;
+            var closing=FactionIntelligence.ReadBasic(await api.FetchEndpointAsync("faction/basic",key));
+            if(profile!=CurrentProfileId||closing.Id!=s.Id||closing.Count!=s.Count||GetFactionJournal().Snapshot?.Id!=s.Id)return;
+            var j=GetFactionJournal();
+            var old=j.Activity;var stamp=j.ActivityLastBucket;var faction=j.ActivityLastFaction;
+            j.Activity=old.ToList();
+            FactionActivity.Record(j,s,DateTime.UtcNow);
+            try {SaveFactionJournal();}
+            catch {j.Activity=old;j.ActivityLastBucket=stamp;j.ActivityLastFaction=faction;throw;}
+        }
+        catch { /* Shared API cooldown handles backoff; no false zero activity samples. */ }
+        finally {_factionScanning=false;UpdateModernDashboard();}
+    }
+    private void SetFactionActivity(JsonElement request)
+    {
+        if(request.GetProperty("profileId").GetString()!=CurrentProfileId)throw new InvalidDataException("Profile changed.");
+        var j=GetFactionJournal();var old=j.ActivityEnabled;
+        j.ActivityEnabled=request.GetProperty("enabled").GetBoolean();
+        try {SaveFactionJournal();} catch {j.ActivityEnabled=old;throw;}
+        UpdateModernDashboard();
+    }
     private async Task SyncFactionIntelligenceAsync()
     {
         if (_factionScanning) return;
@@ -163,6 +206,7 @@ public sealed partial class MainForm
             id = s?.Id, name = s?.Name, rank = s?.Rank, respect = s?.Respect, count = s?.Count, capacity = s?.Capacity,
             role = FactionIntelligence.Role(s), position = s?.ViewerPosition,
             abilities = s?.Abilities, abilitiesLoaded = s?.AbilitiesLoaded,
+            activity = FactionActivity.Report(j,now),
             scanning = _factionScanning, status = j.Status, goal = j.Goal, inactivityDays = j.InactivityDays,
             at = s?.ScannedUtc.ToString("yyyy-MM-dd HH:mm") + (s == null ? "" : " UTC"),
             ageMinutes = s == null ? (double?)null : Math.Round((now - s.ScannedUtc).TotalMinutes, 1),

@@ -1,3 +1,12 @@
+v0.6.45 (2026-10-15) — Intel workspace, stock portfolio and local faction activity
+- New Intel Night appearance: charcoal panels, cyan controls and teal accents; choose it in Settings.
+- Native stock scan: official Torn prices/holdings, fee-adjusted unrealized P/L, sampled 30-day range/charts, first-block cost and saved price targets.
+- Custom first-block payout value/interval scenarios; no invented market forecasts or automatic trades.
+- Optional 5-minute faction activity samples while this profile is active; member percentages and weekday/hour heatmap, with missing data kept blank.
+- Open Torn Intel inside Commander with a normal profile-specific browser login. External tools retain their own permissions/subscriptions.
+- Added an explicit feature audit; this release is the first implementation batch, not full native parity with the entire website.
+- No supplied API key, site session or paid AI dependency is bundled.
+
 v0.6.44 (2026-10-15) — Company star outlook
 - Manual paginated same-type company listing scan, using paced API requests.
 - Weekly sales comparisons for every star level, next-star highlight, lowest/middle sales and percentage of peers outsold.

@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.44. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.45. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -119,3 +119,11 @@ The docked worker panel has **Hide ×** and **Stop & Close** controls. Hide recl
 
 ### Company star outlook (v0.6.44)
 Company → Scan Company Standings reads paginated public company listings for your company type using the existing paced API connection. Each star level shows its lowest and middle weekly sales and the percentage of peers you strictly outsell. Ties do not count as beaten. These are revenue comparisons, not calibrated promotion odds. Hidden lifetime-income experience gates prevent a reliable Sunday probability or fixed waiting-time prediction. Scans are manual, profile/company scoped, and marked old after 24 hours. API data may be cached; a changing or incomplete scan is rejected. Source: https://www.torn.com/forums.php?a=0&b=0&f=19&p=threads&t=16590771
+
+### Intel tools, stock portfolio and activity history (v0.6.45)
+- Settings → Appearance → Intel Night selects the new charcoal/cyan/teal palette.
+- Stocks → Scan Stocks reads official Torn prices and your holdings. P/L deducts the 0.1% sale fee and is unknown if returned transaction shares do not establish a complete cost basis.
+- Hourly sampled charts/ranges build as you scan. Price targets are checked against scanned prices only. Payout yield uses your own one-first-tier-payout value and day interval; it does not model price changes or passive benefits.
+- Faction → Local Activity History optionally records every five minutes, only while the app is open on that profile. Percentages count observed online/idle/offline samples, not hours played. Collection ignores incomplete or changed-faction rosters, uses shared API pacing and retains 30 days.
+- Intel Tools opens Torn Intel in an ordinary in-app browser tab. The site requires its own login and any relevant subscriptions. Commander does not insert credentials or copy its private data/model.
+- [Feature audit](INTEL_FEATURE_AUDIT.md) tracks what remains; this is not full native parity.
