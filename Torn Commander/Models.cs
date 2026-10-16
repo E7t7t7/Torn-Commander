@@ -50,6 +50,8 @@ public sealed class AppSettings
     public bool TravelAutoMonitor { get; set; } = true;
     public int TravelMonitorIntervalMinutes { get; set; } = 15;
     public int TravelTransferMinutes { get; set; } = 10;
+    public Dictionary<string,bool> TravelRehabFirstProfiles { get; set; } = new();
+    public int TravelRehabStayMinutes { get; set; } = 10;
     public bool TravelPlanStartNow { get; set; } = true;
     public bool TravelPauseUntilHome { get; set; } = false;
     public string UpdateGithubRepo { get; set; } = "E7t7t7/Torn-Commander";

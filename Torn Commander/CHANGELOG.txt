@@ -1,3 +1,12 @@
+v0.6.47 (2026-10-15) — Visual dashboards and Switzerland rehab-first planning
+- Original city skyline header, stronger page hierarchy, richer summary cards, clearer accents and responsive layouts.
+- Company income/advertising/margin charts with 7/30/90-day views; faction respect, member and hourly activity charts.
+- Improved stock price graphs, travel opportunity comparisons, payout bars and confirmed-loss progress.
+- Missing observations remain gaps; chart points show recorded dates and values.
+- Switzerland rehab first button adds the mandatory visit before profit runs, with adjustable time at rehab and a Rehab done/remove control.
+- Uses actual Switzerland landing time when already outbound; respects ticket/book flight times, profile isolation and the 24-hour window.
+- Treatment fees and airfare for the rehab detour are excluded; no automatic flight or rehab payment.
+
 v0.6.46 (2026-10-15) — Native ranked-war payouts and CSV reports
 - Import an official ranked-war report for the current faction, with identity checks and profile-local storage.
 - Preview cash payouts by attacks and war score, minimum attacks and per-person cap.

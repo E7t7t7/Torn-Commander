@@ -4,6 +4,7 @@ namespace TornCommander;
 // is a scenario based on public observations rather than a guarantee.
 public sealed class TravelItineraryLeg
 {
+    public string Kind { get; set; } = "trade";
     public int Number { get; set; }
     public string Country { get; set; } = "";
     public string Item { get; set; } = "";

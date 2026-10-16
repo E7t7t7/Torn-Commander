@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderFlightTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('TravelTiming.cs','TravelItinerary.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
+foreach($file in @('TravelRehabPlanner.cs','TravelTiming.cs','TravelItinerary.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
 $prog=@'
 using System.Text.Json;
 using TornCommander;
@@ -34,9 +34,20 @@ var plan=TravelItineraryEngine.Build(new[]{item},settings,anchor.ReadyUtc!.Value
 Check(plan.Legs.Count>0 && plan.Legs[0].DepartUtc>=anchor.ReadyUtc && plan.Legs.All(x=>x.ReturnUtc<=now.AddHours(24)),"Anchored schedule ignores flight or rolling horizon.");
 var custom=TravelItineraryEngine.Build(new[]{item},settings,now.AddHours(2),now);
 Check(custom.StartUtc==now.AddHours(2) && custom.Legs.All(x=>x.DepartUtc>=now.AddHours(2)),"Custom takeoff ignored.");
+var rehab=TravelRehabPlanner.Build(new[]{item},settings,now,now,now.AddHours(24),true,10);
+Check(rehab.Legs[0].Kind=="rehab"&&rehab.Legs[0].Country=="Switzerland","Rehab must be the mandatory first stop.");
+Check(rehab.Legs[0].ReturnUtc==now.AddMinutes(242)&&rehab.Legs.Skip(1).All(x=>x.DepartUtc>=now.AddMinutes(252)),"Trading overlaps rehab or return turnaround.");
+var swissFlight=new TravelSituation{State="outbound",Destination="Switzerland",DepartUtc=now.AddMinutes(-30),ArrivalUtc=now.AddMinutes(86),FlightMinutes=116};
+var inFlightRehab=TravelRehabPlanner.Build(Array.Empty<TravelForecastItem>(),settings,now.AddHours(4),now,now.AddHours(24),true,10,swissFlight);
+Check(inFlightRehab.Legs.Count==1&&inFlightRehab.Legs[0].ArriveUtc==now.AddMinutes(86)&&inFlightRehab.Legs[0].ReturnUtc==now.AddMinutes(212),"Existing Switzerland flight was duplicated or landing time ignored.");
+Check(TravelRehabPlanner.FlightMinutes("Business",true)==38,"Business/book Swiss time wrong.");
+Check(TravelRehabPlanner.Build(new[]{item},settings,now.AddDays(-1),now,null,true,10).Legs.Count==0,"Invalid custom rehab start accepted.");
+var noRehab=TravelRehabPlanner.Build(new[]{item},settings,now,now,null,false,10);
+Check(noRehab.Legs.All(x=>x.Kind!="rehab"),"Disabled rehab still inserted.");
 Console.WriteLine("FLIGHT TIMING TEST PASSED: v2 status, outbound, return, abroad, relative timer, blocked/missing data, custom takeoff and rolling horizon.");
 namespace TornCommander{
  public sealed class AppSettings{
+ public bool TravelMailingBook{get;set;}
  public bool TravelInStockOnly{get;set;}
  public double TravelMinConfidence{get;set;}=.35;
  public int TravelTransferMinutes{get;set;}=10;

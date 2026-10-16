@@ -206,6 +206,7 @@ public sealed partial class MainForm
             id = s?.Id, name = s?.Name, rank = s?.Rank, respect = s?.Respect, count = s?.Count, capacity = s?.Capacity,
             role = FactionIntelligence.Role(s), position = s?.ViewerPosition,
             abilities = s?.Abilities, abilitiesLoaded = s?.AbilitiesLoaded,
+            history = j.Days.Where(x=>x.FactionId==s?.Id).OrderBy(x=>x.Day).TakeLast(90).ToList(),
             activity = FactionActivity.Report(j,now),
             scanning = _factionScanning, status = j.Status, goal = j.Goal, inactivityDays = j.InactivityDays,
             at = s?.ScannedUtc.ToString("yyyy-MM-dd HH:mm") + (s == null ? "" : " UTC"),

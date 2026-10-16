@@ -7,6 +7,7 @@ for(const match of script.matchAll(/\$\('([^']+)'\)/g)) assert(match[1]=='mobile
 const nodes=Object.fromEntries([...ids].map(id=>[id,{id,value:'',textContent:'',innerHTML:'',hidden:true,style:{},dataset:{}}]));
 const context={$:id=>nodes[id]??null,money:x=>String(x??''),esc:x=>String(x??''),document:{activeElement:null},console:{error:()=>{}}};
 vm.createContext(context);
+vm.runInContext(script.slice(script.indexOf("const chartRanges="),script.indexOf("let factionFormIdentity=")),context);
 vm.runInContext(script.slice(script.indexOf("let factionFormIdentity="),script.indexOf("let coRecordIdentity=")),context);
 vm.runInContext(script.slice(script.indexOf('let coRecordIdentity='),script.indexOf('let progressionIdentity=')),context);
 context.renderCompany({name:'Fixture Company',business:{state:'SPENDING ALERT',note:'Fixture'},rows:[]},'one');
@@ -115,3 +116,10 @@ assert(nodes.warId.value==='99','Typed war ID overwritten by refresh');
 context.renderWar({},'war-two');
 assert(nodes.warRows.innerHTML===''&&nodes.warId.value==='','War profile isolation failed');
 console.log('WAR PAYOUT DASHBOARD PASSED: preview, typed report ID and profile isolation.');
+
+const chart=context.insightChart([{day:'2026-10-13',income:100},{day:'2026-10-14',income:null},{day:'2026-10-15',income:200}],'day',[{key:'income',label:'Income',color:'#60c7fa'}],true);
+assert(chart.includes('<svg')&&chart.includes('Income')&&chart.includes('M60.0,195.0M830.0,25.0'),'Chart must preserve gaps rather than drawing through missing data');
+assert(context.insightChart([], 'day', []).includes('first scan'),'Missing history should have an honest empty state');
+vm.runInContext(script.slice(script.indexOf('function rehabLegHtml('),script.indexOf('function renderItinerary(')),context);
+assert(context.rehabLegHtml({departure:'A',arrival:'B',back:'C'}).includes('Treatment cost varies'),'Rehab leg must not claim a purchase/profit');
+console.log('INSIGHT CHARTS PASSED: real points, missing-data gaps and honest rehab rendering.');

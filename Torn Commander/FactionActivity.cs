@@ -25,6 +25,10 @@ internal static class FactionActivity
     {
         var rows=j.Activity.Where(x=>x.FactionId==j.Snapshot?.Id&&x.Hour>=now.AddDays(-30)&&x.Hour<=now).ToList();
         return new { enabled=j.ActivityEnabled,
+            timeline=rows.GroupBy(x=>x.Hour).OrderBy(g=>g.Key).Select(g=>new {at=g.Key.ToString("O"),
+                online=(double)g.Sum(x=>x.Online)/Math.Max(1,g.Max(x=>x.Online+x.Idle+x.Offline)),
+                idle=(double)g.Sum(x=>x.Idle)/Math.Max(1,g.Max(x=>x.Online+x.Idle+x.Offline)),
+                offline=(double)g.Sum(x=>x.Offline)/Math.Max(1,g.Max(x=>x.Online+x.Idle+x.Offline))}).ToList(),
             hours=rows.Select(x=>x.Hour).Distinct().Count(),
             members=rows.GroupBy(x=>x.MemberId).Select(g=>new {id=g.Key,name=g.OrderByDescending(x=>x.Hour).First().Name,
                 online=g.Sum(x=>x.Online),idle=g.Sum(x=>x.Idle),offline=g.Sum(x=>x.Offline),

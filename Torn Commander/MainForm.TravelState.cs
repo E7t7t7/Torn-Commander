@@ -82,6 +82,19 @@ public sealed partial class MainForm
         }
     }
 
+    private bool TravelRehabFirst => _settings.TravelRehabFirstProfiles.GetValueOrDefault(CurrentProfileId);
+    private void SetTravelRehabFirst(JsonElement request)
+    {
+        if(request.GetProperty("profileId").GetString()!=CurrentProfileId)throw new InvalidDataException("Profile changed.");
+        bool enabled=request.GetProperty("enabled").GetBoolean();
+        int stay=request.TryGetProperty("stayMinutes",out var v)?v.GetInt32():_settings.TravelRehabStayMinutes;
+        if(stay<1||stay>120)throw new InvalidDataException("Rehab stop must be 1–120 minutes.");
+        bool old=TravelRehabFirst;int oldStay=_settings.TravelRehabStayMinutes;
+        _settings.TravelRehabFirstProfiles[CurrentProfileId]=enabled;_settings.TravelRehabStayMinutes=stay;
+        try {Storage.SaveSettings(_settings);}
+        catch {_settings.TravelRehabFirstProfiles[CurrentProfileId]=old;_settings.TravelRehabStayMinutes=oldStay;throw;}
+        UpdateModernDashboard();
+    }
     private TravelItineraryPlan BuildContextAwareTravelPlan()
     {
         var now = DateTime.UtcNow;
@@ -92,12 +105,14 @@ public sealed partial class MainForm
             UpdateTravelStatusFromApi();
             var anchor = TravelTiming.Anchor(_travelSituation, now, _settings.TravelTransferMinutes, _travelForecast.Items);
             if (!anchor.ReadyUtc.HasValue) return TravelHold(now, anchor.Note);
-            var plan = TravelItineraryEngine.Build(_travelForecast.Items, _settings, anchor.ReadyUtc.Value, now, now.AddHours(24));
-            plan.Note = anchor.Note + " " + plan.Note;
+            var plan = TravelRehabPlanner.Build(_travelForecast.Items, _settings, anchor.ReadyUtc.Value, now, now.AddHours(24),
+                TravelRehabFirst, _settings.TravelRehabStayMinutes, _travelSituation);
+            plan.Note = (TravelRehabFirst && _travelSituation.Destination.Equals("Switzerland",StringComparison.OrdinalIgnoreCase)
+                ? "Using your Switzerland landing / return timing. " : anchor.Note + " ") + plan.Note;
             return plan;
         }
-        return TravelItineraryEngine.Build(_travelForecast.Items, _settings, TravelPlanStartUtc, now,
-            _settings.TravelPlanStartNow ? now.AddHours(24) : null);
+        return TravelRehabPlanner.Build(_travelForecast.Items, _settings, TravelPlanStartUtc, now,
+            null, TravelRehabFirst, _settings.TravelRehabStayMinutes);
     }
 
     private static TravelItineraryPlan TravelHold(DateTime now, string note) => new()

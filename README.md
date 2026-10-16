@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.46. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.47. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -132,3 +132,8 @@ Company → Scan Company Standings reads paginated public company listings for y
 War Payouts → enter the ranked war ID → Scan War Report. The report must include the API account's current faction. Set a cash budget, attacks weight (remaining weight uses the report's war score), minimum attacks and optional per-person cap. Calculate and Save Preview never transfers money. Whole-dollar rounding is deterministic; unused money is shown separately. Historical participants remain in the report even if they later leave the faction.
 
 Export CSV is available for war payout previews, Company history and Stocks. Unknown values remain blank; formula-like text is escaped for spreadsheets. Exports contain the selected profile's report only.
+
+### Visual dashboards and rehab-first planning (v0.6.47)
+Company now places its summary cards first and charts recorded income, advertising and accounted margin over 7/30/90 days. Faction charts respect, membership and sampled hourly activity. Stocks use labelled time-series graphs; Travel, War Payouts and Loss Desk gain data-driven comparisons/progress. Unknown values remain gaps, not zero. The original vector city header and layout polish apply across palettes; Intel Night remains available in Settings.
+
+Travel → Switzerland rehab first reserves a rehab trip before trading. Adjust minutes at rehab, then mark Rehab done/remove stop after treatment. The requirement is saved per profile. If already headed to Switzerland, the current landing time is used instead of scheduling a duplicate outbound flight. Existing location/timing checks, custom starts and the rolling 24-hour deadline still apply. Rehab fees and airfare are excluded from the profit calculation; the stop is planning only. Flight-time reference: https://wiki.torn.com/wiki/Switzerland .

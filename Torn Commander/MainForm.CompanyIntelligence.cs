@@ -300,7 +300,7 @@ public sealed partial class MainForm
             samples = advice.SampleDays,
             syncing = _companySyncing,
             autoCollect = journal.AutoCollectEnabled,
-            rows = days.Take(30).Select(x => new {
+            rows = days.Take(90).Select(x => new {
                 day = x.DayUtc, income = x.DailyIncome, customers = x.DailyCustomers,
                 ad = x.DailyAdvertising, payroll = x.DailyPayroll, stock = x.DailyStockCost,
                 afterAd = x.AfterAdvertising, net = x.FullCostMargin,
