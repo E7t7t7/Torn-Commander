@@ -247,6 +247,20 @@ public sealed partial class MainForm
         FlashStatus("Company report copied to clipboard.");
     }
 
+    private void SetCompanyAdTrial(JsonElement request)
+    {
+        var j=GetCompanyJournal();
+        if(request.GetProperty("profileId").GetString()!=CurrentProfileId||request.GetProperty("companyId").GetInt64()!=j.ActiveCompanyId||j.ActiveCompanyId<=0)
+            throw new InvalidDataException("Scan this profile's company before starting a trial.");
+        CompanyAdTrial? next=null;
+        if(!request.GetProperty("stop").GetBoolean()){
+            long budget=GoalNumber(request,"budget",0,1000000000000L),loss=GoalNumber(request,"allowedDailyLoss",0,1000000000000L);
+            next=new(){CompanyId=j.ActiveCompanyId,StartDay=DateTime.UtcNow.ToString("yyyy-MM-dd"),Budget=budget,AllowedDailyLoss=loss};
+        }
+        var previous=j.AdTrial;j.AdTrial=next;
+        try{SaveCompanyJournal();}catch{j.AdTrial=previous;throw;}
+        UpdateModernDashboard();
+    }
     private object CompanyDashboardData()
     {
         var journal = GetCompanyJournal();
@@ -273,6 +287,7 @@ public sealed partial class MainForm
             status = journal.Status,
             state = advice.State,
             advice = advice.Message,
+            adTrial = CompanyAdvertisingTrial.Report(journal,DateTime.UtcNow),
             business = CompanyIntelligence.BusinessReport(days),
             market = CompanyMarket.Report(latest, journal.Market),
             health = new { efficiency = latest?.Efficiency, environment = latest?.Environment,

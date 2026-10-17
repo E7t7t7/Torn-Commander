@@ -13,6 +13,7 @@ public sealed partial class MainForm
   if(_tradingJournal is null || _tradingProfile!=CurrentProfileId){
    _tradeScanCancellation?.Cancel();
    _tradingProfile=CurrentProfileId;
+   RebindTrades();
    _tradingJournal=Storage.Load(TradingPath(CurrentProfileId),new TradingJournal());
    _tradingJournal.Observations??=new();
    _tradingJournal.ActiveItemIds??=new();
@@ -25,19 +26,20 @@ public sealed partial class MainForm
   var journal=GetTradingJournal();
   var freshWallet=_snapshot.Wallet is not null && _snapshot.FullRetrievedAt!=DateTime.MinValue &&
       DateTime.UtcNow-_snapshot.FullRetrievedAt.ToUniversalTime()<=TimeSpan.FromMinutes(30);
-  var budget=freshWallet?Math.Min(journal.Budget,Math.Max(0,_snapshot.Wallet!.Value-journal.Reserve)):journal.Budget;
+  var budget=TradingAdvisor.AvailableCapital(journal.Budget,journal.Reserve,freshWallet?_snapshot.Wallet:null);
   return new {
-   settings=journal.Items+"|"+journal.Budget+"|"+journal.Reserve+"|"+journal.FeePercent+"|"+journal.RoiPercent+"|"+journal.CostBasis,
-   items=journal.Items,budget=journal.Budget,reserve=journal.Reserve,fee=journal.FeePercent,roi=journal.RoiPercent,costBasis=journal.CostBasis,
+   settings=journal.Items+"|"+journal.Budget+"|"+journal.Reserve+"|"+journal.FeePercent+"|"+journal.RoiPercent+"|"+journal.CostBasis+"|"+journal.StressPercent+"|"+journal.MaxExposurePercent+"|"+journal.MinimumProfit,
+   items=journal.Items,budget=journal.Budget,reserve=journal.Reserve,fee=journal.FeePercent,roi=journal.RoiPercent,costBasis=journal.CostBasis,stress=journal.StressPercent,exposure=journal.MaxExposurePercent,minimumProfit=journal.MinimumProfit,
    scanning=_tradeScanBusy,note=_tradeScanNote,
-   capitalNote=freshWallet?$"Analysis capital {budget:C0}, capped by the last wallet balance minus reserve.":"Wallet is unavailable or stale; capital is your manually entered budget. Reserve protection is unverified.",
-   rows=TradingAdvisor.Build(journal.Observations.Where(q=>journal.ActiveItemIds.Contains(q.ItemId)),budget,journal.FeePercent,journal.RoiPercent,journal.CostBasis,DateTime.UtcNow)
+   capitalNote=freshWallet?$"Analysis capital {budget:C0}, capped by the last wallet balance minus reserve.":"Wallet is unavailable or stale; capital is your entered total cash minus reserve. Your actual wallet is unverified.",
+   rows=TradingAdvisor.Build(journal.Observations.Where(q=>journal.ActiveItemIds.Contains(q.ItemId)),budget,journal.FeePercent,journal.RoiPercent,journal.CostBasis,DateTime.UtcNow,journal.StressPercent,journal.MaxExposurePercent,journal.MinimumProfit)
   };
  }
  private async Task ScanTradingAsync(JsonElement request)
  {
   if(_tradeScanBusy)return;
   var profile=CurrentProfileId;
+  if(request.GetProperty("profileId").GetString()!=profile)throw new InvalidDataException("Profile changed. Review this account before scanning.");
   var original=GetTradingJournal();
   var journal=JsonSerializer.Deserialize<TradingJournal>(JsonSerializer.Serialize(original))!;
   var text=request.TryGetProperty("items",out var itemText)?itemText.GetString()??"":"";
@@ -50,6 +52,9 @@ public sealed partial class MainForm
    if(!request.TryGetProperty(name,out var value)||!value.TryGetDecimal(out var n)||n<0||n>max)throw new InvalidDataException("Invalid "+name+".");
    return n;
   }
+  journal.StressPercent=number("stress",50);journal.MaxExposurePercent=number("exposure",100);
+  if(journal.MaxExposurePercent<=0)throw new InvalidDataException("Per-item capital limit must be above zero.");
+  journal.MinimumProfit=GoalNumber(request,"minimumProfit",0,1000000000000L);
   journal.FeePercent=number("fee",25);journal.RoiPercent=number("roi",1000);
   if(names.Count>1&&journal.CostBasis>0)throw new InvalidDataException("Use one item when entering a cost basis for sell advice.");
   var key=CredentialManager.LoadApiKey(profile);

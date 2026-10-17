@@ -7,6 +7,8 @@ using TornCommander;
 using System.Text.Json;
 void Check(bool ok,string why){if(!ok)throw new Exception(why);}
 var now=DateTime.UtcNow;
+Check(TradingAdvisor.AvailableCapital(1000,200,null)==800&&TradingAdvisor.AvailableCapital(1000,200,500)==300&&TradingAdvisor.AvailableCapital(100,200,null)==0,"Reserve must reduce manual and wallet-limited capital.");
+
 TradeQuote Quote(int id,long cheap=80,int amount=2,long next=110)=>new(){ItemId=id,Name="Item "+id,ObservedUtc=now,Reference=110,Tiers=new(){new(){Price=cheap,Quantity=amount},new(){Price=next,Quantity=100}}};
 var q=Quote(1);
 var r=TradingAdvisor.Build(new[]{q},1000,5,10,0,now).Single();
@@ -27,6 +29,13 @@ Check(TradingAdvisor.Build(new[]{q},1000,5,5,0,now).Single().Decision=="Watch","
 q=Quote(1);
 Check(TradingAdvisor.Build(new[]{q},1000,5,5,60,now).Single().SellAdvice.Contains("clears"),"Profitable sell not explained.");
 Check(TradingAdvisor.Build(new[]{q},1000,5,5,120,now).Single().SellAdvice.Contains("misses"),"Losing sell promoted.");
+var stress=TradingAdvisor.Build(new[]{Quote(1,98,2,110)},1000,5,0,0,now,10).Single();
+Check(stress.Decision=="Watch"&&stress.StressNet<0&&stress.Reason.Contains("Fragile"),"Fragile spread was promoted.");
+var limited=TradingAdvisor.Build(new[]{Quote(1)},200,5,10,0,now,0,50).Single();
+Check(limited.Decision=="Watch"&&limited.Reason.Contains("per-item"),"Per-item capital limit ignored.");
+Check(TradingAdvisor.Build(new[]{Quote(1)},1000,5,10,0,now,0,100,100).Single().Decision=="Watch","Minimum cash profit ignored.");
+var robust=TradingAdvisor.Build(new[]{Quote(1)},1000,5,10,0,now,3).Single();
+Check(robust.StressNet>0&&robust.BreakEvenSell==85&&robust.ExposurePercent==16,"Break-even / stress / exposure math wrong.");
 var old=Quote(1,90);old.ObservedUtc=now.AddHours(-1);
 Check(TradingAdvisor.Build(new[]{old,q},1000,5,5,0,now).Single().Trend.Contains("down"),"Trend lost.");
 var a=new TradingJournal{Items="one",Observations=new(){q}};

@@ -78,6 +78,7 @@ public sealed class CustomLink
 
 public sealed class TradeEntry
 {
+    public string Id { get; set; } = Guid.NewGuid().ToString();
     public string ProfileId { get; set; } = ""; // Untagged legacy entries are not assigned to either account.
     public DateTime Date { get; set; } = DateTime.Now;
     public string Item { get; set; } = "";
@@ -87,6 +88,8 @@ public sealed class TradeEntry
     public string Notes { get; set; } = "";
     public decimal Cost => Quantity * BuyEach;
     public decimal Revenue => Quantity * SellEach;
+    public decimal? SellingFees { get; set; }
+    public decimal? ProfitAfterFees => SellingFees.HasValue ? Revenue - Cost - SellingFees.Value : null;
     public decimal Profit => Revenue - Cost;
     public decimal Roi => Cost == 0 ? 0 : Profit / Cost * 100m;
 }

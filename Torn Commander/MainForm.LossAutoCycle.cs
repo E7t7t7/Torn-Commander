@@ -414,6 +414,7 @@ public sealed partial class MainForm
         if(!_modernDashboardReady||_modernDashboard.CoreWebView2 is null)return;
         var order=SelectedLossOrder();
         var data=new{
+            lossAttackDelayMs = Math.Clamp(_settings.LossAttackDelayMs, 500, 5000),
             workers=new{a=_lossWorkerA?.LastStatus??"Not initialized",b=_lossWorkerB?.LastStatus??"Not initialized"},
             loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,status=order.Status}
         };

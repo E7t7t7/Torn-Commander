@@ -123,3 +123,22 @@ assert(context.insightChart([], 'day', []).includes('first scan'),'Missing histo
 vm.runInContext(script.slice(script.indexOf('function rehabLegHtml('),script.indexOf('function renderItinerary(')),context);
 assert(context.rehabLegHtml({departure:'A',arrival:'B',back:'C'}).includes('Treatment cost varies'),'Rehab leg must not claim a purchase/profit');
 console.log('INSIGHT CHARTS PASSED: real points, missing-data gaps and honest rehab rendering.');
+
+context.renderAdTrial({id:1,adTrial:{active:true,state:'GROWTH AT AN EXTRA COST',budget:700000,allowedDailyLoss:300000,baselineDays:3,testDays:3,extraSales:73000,afterAdsChange:-227000,note:'Fixture',disclaimer:'Observed snapshots',overAllowance:true}});
+assert(nodes.adTrialReport.innerHTML.includes('GROWTH AT AN EXTRA COST')&&nodes.adTrialStart.disabled,'Growth trial not rendered or start can overwrite it');
+context.renderAdTrial({id:2});
+assert(!nodes.adTrialReport.innerHTML.includes('Fixture')&&nodes.adTrialStop.disabled,'Advertising trial leaked between companies');
+nodes.completedItem.value='Private fixture';nodes.completedBuy.value='123';
+context.renderTradeResults({unknownFees:2},'another-profile');
+assert(nodes.completedItem.value===''&&nodes.completedBuy.value===''&&nodes.tradeFeeCoverage.textContent.includes('2'),'Trade draft/fee coverage profile isolation failed');
+console.log('MONEY TOOLS DASHBOARD PASSED: advertising trial, subsidy outcome and completed-sale form isolation.');
+
+vm.runInContext(script.slice(script.indexOf('let tradeFormIdentity='),script.indexOf('function renderScriptTools(')),context);
+nodes.tradeAdviceRows.querySelectorAll=()=>[];
+context.renderTrading({settings:'risk-fixture',rows:[{itemId:1,name:'Fixture',decision:'Candidate',observedUtc:'2026-10-16T00:00:00Z',riskAnalyzed:true,stressNet:1200,breakEvenSell:85,exposurePercent:16,reason:'Fixture reasoning'}]},'risk-profile');
+assert(nodes.tradeAdviceRows.innerHTML.includes('Stress-case net')&&nodes.tradeAdviceRows.innerHTML.includes('Break-even resale')&&nodes.tradeAdviceRows.innerHTML.includes('16.0%'),'Computed risk figures are not visible in trade cards');
+console.log('TRADING RISK DISPLAY PASSED: downside net, break-even and capital exposure.');
+
+context.renderLossStatus({lossAttackDelayMs:1000});
+context.renderLossStatus({workers:{a:'Fighting'}});
+assert.strictEqual(nodes.lossAttackDelay.value,1000,'Partial worker status reset the saved timing');

@@ -7,7 +7,7 @@
   const SESSION_KEY = '__tc_loss_auto_cycle_session_v1';
   const ATTACK_URL = id => `https://www.torn.com/page.php?sid=attack&user2ID=${encodeURIComponent(id)}`;
   const ITEMS_URL = 'https://www.torn.com/item.php';
-  const MAX_PILLOW_TURNS = 20;
+  const MAX_PILLOW_TURNS = 100;
   const TICK_MS = 250;
   const attackDelay = value => Number.isFinite(Number(value)) ? Math.max(500, Math.min(5000, Math.round(Number(value)))) : 1900;
   let busy = false;
@@ -390,8 +390,7 @@
           return;
         }
         if (Number(state.pillowTurns || 0) >= MAX_PILLOW_TURNS) {
-          state.status = 'Pillow turn limit reached; waiting for the visible fight result.';
-          save(state);
+          pauseState(state, '100 Pillow attempts reached without a visible result. Fight paused; check the combat page before resuming. Nothing was counted.', false);
           return;
         }
         if (now() - Number(state.lastPillowAt || 0) < attackDelay(state.attackDelayMs ?? 1900)) return;

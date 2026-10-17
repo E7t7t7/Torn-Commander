@@ -83,6 +83,9 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  assert.equal(f.h.getState().stage,'paused');assert(f.h.getState().status.includes('Use control did not appear'));assert.equal(f.counts.expand,1);assert.equal(f.counts.medicine,0);
  f=fixture(false,false,false,{collapsed:true,ambiguousKit:true});for(let i=0;i<100&&f.h.getState().stage!=='paused';i++)await f.step();
  assert.equal(f.h.getState().stage,'paused');assert.equal(f.counts.expand,0);assert.equal(f.counts.medicine,0);
+ f=fixture(false,false,false,{pillowHits:25,delay:1000});
+ for(let i=0;i<500&&f.h.getState().stage!=='complete';i++)await f.step(1000);
+ assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.pillow,50);assert.equal(f.counts.wrong,0);
  f=fixture(false,false,false,{pillowHits:3,delay:500,pillowDisabledMs:1500});
  assert.equal(f.h.getState().attackDelayMs,500);assert.equal(f.h.setAttackDelay(10),false);assert.equal(f.h.setAttackDelay(Infinity),false);assert.equal(f.h.getState().attackDelayMs,500);
  assert.equal(f.h.setAttackDelay(700),true);assert.equal(f.h.getState().attackDelayMs,700);

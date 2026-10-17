@@ -1,3 +1,16 @@
+v0.6.48 (2026-10-17) — Protect trading margins and measure company growth spend
+- Loss timing remains at the saved value through partial worker updates; 1000 ms is supported.
+- Long Pillow fights can continue up to 100 attempts rather than silently stopping attacks at 20; reaching the limit explicitly pauses without counting a loss.
+- Trading scanner gains a price-drop stress test, per-item capital limit and minimum cash-profit threshold.
+- Cards show downside-case net, fee-adjusted break-even resale and capital exposure; fragile spreads remain Watch.
+- Manual cash budgets now deduct the protected reserve even without a fresh wallet.
+- Company advertising trials compare matched-budget baseline days with a 7-day test, reporting extra sales, extra spend, after-ad change and a chosen loss allowance.
+- Growth at an extra cost is distinguished from better after-ad income; today is excluded and staffing/star changes are flagged.
+- Record completed sales with actual total selling fees; duplicate receipts cannot double-count a save.
+- Trading totals and daily progression goals use known after-fee profits. Old records with unknown fees remain intact and are excluded from those net totals.
+- Profile-filtered classic ledger, correct selected-row deletion, and completed-trade CSV export.
+- No purchases, listings, transfers or Torn advertising changes are performed.
+
 v0.6.47 (2026-10-15) — Visual dashboards and Switzerland rehab-first planning
 - Original city skyline header, stronger page hierarchy, richer summary cards, clearer accents and responsive layouts.
 - Company income/advertising/margin charts with 7/30/90-day views; faction respect, member and hourly activity charts.

@@ -2,13 +2,25 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderAdviceTest'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('WarPayouts.cs','StockIntelligence.cs','FactionActivity.cs','CompanyMarket.cs','CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
+foreach($file in @('CompanyAdvertisingTrial.cs','WarPayouts.cs','StockIntelligence.cs','FactionActivity.cs','CompanyMarket.cs','CompanyIntelligence.cs','CompanyStaffAdvisor.cs','CompanyStaffLayouts.cs','CompanyReportExport.cs','FactionIntelligence.cs','TravelArrivalAdvisor.cs','DashboardJson.cs')){
  Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project
 }
 $prog=@'
 using System.Text.Json;
 using TornCommander;
 void Check(bool value,string message){if(!value)throw new Exception(message);}
+var trialJournal=new CompanyJournal {ActiveCompanyId=1,AdTrial=new(){CompanyId=1,StartDay="2026-10-10",Budget=700000,AllowedDailyLoss=500000}};
+for(int i=1;i<=6;i++)trialJournal.Days.Add(new(){CompanyId=1,DayUtc="2026-10-"+(i+6).ToString("00"),FromApi=true,Employees=9,Rating=1,DailyAdvertising=i<=3?400000:700000,DailyIncome=i<=3?276166:350000,DailyCustomers=i<=3?804:1000});
+using(var adTrialDoc=JsonDocument.Parse(JsonSerializer.Serialize(CompanyAdvertisingTrial.Report(trialJournal,new DateTime(2026,10,16,0,0,0,DateTimeKind.Utc))))){
+ var trial=adTrialDoc.RootElement;
+ Check(trial.GetProperty("baselineDays").GetInt32()==3&&trial.GetProperty("testDays").GetInt32()==3,"Trial windows / budget matching failed.");
+ Check(trial.GetProperty("state").GetString()=="GROWTH AT AN EXTRA COST"&&trial.GetProperty("extraSales").GetDecimal()==73834&&trial.GetProperty("afterAdsChange").GetDecimal()==-226166,"Growth subsidy incorrectly treated as profitable.");
+}
+trialJournal.Days.Add(new(){CompanyId=1,DayUtc="2026-10-16",FromApi=true,Employees=9,Rating=1,DailyAdvertising=700000,DailyIncome=999999999});
+using(var excludedToday=JsonDocument.Parse(JsonSerializer.Serialize(CompanyAdvertisingTrial.Report(trialJournal,new DateTime(2026,10,16,0,0,0,DateTimeKind.Utc)))))
+ Check(excludedToday.RootElement.GetProperty("testDays").GetInt32()==3,"Today / dates outside trial affected the result.");
+trialJournal.ActiveCompanyId=2;
+Check(JsonSerializer.Serialize(CompanyAdvertisingTrial.Report(trialJournal,DateTime.UtcNow)).Contains("false"),"Advertising trial leaked between companies.");
 var warFixture=new WarPayoutJournal {Budget=100,AttackPercent=100,Members=new(){new(1,"A",1,1),new(2,"B",1,1),new(3,"C",1,1)}};
 var paid=WarPayouts.Calculate(warFixture);
 Check(paid.Sum(x=>x.Amount)==100&&paid.Single(x=>x.Id==1).Amount==34,"Payout rounding must conserve budget deterministically.");

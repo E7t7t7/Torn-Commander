@@ -16,6 +16,9 @@ public sealed class TradingJournal
  public long Reserve { get; set; } = 100000;
  public decimal FeePercent { get; set; } = 5;
  public decimal RoiPercent { get; set; } = 5;
+ public decimal StressPercent { get; set; } = 3;
+ public decimal MaxExposurePercent { get; set; } = 50;
+ public long MinimumProfit { get; set; } = 1000;
  public long CostBasis { get; set; }
  public List<TradeQuote> Observations { get; set; } = new();
 }
@@ -34,12 +37,24 @@ public sealed class TradeOpportunity
  public decimal EstimatedNet { get; set; }
  public decimal Roi { get; set; }
  public string Trend { get; set; } = "";
+ public bool RiskAnalyzed { get; set; }
+ public decimal StressNet { get; set; }
+ public decimal ExposurePercent { get; set; }
+ public long BreakEvenSell { get; set; }
  public string SellAdvice { get; set; } = "";
 }
 public static class TradingAdvisor
 {
- public static List<TradeOpportunity> Build(IEnumerable<TradeQuote> quotes, decimal budget, decimal fee, decimal roi, long costBasis, DateTime now)
+ public static long AvailableCapital(long total,long reserve,long? wallet)
  {
+  if(total<0||reserve<0||wallet<0)throw new ArgumentOutOfRangeException("Capital cannot be negative.");
+  long manual=Math.Max(0,total-reserve);
+  return wallet.HasValue?Math.Min(manual,Math.Max(0,wallet.Value-reserve)):manual;
+ }
+
+ public static List<TradeOpportunity> Build(IEnumerable<TradeQuote> quotes, decimal budget, decimal fee, decimal roi, long costBasis, DateTime now, decimal stressPercent=0, decimal maxExposurePercent=100, decimal minimumProfit=0)
+ {
+  if(stressPercent<0||stressPercent>50||maxExposurePercent<=0||maxExposurePercent>100||minimumProfit<0)throw new ArgumentOutOfRangeException("Invalid trading risk limits.");
   if(budget<0||fee<0||fee>=100||roi<0||roi>1000||costBasis<0)throw new ArgumentOutOfRangeException("Invalid trading limits.");
   var history=quotes.ToList();
   var result=new List<TradeOpportunity>();
@@ -74,10 +89,19 @@ public static class TradingAdvisor
    if(r.Quantity<=0||r.Cost<=0){r.Reason="Spread does not cover the entered fee and return target.";continue;}
    r.EstimatedNet=netSell*r.Quantity-r.Cost;r.Roi=r.EstimatedNet/r.Cost*100;
    if(r.EstimatedNet<=0){r.Reason="No positive net margin at the visible target.";continue;}
+   var averageCost=r.Cost/r.Quantity;
+   r.BreakEvenSell=(long)Math.Ceiling(averageCost/(1-fee/100));
+   while(netAt(r.BreakEvenSell)<averageCost)r.BreakEvenSell++;
+   r.StressNet=netAt((long)Math.Floor(r.SellTarget*(1-stressPercent/100)))*r.Quantity-r.Cost;
+   r.ExposurePercent=budget>0?r.Cost/budget*100:0;
+   r.RiskAnalyzed=true;
+   if(r.EstimatedNet<minimumProfit){r.Reason="Net margin is below your minimum cash-profit target.";continue;}
+   if(stressPercent>0&&r.StressNet<=0){r.Reason=$"A {stressPercent:0.#}% fall from the target asking price removes the margin. Fragile spread: watch rather than commit.";continue;}
    r.Decision="Candidate";r.Reason="Conditional on buying all returned cheaper units and reselling at the target. Buyer demand and unreturned listings are unknown.";
   }
   decimal left=budget;
   foreach(var r in result.Where(r=>r.Decision=="Candidate").OrderByDescending(r=>r.Roi).ThenByDescending(r=>r.EstimatedNet)){
+   if(maxExposurePercent<100&&r.Cost>budget*maxExposurePercent/100){r.Decision="Watch";r.Reason="Clearing the cheaper listings exceeds your per-item capital limit. Buying only part would leave competing stock.";continue;}
    if(r.Cost>left){r.Decision="Watch";r.Reason="Budget cannot clear the cheaper returned listings; remaining low-price competition would invalidate this flip.";continue;}
    left-=r.Cost;
   }

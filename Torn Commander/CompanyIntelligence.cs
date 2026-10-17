@@ -32,6 +32,7 @@ internal sealed class CompanyObservation
 }
 internal sealed class CompanyJournal
 {
+    public CompanyAdTrial? AdTrial { get; set; }
     public bool AutoCollectEnabled { get; set; }
     public long ActiveCompanyId { get; set; }
     public string Status { get; set; } = "Connect a Torn API key and sync your company to begin collecting daily results.";

@@ -24,6 +24,7 @@ public sealed class ProgressionReport
     public decimal RecordedMargin { get; set; }
     public long Target { get; set; }
     public int Trades { get; set; }
+    public int UnknownFeeTrades { get; set; }
     public int LegacyTradesExcluded { get; set; }
     public List<ProgressionStep> Steps { get; set; } = new();
 }
@@ -60,7 +61,8 @@ public static class ProgressionAdvisor
         Add("education","Keep education moving",edu,eduKnown && (s.CurrentEducationName is null || s.EducationEndsUtc<=nowUtc) ? 5 : 30);
         var todays = trades.Where(x=>(x.Date.Kind==DateTimeKind.Utc ? x.Date.ToLocalTime().Date : x.Date.Date)==localDay.Date && x.Quantity>0 && x.BuyEach>=0 && x.SellEach>0).ToList();
         var owned = todays.Where(x=>string.Equals(x.ProfileId,profile,StringComparison.OrdinalIgnoreCase)).ToList();
-        report.RecordedMargin = owned.Sum(x=>x.Profit);
+        report.RecordedMargin = owned.Sum(x=>x.ProfitAfterFees??0);
+        report.UnknownFeeTrades=owned.Count(x=>!x.SellingFees.HasValue);
         report.Trades=owned.Count;report.LegacyTradesExcluded=todays.Count(x=>string.IsNullOrWhiteSpace(x.ProfileId));
         var cashFresh = s.RawJson.ContainsKey("money") && fullAge is >= -1 and <= 30 && s.Wallet is >= 0 &&
             !s.Errors.Any(x=>x.StartsWith("money:",StringComparison.Ordinal));
