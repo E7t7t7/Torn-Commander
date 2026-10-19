@@ -173,6 +173,14 @@
     const expanded=Array.from(row.querySelectorAll('[aria-expanded]')).filter(el=>visible(el)&&el.getAttribute?.('aria-expanded')==='false');
     const own=expanded.filter(el=>/first aid kit/i.test(clean(el.textContent))&&!/small first aid kit/i.test(clean(el.textContent)));
     if(own.length===1)return own[0];
+    // The item-name span is only a label in Torn's accordion layout.
+    // Activate the verified row's tab/header, where the expand handler lives.
+    const headers=Array.from(row.querySelectorAll('[role="tab"],[id*="ui-accordion-"]'))
+      .filter(el=>visible(el)&&enabledControl(el,row.parentElement)&&
+        (el.getAttribute?.('role')==='tab'||/-header-/.test(el.getAttribute?.('id')||''))&&
+        /\bFirst Aid Kit\b/i.test(clean(el.textContent))&&!/\bSmall First Aid Kit\b/i.test(clean(el.textContent)));
+    const headerRoots=outerRoots(headers);
+    if(headerRoots.length)return headerRoots.length===1?headerRoots[0]:null;
     if(names.length===1)return names[0];
     const images=Array.from(row.querySelectorAll('img')).filter(el=>visible(el)&&
       (/^first aid kit$/i.test(clean(el.getAttribute?.('alt')||el.getAttribute?.('title')))||/\/items\/67(?:[/.?]|$)/i.test(el.getAttribute?.('src')||'')));
@@ -463,13 +471,13 @@
         if (!use) {
           if(aidCount()===0){pauseState(state,'No First Aid Kits remain in the verified item row.',true);return;}
           if(state.aidExpandedAt){
-            if(now()-state.aidExpandedAt>15000)pauseState(state,'First Aid Kit was opened, but its Use control did not appear within 15 seconds. Copy the worker diagnostic; no item was consumed.',true);
+            if(now()-state.aidExpandedAt>15000)pauseState(state,'First Aid Kit expansion was requested, but its Use control did not appear within 15 seconds. Copy the worker diagnostic; no item was consumed.',true);
             return;
           }
           const expand=firstAidExpandControl();
           if(expand){
             state.aidExpandedAt=now();
-            state.status='Expanding the First Aid Kit item; waiting for its Use control.';
+            state.status='Requested First Aid Kit expansion; waiting for its Use control.';
             save(state);click(expand);return;
           }
           if (now() - state.healEnteredAt > 65000) pauseState(state, 'First Aid Kit Use/checkmark or item header could not be identified. Auto-cycle paused before consuming anything.', true);

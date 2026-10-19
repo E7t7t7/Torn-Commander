@@ -1,3 +1,9 @@
+v0.6.50 (2026-10-19) — Open First Aid Kits through their accordion header
+- Prefer the verified First Aid Kit tab/header over its inner name label when expanding inventory rows.
+- Retain disabled-control checks, ambiguity refusal, one expansion attempt and item-use confirmation.
+- Status now says expansion was requested rather than claiming the item opened.
+- Offline regression covers a header-only item accordion after multi-hit fights, including final recovery.
+
 v0.6.49 (2026-10-18) — Reacquire Pillow controls between combat turns
 - Recognize Torn's named Attack with Pillow control, including turns where weapon artwork is replaced.
 - Resolve the current control on every turn and check disabled ancestors before attacking or using medicine.

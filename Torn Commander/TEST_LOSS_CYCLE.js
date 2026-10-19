@@ -51,7 +51,8 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   if(scene==='items')return node('body','Your items',{},missingMedical?[]:[node('li','',{},[medical])]);
   if(scene==='medical'||scene==='confirm'){
    const name=node('span','First Aid Kit');name.onclick=()=>{counts.expand++;if(!options.expandFails)expanded=true;};
-   const controls=[name];if(!options.collapsed||expanded)controls.push(button('Use',()=>scene='confirm'));
+   let heading=name;if(options.headerOnly){name.onclick=()=>{};heading=node('div','',{role:'tab',id:'ui-accordion-6-header-0'},[name]);heading.onclick=()=>{counts.expand++;expanded=true;};}
+   const controls=[heading];if(!options.collapsed||expanded)controls.push(button('Use',()=>scene='confirm'));
    if(options.collapsed)controls.unshift(node('span','x'+stock));
    const row=node('li','',options.collapsed?{role:'tablist',class:'first-in-row m-first-in-row t-first-in-row last-row'}:{'data-quantity':String(stock)},controls);
    const wrong=node('li','',{'data-item-id':'68'},[node('span','Small First Aid Kit'),button('Use',()=>counts.wrong++)]);
@@ -82,6 +83,9 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  assert.equal(f.h.getState().stage,'complete',f.h.getState().status);
  assert.equal(f.counts.pillow,2);assert.equal(f.counts.join,2);assert.equal(f.counts.medicine,2);assert.equal(f.counts.wrong,0);
  assert.equal(f.messages.filter(m=>m.type==='tc-loss-commit').length,2);assert(f.counts.scroll>0);
+ f=fixture(false,false,false,{collapsed:true,headerOnly:true,pillowHits:3,replacedControls:true,delay:1000});
+ for(let i=0;i<800&&f.h.getState().stage!=='complete';i++)await f.step(250);
+ assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.expand,2);assert.equal(f.counts.medicine,2);assert.equal(f.counts.wrong,0);
  f=fixture(false,false,false,{collapsed:true});for(let i=0;i<110&&f.h.getState().stage!=='complete';i++)await f.step();
  assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.expand,2);assert.equal(f.counts.medicine,2);assert.equal(f.counts.wrong,0);
  f=fixture(false,false,false,{collapsed:true,expandFails:true});for(let i=0;i<60&&f.h.getState().stage!=='paused';i++)await f.step();
