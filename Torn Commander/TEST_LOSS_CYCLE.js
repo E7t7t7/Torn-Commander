@@ -2,7 +2,8 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
- let clock=1700000000000,interval,h,scene='home',hospital=false,stock=5,remaining=2,expanded=false,fightHits=0,fightJoinAt=0;
+ let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0;
+ let activeLease='';
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
@@ -57,7 +58,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
    const row=node('li','',options.collapsed?{role:'tablist',class:'first-in-row m-first-in-row t-first-in-row last-row'}:{'data-quantity':String(stock)},controls);
    const wrong=node('li','',{'data-item-id':'68'},[node('span','Small First Aid Kit'),button('Use',()=>counts.wrong++)]);
    const children=[row,wrong];if(options.ambiguousKit)children.push(node('li','',{'data-item-id':'67'},[node('span','First Aid Kit')]));
-   if(scene==='confirm')children.push(node('div','Use First Aid Kit?',{role:'dialog'},[button('Okay',()=>{stock--;counts.medicine++;hospital=false;scene='medical'})]));
+   if(scene==='confirm')children.push(node('div','Use First Aid Kit?',{role:'dialog'},[button('Okay',()=>{stock--;counts.medicine++;hospital=counts.medicine%(options.kitsRequired||1)!==0;scene='medical'})]));
    return node('body','Your items - Medical',{},children);
   }
   return node('body','Torn');
@@ -70,16 +71,29 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const store=m=>({getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)});
  const window={chrome:{webview:{postMessage:raw=>{
   const m=JSON.parse(raw);messages.push(m);
-  if(m.type==='tc-loss-claim')replies.push(()=>h.onClaim(m.requestId,true,'lease-'+remaining,'Granted'));
-  if(m.type==='tc-loss-commit')replies.push(()=>h.onCommit(m.claimId,true,--remaining,'Saved'));
+  if(options.coordinator&&m.type==='tc-loss-claim'){replies.push(()=>options.coordinator.claim(options.slot,h,m));return;}
+  if(options.coordinator&&m.type==='tc-loss-commit'){replies.push(()=>options.coordinator.commit(options.slot,h,m));return;}
+  if(m.type==='tc-loss-claim')replies.push(()=>{assert(!activeLease,'Worker requested another slot while its hospital-recovery reservation was still held');activeLease='lease-'+remaining;h.onClaim(m.requestId,true,activeLease,'Granted')});
+  if(m.type==='tc-loss-commit')replies.push(()=>{assert.equal(m.claimId,activeLease);activeLease='';h.onCommit(m.claimId,true,--remaining,'Saved')});
  }}}};
  const context={window,document,location,URL,Date:Clock,Math,console,localStorage:store(local),sessionStorage:store(session),getComputedStyle:()=>({visibility:'visible',display:'block'}),setInterval:fn=>{interval=fn},setTimeout:()=>{}};
  vm.createContext(context);vm.runInContext(source,context);h=window.TornCommanderLossCycle;
- h.start({profileId:'one',slot:'A',orderId:'fixture',targetId:'123',selfName:'Seller',maxKits:4,attackDelayMs:options.delay??1900});
+ h.start({profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',maxKits:4,attackDelayMs:options.delay??1900});
  return {h,counts,messages,async step(milliseconds=1000){h.pump();while(replies.length)replies.shift()();clock+=milliseconds;await Promise.resolve()}};
 }
 (async()=>{
- let f=fixture();for(let i=0;i<100&&f.h.getState().stage!=='complete';i++)await f.step();
+ const coordinator={remaining:4,owner:'',receipt:'',commits:0,waits:0,
+ claim(slot,h,m){if(this.owner){this.waits++;h.onClaim(m.requestId,false,'','Target busy');return;}if(!this.remaining){h.onClaim(m.requestId,false,'','No remaining losses');return;}this.owner=slot;this.receipt='shared-'+this.remaining;h.onClaim(m.requestId,true,this.receipt,'Granted');},
+ commit(slot,h,m){assert.equal(slot,this.owner);assert.equal(m.claimId,this.receipt);this.owner='';this.commits++;h.onCommit(m.claimId,true,--this.remaining,'Saved');}};
+ const dualA=fixture(false,false,false,{coordinator,slot:'A',initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
+ const dualB=fixture(false,false,false,{coordinator,slot:'B',initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
+ for(let i=0;i<1500&&(dualA.h.getState().stage!=='complete'||dualB.h.getState().stage!=='complete');i++){await dualA.step(250);await dualB.step(250);}
+ assert.equal(dualA.h.getState().stage,'complete',dualA.h.getState().status);assert.equal(dualB.h.getState().stage,'complete',dualB.h.getState().status);
+ assert.equal(coordinator.commits,4);assert.equal(coordinator.owner,'');assert(coordinator.waits>0);assert.equal(dualA.counts.join+dualB.counts.join,4);
+ let f=fixture(false,false,false,{initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true,pillowHits:3,replacedControls:true});
+ for(let i=0;i<1000&&f.h.getState().stage!=='complete';i++)await f.step(250);
+ assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.medicine,6);assert.equal(f.counts.join,2);assert.equal(f.messages.filter(m=>m.type==='tc-loss-claim').length,2);
+ f=fixture();for(let i=0;i<100&&f.h.getState().stage!=='complete';i++)await f.step();
  assert.equal(f.h.getState().stage,'complete',f.h.getState().status);
  assert.equal(f.counts.pillow,2);assert.equal(f.counts.join,2);assert.equal(f.counts.medicine,2);assert.equal(f.counts.wrong,0);
  assert.equal(f.messages.filter(m=>m.type==='tc-loss-commit').length,2);assert(f.counts.scroll>0);

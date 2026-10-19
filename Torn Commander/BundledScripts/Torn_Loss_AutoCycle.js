@@ -73,7 +73,7 @@
   function isItemsPage() { return location.pathname === '/item.php'; }
 
   function hospitalBanner() {
-    return /you can(?:not|'t|’t) attack while in hospital/i.test(bodyText());
+    return /you can(?:not|'t|’t) attack while in (?:the )?hospital|you are (?:currently |still )?in (?:the )?hospital/i.test(bodyText());
   }
 
   function joinFightButton() {
@@ -282,6 +282,11 @@
     state.status='Opening '+label+' ('+state.navigationAttempts+'/2).';save(state);
     try{location.assign(url)}catch(error){pauseState(state,'Navigation failed: '+error.message,abandon);}
   }
+  function beginHealing(state) {
+    state.stage='heal-open';
+    state.healEnteredAt=0;state.aidExpandedAt=0;state.medicalClickedAt=0;
+    state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
+  }
   function openAttack(state){openPage(state,ATTACK_URL(state.targetId),'attack page',true);}
 
   async function tick() {
@@ -293,7 +298,11 @@
       report(state);
       if (!state.running) return;
       if(state.navigationUrl&&((state.navigationUrl===ITEMS_URL&&isItemsPage())||
-          (state.navigationUrl!==ITEMS_URL&&isAttackPage(state.targetId)))){state.navigationUrl='';save(state);}
+          (state.navigationUrl!==ITEMS_URL&&isAttackPage(state.targetId)))){
+        state.navigationUrl='';
+        if(state.stage==='recovery-probe'||state.stage==='final-recovery')state.probeStartedAt=now();
+        save(state);
+      }
 
       const session = sessionStorage.getItem(SESSION_KEY);
       if (!session || session !== state.sessionToken) {
@@ -359,8 +368,7 @@
             pauseState(state, `Still hospitalized after ${state.kitsThisLoss || 0} First Aid Kits. Kit limit reached.`, true);
             return;
           }
-          state.stage = 'heal-open';
-          state.healEnteredAt = 0; state.aidExpandedAt = 0;
+          beginHealing(state);
           state.status = 'Hospital block detected. Opening Items for recovery.';
           save(state);
           openPage(state,ITEMS_URL,'Items / Medical');
@@ -549,8 +557,7 @@
             pauseState(state, `Still hospitalized after ${state.kitsThisLoss || 0} First Aid Kits. Kit limit reached.`, true);
             return;
           }
-          state.stage = 'heal-open';
-          state.healEnteredAt = 0; state.aidExpandedAt = 0;
+          beginHealing(state);
           state.medicalClickedAt = 0;
           state.status = 'Still hospitalized. Returning to Medical for one more First Aid Kit.';
           save(state);
@@ -558,7 +565,7 @@
           return;
         }
         const join = joinFightButton();
-        if (join || /\bsolo attack\b/i.test(bodyText())) {
+        if (join) {
           if (state.finishAfterRecovery) {
             state.running = false;
             state.stage = 'complete';
@@ -568,11 +575,13 @@
             post({ type: 'tc-loss-finished', profileId: state.profileId, slot: state.slot, orderId: state.orderId });
             return;
           }
-          state.stage = 'claim';
+          // Recovery before a fight still owns its reservation. Keep it until
+          // a visible loss is committed or it is explicitly abandoned.
+          state.stage = state.claimId ? 'attack-open' : 'claim';
           state.claimAttempts = 0;
-          state.claimId = '';
+          state.attackWaitStartedAt = 0;
           state.kitsThisLoss = 0;
-          state.status = 'Recovered. Requesting the next loss slot.';
+          state.status = state.claimId ? 'Recovered. Continuing the reserved attack.' : 'Recovered. Requesting the next loss slot.';
           save(state);
           return;
         }

@@ -1,3 +1,10 @@
+v0.6.51 (2026-10-19) — Hospital recovery state and shared target reservations
+- Clear previous medicine timers and confirmation state whenever another recovery attempt begins.
+- Keep an existing pre-fight reservation through hospital recovery instead of discarding its local claim.
+- Recovery requires the actual Join/Start Fight control; generic solo-attack text is insufficient.
+- Start recovery-page verification time after navigation arrives, and recognize explicit self-hospital messages.
+- Offline dual-worker regression starts both accounts hospitalized, requires repeated kits, shares one target and verifies exact combined accounting with no remaining reservation.
+
 v0.6.50 (2026-10-19) — Open First Aid Kits through their accordion header
 - Prefer the verified First Aid Kit tab/header over its inner name label when expanding inventory rows.
 - Retain disabled-control checks, ambiguity refusal, one expansion attempt and item-use confirmation.
