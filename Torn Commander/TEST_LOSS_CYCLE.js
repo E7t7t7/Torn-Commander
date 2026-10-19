@@ -34,7 +34,12 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
    const pillow=button('',()=>{counts.pillow++;counts.pillowTimes.push(clock);if(++fightHits>=(options.pillowHits||1)){hospital=true;scene='loss'}}, {},);
    Object.defineProperty(pillow,'disabled',{get:()=>clock-fightJoinAt<(options.pillowDisabledMs||0)});
    pillow.children=[node('img','',{src:'/images/items/440/large.png',alt:'Equipped weapon',title:'Pillow'}),node('span','Pillow')];for(const c of pillow.children)c.parentElement=pillow;
-   const area=node('div','',{class:'playerArea_outer'},[node('div','',{class:'playerArea_inner'},[pillow])]);
+   let weapon=pillow;
+   if(options.replacedControls&&fightHits>0){
+    const action=node('div','',{'role':'button','aria-label':'Attack with Pillow',id:'weapon_melee'},[node('span','Turn artwork')]);
+    action.onclick=pillow.onclick;action.attrs['aria-disabled']=clock-(counts.pillowTimes.at(-1)||0)<1500?'true':'false';weapon=action;
+   }
+   const area=node('div','',{class:'playerArea_outer'},[node('div','',{class:'playerArea_inner'},[weapon])]);
    const defender=node('div','',{class:'defenderArea'},[button('Pillow',()=>counts.wrong++)]);
    const roots=[area,defender];if(ambiguous)roots.push(node('div','',{class:'playerArea_second'},[button('Pillow',()=>counts.wrong++)]));
    return node('body','Combat',{},roots);
@@ -57,7 +62,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   return node('body','Torn');
  }
  let lastKey='',cached;
- function body(){const key=scene+stock+expanded;if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
+ function body(){const key=scene+stock+expanded+(options.replacedControls?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
  const document={title:'Torn',get body(){return body()},querySelectorAll:s=>body().querySelectorAll(s)};
  const location={href:'https://www.torn.com/index.php',pathname:'/index.php',assign(url){const u=new URL(url);this.href=url;this.pathname=u.pathname;scene=u.pathname==='/item.php'?'items':'attack';expanded=false}};
  class Clock extends Date{static now(){return clock}}
@@ -83,6 +88,10 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  assert.equal(f.h.getState().stage,'paused');assert(f.h.getState().status.includes('Use control did not appear'));assert.equal(f.counts.expand,1);assert.equal(f.counts.medicine,0);
  f=fixture(false,false,false,{collapsed:true,ambiguousKit:true});for(let i=0;i<100&&f.h.getState().stage!=='paused';i++)await f.step();
  assert.equal(f.h.getState().stage,'paused');assert.equal(f.counts.expand,0);assert.equal(f.counts.medicine,0);
+ f=fixture(false,false,false,{pillowHits:3,delay:1000,replacedControls:true,collapsed:true});
+ for(let i=0;i<800&&f.h.getState().stage!=='complete';i++)await f.step(250);
+ assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.pillow,6);assert.equal(f.counts.medicine,2);assert.equal(f.counts.wrong,0);
+ for(let i=1;i<f.counts.pillowTimes.length;i++)assert(f.counts.pillowTimes[i]-f.counts.pillowTimes[i-1]>=1500);
  f=fixture(false,false,false,{pillowHits:25,delay:1000});
  for(let i=0;i<500&&f.h.getState().stage!=='complete';i++)await f.step(1000);
  assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.pillow,50);assert.equal(f.counts.wrong,0);

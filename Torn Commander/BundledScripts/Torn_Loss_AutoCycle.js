@@ -89,9 +89,20 @@
     const roots=outerRoots(Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible));
     return roots.length===1?roots[0]:null;
   }
+  function enabledControl(el, boundary) {
+    for(let node=el;node&&node!==boundary;node=node.parentElement)
+      if(!visible(node)||node.disabled||node.getAttribute?.('aria-disabled')==='true')return false;
+    return true;
+  }
   function pillowControl(reveal=true) {
     const area=playerArea();if(!area)return null;
     if(reveal)area.scrollIntoView?.({block:'center',inline:'nearest'});
+    // Torn may replace the weapon artwork with a turn animation. Its named attack
+    // control remains the authoritative target; resolve it afresh on every turn.
+    const named=Array.from(area.querySelectorAll('[aria-label],[title],button,[role="button"]'))
+      .filter(el=>visible(el)&&[el.getAttribute?.('aria-label'),el.getAttribute?.('title'),el.innerText].some(v=>/^attack with pillow[.!]?$/i.test(clean(v))));
+    const namedRoots=outerRoots(named);
+    if(namedRoots.length)return namedRoots.length===1&&enabledControl(namedRoots[0],area)?namedRoots[0]:null;
     const attributes=['alt','title','aria-label','data-tooltip','data-tippy-content'];
     const markers=Array.from(area.querySelectorAll('[data-item-id="440"],[data-id="440"],[data-itemid="440"],[alt],[title],[aria-label],[data-tooltip],[data-tippy-content],img'))
       .filter(visible).filter(el=>['data-item-id','data-id','data-itemid'].some(k=>el.getAttribute?.(k)==='440')||
@@ -111,7 +122,7 @@
       if(control||fallback)candidates.push(control||fallback);
     }
     const roots=outerRoots(candidates);
-    return roots.length===1?roots[0]:null;
+    return roots.length===1&&enabledControl(roots[0],area)?roots[0]:null;
   }
 
   function detectFightResult(state) {
@@ -185,7 +196,7 @@
     if (!row) return null;
     const candidates = Array.from(row.querySelectorAll('button,a,[role="button"],[tabindex],label,span,div'))
       .filter(visible)
-      .filter(el => !el.disabled && el.getAttribute?.('aria-disabled') !== 'true');
+      .filter(el => enabledControl(el,row.parentElement));
     const exact = candidates.filter(el => {
       const label = labelOf(el);
       const action = clean(el.getAttribute?.('data-action') || '').toLowerCase();

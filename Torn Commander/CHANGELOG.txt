@@ -1,3 +1,9 @@
+v0.6.49 (2026-10-18) — Reacquire Pillow controls between combat turns
+- Recognize Torn's named Attack with Pillow control, including turns where weapon artwork is replaced.
+- Resolve the current control on every turn and check disabled ancestors before attacking or using medicine.
+- Offline fixture replaces the weapon control after the first hit, disables it during turn recovery, then completes repeated hits, loss accounting and healing.
+- Only a visible loss result is counted; no fight was started or medicine consumed during development verification.
+
 v0.6.48 (2026-10-17) — Protect trading margins and measure company growth spend
 - Loss timing remains at the saved value through partial worker updates; 1000 ms is supported.
 - Long Pillow fights can continue up to 100 attempts rather than silently stopping attacks at 20; reaching the limit explicitly pauses without counting a loss.
