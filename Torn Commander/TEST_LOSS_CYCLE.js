@@ -2,6 +2,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
+ let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0;
  let activeLease='';
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[]},local=new Map(),session=new Map();
@@ -47,7 +48,8 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   }
   if(scene==='loss')return node('body','Seller lost to Target.');
   if(scene==='attack'&&missingJoin)return node('body','Waiting for combat controls');
-  if(scene==='attack')return hospital?node('body','You cannot attack while in hospital.'):node('body','',{},[button('Join fight',()=>{counts.join++;fightHits=0;fightJoinAt=clock;counts.joinTimes.push(clock);scene='fight'})]);
+  if(scene==='attack'&&!hospital&&energy<25)return node('body','YOU DO NOT HAVE ENOUGH ENERGY');
+  if(scene==='attack')return hospital?node('body','You cannot attack while in hospital.'):node('body','',{},[button('Join fight',()=>{counts.join++;energy-=25;fightHits=0;fightJoinAt=clock;counts.joinTimes.push(clock);scene='fight'})]);
   const medical=node('a','Medical');medical.onclick=()=>scene='medical';
   if(scene==='items')return node('body','Your items',{},missingMedical?[]:[node('li','',{},[medical])]);
   if(scene==='medical'||scene==='confirm'){
@@ -71,6 +73,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const store=m=>({getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)});
  const window={chrome:{webview:{postMessage:raw=>{
   const m=JSON.parse(raw);messages.push(m);
+  if(options.coordinator&&m.type==='tc-loss-abandon'){assert.equal(options.coordinator.owner,options.slot);options.coordinator.owner='';return;}
   if(options.coordinator&&m.type==='tc-loss-claim'){replies.push(()=>options.coordinator.claim(options.slot,h,m));return;}
   if(options.coordinator&&m.type==='tc-loss-commit'){replies.push(()=>options.coordinator.commit(options.slot,h,m));return;}
   if(m.type==='tc-loss-claim')replies.push(()=>{assert(!activeLease,'Worker requested another slot while its hospital-recovery reservation was still held');activeLease='lease-'+remaining;h.onClaim(m.requestId,true,activeLease,'Granted')});
@@ -90,6 +93,21 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  for(let i=0;i<1500&&(dualA.h.getState().stage!=='complete'||dualB.h.getState().stage!=='complete');i++){await dualA.step(250);await dualB.step(250);}
  assert.equal(dualA.h.getState().stage,'complete',dualA.h.getState().status);assert.equal(dualB.h.getState().stage,'complete',dualB.h.getState().status);
  assert.equal(coordinator.commits,4);assert.equal(coordinator.owner,'');assert(coordinator.waits>0);assert.equal(dualA.counts.join+dualB.counts.join,4);
+ coordinator.remaining=4;coordinator.owner='';coordinator.commits=0;
+ const low=fixture(false,false,false,{coordinator,slot:'A',energy:25});
+ const high=fixture(false,false,false,{coordinator,slot:'B',energy:75});
+ for(let i=0;i<1500&&high.h.getState().stage!=='complete';i++){await low.step(250);await high.step(250);}
+ assert.equal(low.h.getState().stage,'paused',low.h.getState().status);assert(low.h.getState().status.includes('Not enough energy'));
+ assert.equal(high.h.getState().stage,'complete',high.h.getState().status);assert.equal(low.counts.join,1);assert.equal(high.counts.join,3);assert.equal(coordinator.commits,4);assert.equal(coordinator.owner,'');
+ coordinator.remaining=4;coordinator.owner='';coordinator.commits=0;
+ const empty=fixture(false,false,false,{coordinator,slot:'A',energy:0});
+ const full=fixture(false,false,false,{coordinator,slot:'B',energy:100});
+ for(let i=0;i<1500&&full.h.getState().stage!=='complete';i++){await empty.step(250);await full.step(250);}
+ assert.equal(empty.h.getState().stage,'paused');assert.equal(empty.counts.join,0);assert.equal(full.h.getState().stage,'complete',full.h.getState().status);assert.equal(coordinator.commits,4);assert.equal(coordinator.owner,'');
+ coordinator.remaining=4;coordinator.owner='';coordinator.commits=0;
+ const exhaustedA=fixture(false,false,false,{coordinator,slot:'A',energy:0}),exhaustedB=fixture(false,false,false,{coordinator,slot:'B',energy:0});
+ for(let i=0;i<50;i++){await exhaustedA.step(250);await exhaustedB.step(250);}
+ assert.equal(exhaustedA.h.getState().stage,'paused');assert.equal(exhaustedB.h.getState().stage,'paused');assert.equal(coordinator.remaining,4);assert.equal(coordinator.commits,0);assert.equal(coordinator.owner,'');
  let f=fixture(false,false,false,{initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true,pillowHits:3,replacedControls:true});
  for(let i=0;i<1000&&f.h.getState().stage!=='complete';i++)await f.step(250);
  assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.medicine,6);assert.equal(f.counts.join,2);assert.equal(f.messages.filter(m=>m.type==='tc-loss-claim').length,2);

@@ -1,3 +1,10 @@
+v0.6.52 (2026-10-20) — Continue shared losses when one account runs out of energy
+- Detect Torn's explicit insufficient-energy refusal before a fight, after a rejected start, and after recovery.
+- Pause only the depleted worker and release its target reservation so the other running worker can finish the shared total.
+- Keep unfilled losses outstanding if both accounts run out; Resume is explicit after energy is restored.
+- Final healing can complete even when no energy remains for another attack; no refills or consumable energy purchases are performed.
+- Offline regressions cover unequal balances, an initially empty worker, both workers empty, exact combined counting and released reservations.
+
 v0.6.51 (2026-10-19) — Hospital recovery state and shared target reservations
 - Clear previous medicine timers and confirmation state whenever another recovery attempt begins.
 - Keep an existing pre-fight reservation through hospital recovery instead of discarding its local claim.

@@ -76,6 +76,14 @@
     return /you can(?:not|'t|’t) attack while in (?:the )?hospital|you are (?:currently |still )?in (?:the )?hospital/i.test(bodyText());
   }
 
+  function insufficientEnergy() {
+    // Use Torn's explicit refusal, never infer a balance from unrelated page numbers.
+    return /you (?:do not|don't|don’t) have (?:enough|sufficient) energy|you have (?:insufficient|not enough) energy|not enough energy to (?:attack|start|join)|you need (?:at least )?25 energy to (?:attack|start|join)/i.test(bodyText());
+  }
+  function pauseForEnergy(state) {
+    return pauseState(state,'Not enough energy to attack. This account is paused and its slot released; the other running account can continue. Resume this account after restoring energy.',true);
+  }
+
   function joinFightButton() {
     const buttons = Array.from(document.querySelectorAll('button,[role="button"],input[type="button"],a'))
       .filter(visible)
@@ -374,6 +382,7 @@
           openPage(state,ITEMS_URL,'Items / Medical');
           return;
         }
+        if (insufficientEnergy()) { pauseForEnergy(state); return; }
         const join = joinFightButton();
         if (!join) {
           if(!state.attackWaitStartedAt){state.attackWaitStartedAt=now();state.status='Waiting for a verified Join Fight control.';save(state);}
@@ -412,6 +421,7 @@
           pauseState(state, 'Fight result was NOT a loss. Nothing was counted; review the order.', true);
           return;
         }
+        if (insufficientEnergy()) { pauseForEnergy(state); return; }
         if (now() - Number(state.fightStartedAt || now()) > 9 * 60 * 1000) {
           pauseState(state, 'No clear fight result after nine minutes. Paused rather than guessing.', false);
           return;
@@ -565,7 +575,7 @@
           return;
         }
         const join = joinFightButton();
-        if (join) {
+        if (join || insufficientEnergy()) {
           if (state.finishAfterRecovery) {
             state.running = false;
             state.stage = 'complete';
@@ -575,6 +585,7 @@
             post({ type: 'tc-loss-finished', profileId: state.profileId, slot: state.slot, orderId: state.orderId });
             return;
           }
+          if(insufficientEnergy()){pauseForEnergy(state);return;}
           // Recovery before a fight still owns its reservation. Keep it until
           // a visible loss is committed or it is explicitly abandoned.
           state.stage = state.claimId ? 'attack-open' : 'claim';
