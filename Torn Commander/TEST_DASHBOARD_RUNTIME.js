@@ -60,7 +60,7 @@ console.log('DASHBOARD RUNTIME PASSED: real markup IDs, company rendering, profi
 
 for(const node of Object.values(nodes)) node.replaceChildren=function(...children){this.options=children};
 Object.assign(context,{S:{},casinoAdviceGeneration:0,Option:function(name,id){this.text=name;this.value=id},applyTheme:()=>{},renderApiActivity:()=>{},renderItinerary:()=>{},renderArrival:()=>{},setFilters:()=>{},renderTravelRows:()=>{},renderProgression:()=>{},renderScriptTools:()=>{},renderTrading:()=>{}});
-vm.runInContext(script.slice(script.indexOf('function renderLossStatus(d)'),script.indexOf('function renderSection(')),context);
+vm.runInContext(script.slice(script.indexOf("let lossEditorIdentity="),script.indexOf('function renderSection(')),context);
 vm.runInContext(render,context);
 const state={profileId:'one',profiles:[{id:'one',name:'Account A'},{id:'two',name:'Account B'}],buildPath:'Fixture.exe',company:{name:'Fixture Company',rows:[]}};
 context.render(state);
@@ -142,3 +142,9 @@ console.log('TRADING RISK DISPLAY PASSED: downside net, break-even and capital e
 context.renderLossStatus({lossAttackDelayMs:1000});
 context.renderLossStatus({workers:{a:'Fighting'}});
 assert.strictEqual(nodes.lossAttackDelay.value,1000,'Partial worker status reset the saved timing');
+
+context.renderLossOrders({profileId:'one',profiles:[{id:'one',name:'A'},{id:'two',name:'B'}],lossOrders:[{id:'order-one',buyer:'Buyer',completed:2,requested:20,status:'Active'}],loss:{id:'order-one'}});
+assert.equal(nodes.lossAccountB.options[0].value,'');assert.equal(nodes.lossOrderSelect.value,'order-one');
+nodes.lossTarget.value='12345';context.renderLossOrders({profileId:'one',profiles:[{id:'one',name:'A'},{id:'two',name:'B'}],lossOrders:[],loss:null});
+assert.equal(nodes.lossTarget.value,'12345','Background updates erased the new-order draft');
+console.log('UNIFIED LOSS DESK PASSED: optional solo account, selected order and draft preservation.');

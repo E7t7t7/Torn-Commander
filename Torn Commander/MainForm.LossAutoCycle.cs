@@ -116,6 +116,8 @@ public sealed partial class MainForm
 
     private void ShowLossWorkerBrowser(bool accountA)
     {
+        _lossWorkerSplit.Panel2Collapsed=false;
+        if(!_lossWorkerSized && _lossWorkerSplit.Height>160){_lossWorkerSplit.SplitterDistance=Math.Max(60,_lossWorkerSplit.Height-Math.Min(380,_lossWorkerSplit.Height/2));_lossWorkerSized=true;}
         _lossWorkerPanel.Visible=true;
         _lossWorkerDeck.Visible=true;
         _lossWorkerDeck.SelectedIndex=accountA?0:1;
@@ -125,6 +127,7 @@ public sealed partial class MainForm
     private void HideLossWorkerBrowsers()
     {
         if (_lossWorkerPanel != null) _lossWorkerPanel.Visible = false;
+        if(_lossWorkerSplit!=null){_lossWorkerSplit.Panel1Collapsed=false;_lossWorkerSplit.Panel2Collapsed=true;}
         FlashStatus("Worker browsers hidden. Running workers keep their state; use Show Workers to reopen.");
     }
 

@@ -12,17 +12,20 @@ public sealed partial class MainForm
     private bool _modernDashboardReady;
     private TabControl _lossWorkerDeck = null!;
     private Panel _lossWorkerPanel = null!;
+    private SplitContainer _lossWorkerSplit = null!;
+    private bool _lossWorkerSized;
     private string _lastGraffitiActionStatus = "Idle: use Run Once for one spray, or Open Only to navigate.";
 
     private Control BuildModernDashboardHost()
     {
-        var host = new Panel { Dock = DockStyle.Fill, BackColor = Bg };
+        var host = new SplitContainer { Dock = DockStyle.Fill, BackColor = Color.FromArgb(55,87,110), Orientation = Orientation.Horizontal, SplitterWidth = 8, Panel1MinSize = 0, Panel2MinSize = 0 };
+        _lossWorkerSplit = host;
         _modernDashboard = new WebView2 { Dock = DockStyle.Fill, BackColor = Bg };
-        host.Controls.Add(_modernDashboard);
-        _lossWorkerPanel = new Panel { Dock = DockStyle.Bottom, Height = 380, Visible = false, BackColor = PanelBg };
+        host.Panel1.Controls.Add(_modernDashboard);
+        _lossWorkerPanel = new Panel { Dock = DockStyle.Fill, Height = 380, Visible = false, BackColor = PanelBg };
         _lossWorkerDeck = new TabControl { Dock = DockStyle.Fill };
         var workerBar = new Panel { Dock = DockStyle.Top, Height = 32, BackColor = PanelBg };
-        workerBar.Controls.Add(new Label { Text = "Loss workers", Dock = DockStyle.Fill, ForeColor = TextMain, TextAlign = ContentAlignment.MiddleLeft });
+        workerBar.Controls.Add(new Label { Text = "Loss workers — drag divider to resize", Dock = DockStyle.Fill, ForeColor = TextMain, TextAlign = ContentAlignment.MiddleLeft });
         var hide = MakeButton("Hide ×", (_, _) => HideLossWorkerBrowsers(), 85);
         hide.Dock = DockStyle.Right; workerBar.Controls.Add(hide);
         var close = MakeButton("Stop & Close", async (_, _) => {
@@ -30,9 +33,12 @@ public sealed partial class MainForm
             catch (Exception ex) { FlashStatus("Workers could not all be stopped: " + ex.Message); }
         }, 115);
         close.Dock = DockStyle.Right; workerBar.Controls.Add(close);
+        var expand = MakeButton("Expand / Restore", (_, _) => _lossWorkerSplit.Panel1Collapsed = !_lossWorkerSplit.Panel1Collapsed, 130);
+        expand.Dock = DockStyle.Right; workerBar.Controls.Add(expand);
         _lossWorkerPanel.Controls.Add(_lossWorkerDeck);
         _lossWorkerPanel.Controls.Add(workerBar);
-        host.Controls.Add(_lossWorkerPanel);
+        host.Panel2.Controls.Add(_lossWorkerPanel);
+        host.Panel2Collapsed = true;
         return host;
     }
 
@@ -85,6 +91,12 @@ public sealed partial class MainForm
                 case "lossShowWorkers": ShowLossWorkerBrowser(_lossWorkerDeck.SelectedIndex != 1); break;
                 case "lossHideWorkers": HideLossWorkerBrowsers(); break;
                 case "lossCloseWorkers": await StopBothLossWorkersAsync(); HideLossWorkerBrowsers(); break;
+                case "lossCreate": CreateDashboardLossOrder(root); break;
+                case "lossSelect": SelectDashboardLossOrder(root); break;
+                case "lossOrderPause": SelectDashboardLossOrder(root); ToggleLossPause(); UpdateModernDashboard(); break;
+                case "lossDelete": DeleteDashboardLossOrder(root); break;
+                case "lossResumeA": await ResumeLossWorkerAsync(true); UpdateModernDashboard(); break;
+                case "lossResumeB": await ResumeLossWorkerAsync(false); UpdateModernDashboard(); break;
                 case "lossTiming": await SaveLossAttackTimingAsync(root.GetProperty("milliseconds").GetInt32()); break;
                 case "factionScan": await SyncFactionIntelligenceAsync(); break;
                 case "factionFocus": SetFactionFocus(root); break;
@@ -266,7 +278,7 @@ public sealed partial class MainForm
             var cartEstimate = _shoppingScans.Values.Sum(x => x.PlannedCost);
             var cartNeed = _shoppingTargets.Sum(x => x.RemainingQuantity);
             var cartItems = _shoppingTargets.Count(x => x.RemainingQuantity > 0);
-            var activeLoss = _lossOrders.FirstOrDefault(x => x.Status != "Complete");
+            var activeLoss = SelectedLossOrder();
             var meritCandidates = _snapshot.Awards
                 .Where(x => !x.Achieved && x.AvailableForCurrentCrimeVersion && !x.ProgressConflict)
                 .OrderByDescending(MeritPriorityScore)
@@ -321,7 +333,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.52",
+                    version = "0.6.53",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -362,6 +374,7 @@ public sealed partial class MainForm
                         mode = NormalizeGuideActionMode(_settings.GuideActionMode)
                     },
                     cart = new { items = cartItems, remaining = cartNeed, estimate = cartEstimate, ignoreLimits = _settings.ShoppingIgnoreLimits },
+                    lossOrders = _lossOrders.Select(x => new { id=x.Id, buyer=x.BuyerName, target=x.TargetPlayerId, requested=x.RequestedLosses, completed=x.CompletedTotal, status=x.Status }).ToList(),
                     loss = activeLoss is null ? null : new
                     {
                         id = activeLoss.Id,
@@ -562,6 +575,9 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
 
 .route-bars{display:flex;flex-direction:column;gap:13px;margin-top:17px}.route-bar-label{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:5px}.route-bar-track{height:6px;background:var(--panel2);border-radius:5px;overflow:hidden}.route-bar-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:5px}
 .loss-meter{height:7px;background:var(--panel2);border-radius:8px;overflow:hidden;margin:12px 0}.loss-meter>span{height:100%;display:block;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:8px}
+#losses label{display:grid;gap:6px;margin-bottom:12px;color:var(--muted)}
+#losses input,#losses select{box-sizing:border-box;width:100%;padding:10px 12px;border:1px solid #34485d;border-radius:9px;background:#101c28;color:#e8f4ff;font:inherit}
+#lossNew:not([open]){display:none}
 </style>
 </head>
 <body>
@@ -586,13 +602,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="casino"><i>♠</i>Casino</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.52</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.53</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.52</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.53</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -689,7 +705,19 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <section class="page" id="crimes"><div class="top"><div><div class="eyebrow">Crimes 2.0 / Natural Nerve Bar</div><div class="bigtitle">Crime Coach</div></div><div class="actions"><button class="btn primary" id="crimeRunGuideButton" onclick="send('runGuide')">Guided Action Once</button><button class="btn" onclick="send('openCrimes')">Open Crimes</button><button class="btn" onclick="classic('Crimes')">Crime Statistics</button></div></div><div class="grid"><div class="card span5"><div class="section">Next step</div><div class="notice info" id="crimeGuide">Sync for a recommendation</div><div class="statusline" id="crimeActionStatus" aria-live="polite">Idle</div><div class="actions" style="margin-top:10px"><button class="btn small" onclick="send('graffitiDebug')">Copy Graffiti Debug</button></div></div><div class="card span7"><div class="section">Highest crime skills</div><div class="list" id="crimeRows"></div></div></div></section>
  <section class="page" id="merits"><div class="top"><div><div class="eyebrow">Verified progress only</div><div class="bigtitle">Merit Hunter</div></div><div class="actions"><button class="btn primary" onclick="classic('Merits')">Open Full Merit Hunter</button></div></div><div class="card"><div class="list" id="meritRows"></div></div></section>
  <section class="page" id="cart"><div class="top"><div><div class="eyebrow">Item Market / bulk buying</div><div class="bigtitle">Shopping Cart</div></div><div class="actions"><button class="btn primary" onclick="send('cartScan')">Scan Cart</button><button class="btn" onclick="send('cartCopy')">Copy For Faction Chat</button><button class="btn" onclick="classic('Cart')">Full Cart</button></div></div><div class="grid"><div class="card span4"><div class="eyebrow">Items remaining</div><div class="metric" id="cartItems">—</div></div><div class="card span4"><div class="eyebrow">Units remaining</div><div class="metric" id="cartRemain">—</div></div><div class="card span4"><div class="eyebrow">Market estimate</div><div class="metric s money" id="cartEstimate">—</div><div class="sub" id="cartLimits">—</div></div></div><div class="notice info" style="margin-top:12px">Review each prepared purchase before confirming. Existing limits and the explicit NUKE MY PILE switch remain in Classic Tools.</div></section>
- <section class="page" id="losses"><div class="top"><div><div class="eyebrow">Two independent profile workers</div><div class="bigtitle">Loss Desk</div></div><div class="actions"><button class="btn primary" onclick="classic('Losses')">Full Loss Desk</button><button class="btn" onclick="send('lossShowWorkers')">Show Workers</button><button class="btn" onclick="send('lossHideWorkers')">Hide Workers</button><button class="btn" onclick="send('lossCloseWorkers')">Stop &amp; Close Workers</button><button class="btn" onclick="send('openLossX')">Open Torn</button></div></div><div class="card" id="lossCard">No active order</div><div class="card" style="margin-top:12px"><label>Pillow attack delay (milliseconds)<input id="lossAttackDelay" type="number" min="500" max="5000" step="100" value="1900"></label><button class="btn" onclick="saveLossTiming()">Apply Attack Timing</button><div class="sub">500–5000 ms between Pillow attempts. Applies to running workers and future starts; Torn's loading/disabled controls can make actual turns slower.</div></div><div class="twocol" style="margin-top:11px"><div class="card"><div class="eyebrow">Worker A</div><div class="sub" id="workerA">Not initialized</div></div><div class="card"><div class="eyebrow">Worker B</div><div class="sub" id="workerB">Not initialized</div></div></div><div class="actions" style="margin-top:12px"><button class="btn good" onclick="send('lossStartA')">Start A</button><button class="btn good" onclick="send('lossStartB')">Start B</button><button class="btn good" onclick="send('lossStartBoth')">Start Both</button><button class="btn warn" onclick="send('lossPauseBoth')">Pause Both</button><button class="btn" onclick="send('lossStopBoth')">Stop Both</button></div><div class="notice" style="margin-top:12px">Workers must only proceed on verified Torn page states. Auto actions may conflict with Torn's scripting rules; configure and test safely in the full Loss Desk before starting.</div></section>
+ <section class="page" id="losses">
+ <div class="top"><div><div class="eyebrow">Orders and workers in one place</div><div class="bigtitle">Loss Desk</div></div><button class="btn primary" onclick="$('lossNew').open=!$('lossNew').open">+ New order</button></div>
+ <details class="card" id="lossNew"><summary>Create an order</summary><div class="twocol" style="margin-top:12px">
+ <label>Buyer / contract<input id="lossBuyer" maxlength="120" placeholder="Buyer name"></label><label>Target player ID<input id="lossTarget" inputmode="numeric" placeholder="Numeric Torn ID"></label>
+ <label>Total losses (shared by A and B)<input id="lossCount" type="number" min="1" max="1000000" value="20"></label><label>Pay per loss ($)<input id="lossPrice" type="number" min="0" max="1000000000000" value="350000"></label>
+ <label>Account A<select id="lossAccountA"></select></label><label>Account B (optional)<select id="lossAccountB"></select></label></div>
+ <div class="sub">The count is combined, not per account. Use Start A for a solo order, or assign two different accounts and Start Both.</div><button class="btn primary" onclick="createLossOrder()">Create order</button></details>
+ <div class="card" style="margin-top:12px"><label>Selected order<select id="lossOrderSelect" onchange="send('lossSelect',{orderId:this.value})"></select></label><div id="lossCard" style="margin-top:14px">No active order</div></div>
+ <div class="actions" style="margin:12px 0"><button class="btn good" onclick="send('lossStartA')">Start A</button><button class="btn good" onclick="send('lossStartB')">Start B</button><button class="btn primary" onclick="send('lossStartBoth')">Start Both</button><button class="btn warn" onclick="send('lossPauseBoth')">Pause</button><button class="btn" onclick="send('lossStopBoth')">Stop</button></div>
+ <div class="twocol"><div class="card"><div class="eyebrow">Account A</div><div class="sub" id="workerA">Not initialized</div><button class="btn small" onclick="send('lossResumeA')">Resume A</button></div><div class="card"><div class="eyebrow">Account B</div><div class="sub" id="workerB">Not initialized</div><button class="btn small" onclick="send('lossResumeB')">Resume B</button></div></div>
+ <div class="actions" style="margin-top:12px"><button class="btn" onclick="send('lossShowWorkers')">Show fight windows</button><button class="btn" onclick="send('lossHideWorkers')">Hide</button><button class="btn" onclick="send('lossCloseWorkers')">Stop &amp; close</button></div><div class="sub">Drag the divider above the fight window to resize it. Use Expand / Restore for more room.</div>
+ <details class="card" style="margin-top:12px"><summary>Timing and order tools</summary><label>Pillow delay (ms)<input id="lossAttackDelay" type="number" min="500" max="5000" step="100" value="1900"></label><button class="btn" onclick="saveLossTiming()">Apply timing</button><div class="sub">500–5000 ms between attempts; Torn loading can make turns slower.</div><div class="actions" style="margin-top:12px"><button class="btn" onclick="send('lossOrderPause',{orderId:$('lossOrderSelect').value})">Pause / resume order</button><button class="btn" onclick="send('lossDelete',{orderId:$('lossOrderSelect').value})">Delete selected order…</button><button class="btn" onclick="classic('Losses')">Advanced manual tools</button></div><div class="notice" style="margin-top:12px">Workers require verified Torn page states. Review Torn's scripting rules before using automated actions.</div></details>
+ </section>
  <section class="page" id="trading"><div class="top"><div><div class="eyebrow">Trade ledger & market tools</div><div class="bigtitle">Trading</div></div><div class="actions"><button class="btn primary" onclick="classic('Money')">Open Trading Ledger</button><button class="btn" onclick="send('tradeExport')">Export Completed Trades</button><button class="btn" onclick="classic('Cart')">Open Market Cart</button></div></div><div class="grid"><div class="card span6"><div class="eyebrow">Recorded trades</div><div class="metric" id="tradeCount">—</div></div><div class="card span6"><div class="eyebrow">Known profit after selling fees</div><div class="metric s money" id="tradeProfit">—</div><div class="sub" id="tradeFeeCoverage"></div></div></div><div class="card" style="margin-top:12px"><div class="section">Live trading scanner &amp; adviser</div><div class="sub">Scan up to eight exact item names or IDs. Candidates depend on visible resale gaps; listings do not prove demand or future sale prices.</div>
 <div class="formgrid adviser-fields"><label>Items / IDs (up to 8)<input id="tradeItems" placeholder="Beer, First Aid Kit" aria-label="Watchlist item names or IDs"></label><label>Total cash, including reserve ($)<input id="tradeBudget" type="number" min="0" placeholder="Total budget" aria-label="Total capital budget"></label><label>Keep cash reserve ($)<input id="tradeReserve" type="number" min="0" placeholder="Cash reserve" aria-label="Cash reserve"></label><label>Selling fee (%)<input id="tradeFee" type="number" min="0" max="25" step="0.1" value="5" aria-label="Selling fee percent"></label><label>Minimum net return (%)<input id="tradeRoi" type="number" min="0" max="1000" step="0.1" value="5" aria-label="Minimum return percent"></label><label>Your cost each ($; one item)<input id="tradeCostBasis" type="number" min="0" placeholder="Cost each (one item only)" aria-label="Cost per owned item"></label><label>Price-drop stress test (%)<input id="tradeStress" type="number" min="0" max="50" step="0.1" value="3"></label><label>Max capital in one item (%)<input id="tradeExposure" type="number" min="1" max="100" value="50"></label><label>Minimum cash profit ($)<input id="tradeMinimumProfit" type="number" min="0" value="1000"></label><button class="btn primary" id="tradeScanButton" onclick="scanTrading()">Scan &amp; advise</button></div>
 <div class="sub">Fee %: ordinary Item Market 5%; Bazaar 0%. Set your actual selling fee. Return % is the minimum net return on purchase cost. Cost each is optional for sell advice on one item.</div>
@@ -1182,13 +1210,28 @@ function renderScriptTools(items){
  }
  if(!(items||[]).length)$('scriptToolsList').textContent='No installed helpers. Open Manage Userscripts to install them.';
 }
-function renderLossStatus(d){const delay=d.lossAttackDelayMs;if(Number.isInteger(delay)&&delay>=500&&delay<=5000&&renderLossStatus.timingValue!==delay&&document.activeElement!==$('lossAttackDelay')){$('lossAttackDelay').value=delay;renderLossStatus.timingValue=delay;}$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';$('lossCard').innerHTML=d.loss?`<div class="section">${esc(d.loss.buyer)} · target ${esc(d.loss.target)}</div><div class="metric">${d.loss.completed} / ${d.loss.requested} confirmed losses</div><div class="loss-meter" role="progressbar" aria-label="Confirmed losses" aria-valuemin="0" aria-valuemax="${Number(d.loss.requested)||0}" aria-valuenow="${Number(d.loss.completed)||0}"><span style="width:${Math.max(0,Math.min(100,Number(d.loss.completed)/Math.max(1,Number(d.loss.requested))*100))}%"></span></div><div class="sub">${d.loss.remaining} remaining · ${money(d.loss.gross)} tracked · ${esc(d.loss.status)}</div>`:'<div class="empty">No active loss order. Create and configure it in the Full Loss Desk.</div>';}
+let lossEditorIdentity='',lossOrdersIdentity='',lossCreateReceipt='';
+function createLossOrder(){
+ const target=$('lossTarget').value.trim(),requested=Number($('lossCount').value),pay=Number($('lossPrice').value);
+ if(!/^\d{1,12}$/.test(target)||Number(target)<=0||!Number.isSafeInteger(requested)||requested<1||requested>1000000||!Number.isSafeInteger(pay)||pay<0||pay>1000000000000||!$('lossAccountA').value){alert('Enter a numeric player ID, positive whole loss count, pay per loss, and Account A.');return;}
+ if(!lossCreateReceipt)lossCreateReceipt=Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
+ send('lossCreate',{receipt:lossCreateReceipt,profileId:S.profileId,buyer:$('lossBuyer').value,target,requested,pay,accountA:$('lossAccountA').value,accountB:$('lossAccountB').value});
+}
+function renderLossOrders(d){
+ const profiles=d.profiles||[],key=JSON.stringify(profiles);
+ if(key!==lossEditorIdentity){lossEditorIdentity=key;for(const id of ['lossAccountA','lossAccountB']){const el=$(id),prior=el.value;el.replaceChildren(...(id==='lossAccountB'?[new Option('Not used — solo order','')]:[]),...profiles.map(p=>new Option(p.name,p.id)));el.value=profiles.some(p=>p.id===prior)?prior:(id==='lossAccountA'?d.profileId:'');}}
+ const rows=d.lossOrders||[],identity=JSON.stringify(rows);
+ if(identity!==lossOrdersIdentity){lossOrdersIdentity=identity;$('lossOrderSelect').replaceChildren(...(rows.length?rows.map(x=>new Option(x.buyer+' · '+x.completed+'/'+x.requested+' · '+x.status,x.id)):[new Option('No orders yet','')]));}
+ $('lossOrderSelect').value=d.loss?.id||'';
+ if(lossCreateReceipt&&rows.some(x=>x.id===lossCreateReceipt)){lossCreateReceipt='';$('lossNew').open=false;$('lossBuyer').value='';$('lossTarget').value='';}
+}
+function renderLossStatus(d){const delay=d.lossAttackDelayMs;if(Number.isInteger(delay)&&delay>=500&&delay<=5000&&renderLossStatus.timingValue!==delay&&document.activeElement!==$('lossAttackDelay')){$('lossAttackDelay').value=delay;renderLossStatus.timingValue=delay;}$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';$('lossCard').innerHTML=d.loss?`<div class="section">${esc(d.loss.buyer)} · target ${esc(d.loss.target)}</div><div class="metric">${d.loss.completed} / ${d.loss.requested} confirmed losses</div><div class="loss-meter" role="progressbar" aria-label="Confirmed losses" aria-valuemin="0" aria-valuemax="${Number(d.loss.requested)||0}" aria-valuenow="${Number(d.loss.completed)||0}"><span style="width:${Math.max(0,Math.min(100,Number(d.loss.completed)/Math.max(1,Number(d.loss.requested))*100))}%"></span></div><div class="sub">${d.loss.remaining} remaining · ${money(d.loss.gross)} tracked · ${esc(d.loss.status)}</div>`:'<div class="empty">No order selected. Use New order above to get started.</div>';}
 function renderSection(name,fn){
  try{fn()}catch(error){console.error(name+' dashboard failed',error);$('dashboardRenderWarning').hidden=false;$('dashboardRenderWarning').textContent=name+' panel could not update. Profile and update controls remain available.';}
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.52';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.53';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -1196,10 +1239,10 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.52 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.53 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
-renderLossStatus(d);
+renderLossStatus(d);renderSection('Loss orders',()=>renderLossOrders(d));
 renderTradeResults(d.trading,d.profileId);$('tradeCount').textContent=d.trading?.entries??0;$('tradeProfit').textContent=money(d.trading?.profit);$('casinoSessions').textContent=d.casino?.sessions??0;$('casinoNet').textContent=money(d.casino?.net);
 const t=d.travel||{};for(const [id,value] of [['tCapacity',t.capacity??29],['tFlight',t.flightType||'Airstrip'],['tBudget',t.budget??0],['tHorizon',String(t.horizon??24)],['tConfidence',t.confidence??35]]){if(document.activeElement!==$(id))$(id).value=value;}$('tTax').checked=!!t.marketTax;$('tBook').checked=!!t.book;$('tStockOnly').checked=!!t.stockOnly;$('tLow').checked=!!t.includeLow;$('tAutoMonitor').checked=!!t.monitor;$('tMonitorEvery').value=String(t.monitorMinutes??15);if(document.activeElement!==$('tTransfer'))$('tTransfer').value=t.transferMinutes??10;$('tPlanNow').checked=t.planNow!==false;$('tPauseUntilHome').checked=!!t.pauseUntilHome;$('tCustomStartWrap').style.display=t.planNow===false?'flex':'none';if(t.planCustomStart&&document.activeElement!==$('tPlanStart')){const date=new Date(t.planCustomStart);if(!Number.isNaN(date.getTime())){$('tPlanStart').value=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-')+'T'+String(date.getHours()).padStart(2,'0')+':'+String(date.getMinutes()).padStart(2,'0')}}renderItinerary(t);renderArrival(t);drawTravelChart(t);
 $('travelSource').textContent=(t.source||'Not loaded')+(t.updated?' · Updated '+t.updated:'')+(t.ageMinutes!=null?' · '+t.ageMinutes+' min ago':'');let feedStatus='Ready';let feedMode='Using live feed results.';let warn='Forecasts are estimates, not guaranteed restocks. Reported stock can sell out before arrival.';let warnClass='notice info';if(t.hasError){feedStatus='Partial provider outage';feedMode=t.hasRows?(String(t.source||'').includes('YATA')?'Using YATA backup stock; primary forecast service unavailable.':'Using saved observations or partial live data.'):'No cached travel results are available yet.';warn='Live travel provider issue: '+(t.error||'Unknown error')+' Commander will preserve older results when it can, but you should verify manually before flying.';warnClass='notice';}else if(t.warning||t.ageMinutes>30){feedStatus='Stale data';feedMode='Showing older prices or stock snapshots.';warn='Some prices or stock snapshots are stale. Verify abroad before spending.';warnClass='notice';}$('travelFeedStatus').textContent=feedStatus;$('travelFeedSource').textContent=(t.source||'Not loaded')+(t.updated?' · Updated '+t.updated:'')+(t.ageMinutes!=null?' · '+t.ageMinutes+' min ago':'');$('travelFeedMode').textContent=feedMode;$('travelWarning').textContent=warn;$('travelWarning').className=warnClass;setFilters(t.rows||[]);renderTravelRows();renderSection('Trading',()=>renderTrading(d.trading?.advice,d.profileId));renderSection('Helpers',()=>renderScriptTools(d.scripts));renderSection('Faction',()=>renderFaction(d.faction,d.profileId));renderSection('War payouts',()=>renderWar(d.warPayout,d.profileId));renderSection('Stocks',()=>renderStocks(d.stocks,d.profileId));renderSection('Company',()=>renderCompany(d.company,d.profileId));renderSection('Progression',()=>renderProgression(d.progression,d.profileId));}

@@ -1,3 +1,11 @@
+v0.6.53 (2026-10-20) — Unified Loss Desk and resizable fight pane
+- Create solo or dual-account orders directly in Commander; choose existing orders and view their matching progress without switching to Classic.
+- Keep primary run controls together, show account status and Resume controls, and collapse timing and advanced manual tools.
+- Validate and save new orders atomically; duplicate submission receipts cannot create duplicate orders.
+- Delete selected orders with confirmation after stopping workers.
+- Drag the divider above worker browsers to resize; Expand / Restore fills the companion area with the fight pane. Hide and reopen preserve workers.
+- Dashboard regression checks cover order selection, optional solo account and draft preservation.
+
 v0.6.52 (2026-10-20) — Continue shared losses when one account runs out of energy
 - Detect Torn's explicit insufficient-energy refusal before a fight, after a rejected start, and after recovery.
 - Pause only the depleted worker and release its target reservation so the other running worker can finish the shared total.
