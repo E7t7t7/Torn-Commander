@@ -32,3 +32,8 @@ An approved client key must be requested at https://torn-intel.com/contact. No r
 
 ## Remaining scope
 This is a multi-stage expansion. Full armory/banking/territory/alliance/recruitment/global indexing and paid-provider parity remain unimplemented until explicitly listed as completed in the changelog. New local history cannot backfill time when Commander was not collecting. No arbitrary star-up percentages or company profit gains will be invented.
+
+## Completed stages in this development run
+- v0.6.54: SQLite foundation, public/approved stock providers, native item watchlists, conservative restock windows with evaluation, CSV stock history, source diagnostics and desktop alerts; company/faction mirrors retained alongside JSON.
+- v0.6.55: company history/scenarios and internal navigation, employee deltas/scan-penalty heatmap, comparable advertising groups, integration with travel/sequence plans and waiting alternatives; legacy unconstrained point extrapolation retired.
+These releases do not implement every feature in the master directive. Remaining items include provider-authorized private-history import schemas, complete market/auction backfills, native armory/banking/territory/alliance/recruitment tools, arbitrary faction comparisons, and remote Discord notifications. No blockers have been worked around through private endpoints.

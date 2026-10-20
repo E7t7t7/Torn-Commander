@@ -665,63 +665,7 @@ public sealed partial class MainForm
         return item;
     }
 
-    private TravelForecastSnapshot BuildLocalTravelForecast()
-    {
-        var result = new TravelForecastSnapshot
-        {
-            RetrievedAtUtc = DateTime.UtcNow,
-            Source = "Commander local learning"
-        };
-
-        foreach (var group in _travelHistory.GroupBy(x => (x.Country.ToLowerInvariant(), x.ItemId)))
-        {
-            var rows = group.OrderBy(x => x.TimestampUtc).ToList();
-            if (rows.Count < 4 || DateTime.UtcNow - rows[^1].TimestampUtc > TimeSpan.FromHours(24)) continue;
-            var restocks = new List<DateTime>();
-            for (var i = 1; i < rows.Count; i++)
-            {
-                var before = rows[i - 1];
-                var after = rows[i];
-                if ((before.Quantity <= 0 && after.Quantity > 0) || (after.Quantity > before.Quantity * 1.5 && after.Quantity - before.Quantity >= 5))
-                    if (restocks.Count == 0 || after.TimestampUtc - restocks[^1] > TimeSpan.FromMinutes(5)) restocks.Add(after.TimestampUtc);
-            }
-            if (restocks.Count < 3) continue; // two intervals are the minimum for local recurrence
-            var intervals = new List<double>();
-            for (var i = 1; i < restocks.Count; i++) intervals.Add((restocks[i] - restocks[i - 1]).TotalMinutes);
-            if (intervals.Count == 0) continue;
-            // Do not treat missed observation intervals as high-confidence clockwork.
-            var mean = intervals.Average();
-            if (mean < 10 || mean > 24 * 60) continue;
-            var variance = intervals.Select(x => Math.Pow(x - mean, 2)).Average();
-            var cv = Math.Sqrt(variance) / mean;
-            var confidence = Math.Clamp((restocks.Count - 1) / 9.0 * (1.0 - Math.Min(0.85, cv)), 0.05, 0.70);
-            var next = restocks[^1].AddMinutes(mean);
-            while (next < DateTime.UtcNow.AddMinutes(-5)) next = next.AddMinutes(mean);
-            if (next > DateTime.UtcNow.AddHours(Math.Clamp(_settings.TravelForecastHorizonHours, 6, 72))) continue;
-            var latest = rows[^1];
-            var sell = _settings.TravelApplyMarketTax ? (long)Math.Floor(latest.MarketValue * 0.95) : latest.MarketValue;
-            result.Items.Add(new TravelForecastItem
-            {
-                ItemId = latest.ItemId,
-                ItemName = latest.ItemName,
-                Country = latest.Country,
-                Category = latest.Category,
-                Stock = latest.Quantity,
-                BuyPrice = latest.BuyPrice,
-                MarketValue = latest.MarketValue,
-                ProfitPerItem = sell > 0 && latest.BuyPrice > 0 ? sell - latest.BuyPrice : 0,
-                RestockAtUtc = next,
-                StockUpdatedAtUtc = latest.TimestampUtc,
-                Confidence = confidence,
-                ConfidenceLabel = confidence >= 0.65 ? "Medium" : "Low",
-                Source = "Commander local learning",
-                Note = $"Learned from {restocks.Count} observed restocks; avg cycle ~{mean:0} min"
-            });
-        }
-
-        result.Items = result.Items.OrderByDescending(x => x.Confidence).ThenBy(x => x.RestockAtUtc).Take(60).ToList();
-        return result;
-    }
+    private TravelForecastSnapshot BuildLocalTravelForecast()=>new(){RetrievedAtUtc=DateTime.UtcNow,Source="Commander source-aware history",Items=TravelIntelligenceCandidates().Where(x=>x.Source.StartsWith("Commander evidence / ")).ToList()};
 
     private void RebindTravel()
     {

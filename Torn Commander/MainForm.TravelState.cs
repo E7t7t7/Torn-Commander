@@ -98,20 +98,21 @@ public sealed partial class MainForm
     private TravelItineraryPlan BuildContextAwareTravelPlan()
     {
         var now = DateTime.UtcNow;
+        var candidates=TravelIntelligenceCandidates();
         if (_settings.TravelPlanStartNow && _settings.TravelPauseUntilHome)
             return TravelHold(now, "Paused for your own flight. Uncheck 'Pause plan for my trip' when ready.");
         if (_settings.TravelPlanStartNow)
         {
             UpdateTravelStatusFromApi();
-            var anchor = TravelTiming.Anchor(_travelSituation, now, _settings.TravelTransferMinutes, _travelForecast.Items);
+            var anchor = TravelTiming.Anchor(_travelSituation, now, _settings.TravelTransferMinutes, candidates);
             if (!anchor.ReadyUtc.HasValue) return TravelHold(now, anchor.Note);
-            var plan = TravelRehabPlanner.Build(_travelForecast.Items, _settings, anchor.ReadyUtc.Value, now, now.AddHours(24),
+            var plan = TravelRehabPlanner.Build(candidates, _settings, anchor.ReadyUtc.Value, now, now.AddHours(24),
                 TravelRehabFirst, _settings.TravelRehabStayMinutes, _travelSituation);
             plan.Note = (TravelRehabFirst && _travelSituation.Destination.Equals("Switzerland",StringComparison.OrdinalIgnoreCase)
                 ? "Using your Switzerland landing / return timing. " : anchor.Note + " ") + plan.Note;
             return plan;
         }
-        return TravelRehabPlanner.Build(_travelForecast.Items, _settings, TravelPlanStartUtc, now,
+        return TravelRehabPlanner.Build(candidates, _settings, TravelPlanStartUtc, now,
             null, TravelRehabFirst, _settings.TravelRehabStayMinutes);
     }
 

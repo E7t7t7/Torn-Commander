@@ -68,15 +68,25 @@ public sealed partial class MainForm
     private void NotifyItemChanges(ItemIntelligenceSettings s,IEnumerable<ItemObservation> before,IEnumerable<ItemObservation> after){
         var saved=IntelStore.Load(CurrentProfileId,"item-alert-receipts",new Dictionary<string,string>());
         foreach(var pair in saved)_itemAlertSeen[pair.Key]=pair.Value;
+        var windows=IntelStore.Load(CurrentProfileId,"item-forecast-alerts",new Dictionary<string,DateTime>());
         foreach(var w in s.Watches)foreach(var item in after.Where(x=>x.ItemId==w.ItemId&&x.Location==w.Location)){
             var old=before.Where(x=>x.Source==item.Source&&x.Location==item.Location&&x.ItemId==item.ItemId).OrderBy(x=>x.ObservedUtc).LastOrDefault();
             var alerts=ItemAlertRules.Crossings(w,old,item,DateTime.UtcNow);
-            if(w.ForecastAlerts&&item.Quantity==0){var estimate=RestockEstimator.Analyze(IntelStore.Read(item.ItemId,item.Location,s.RetentionDays).Where(x=>x.Source==item.Source).Append(item).DistinctBy(x=>x.ObservedUtc),DateTime.UtcNow);if(estimate.FromUtc is DateTime start&&estimate.ToUtc>=DateTime.UtcNow&&start<=DateTime.UtcNow.AddMinutes(15))alerts.Add("Estimated restock window approaching ("+estimate.Confidence+" confidence)");}
-            foreach(var alert in alerts){string key=CurrentProfileId+item.Source+item.Location+w.ItemId+alert;string stamp=item.ObservedUtc.ToString("O");if(_itemAlertSeen.TryGetValue(key,out var seen)&&(seen==stamp||(alert.StartsWith("Estimated")&&DateTime.TryParse(seen,out var last)&&DateTime.UtcNow-last.ToUniversalTime()<TimeSpan.FromHours(1))))continue;_itemAlertSeen[key]=stamp;
+            if(w.ForecastAlerts&&item.Quantity==0&&DateTime.UtcNow-item.ObservedUtc<=TimeSpan.FromMinutes(20)){
+                var estimate=RestockEstimator.Analyze(IntelStore.Read(item.ItemId,item.Location,s.RetentionDays).Where(x=>x.Source==item.Source).Append(item).DistinctBy(x=>x.ObservedUtc),DateTime.UtcNow);
+                string watchKey=item.Source+"|"+item.Location+"|"+item.ItemId;
+                if(estimate.FromUtc is DateTime start&&estimate.ToUtc is DateTime end&&end>=DateTime.UtcNow){
+                    if(windows.TryGetValue(watchKey,out var prior)&&Math.Abs((end-prior).TotalMinutes)>=15)alerts.Add("Estimated restock window changed by "+Math.Round((end-prior).TotalMinutes)+" minutes ("+estimate.Confidence+" confidence)");
+                    windows[watchKey]=end;
+                    if(start<=DateTime.UtcNow.AddMinutes(15))alerts.Add("Estimated restock window approaching ("+estimate.Confidence+" confidence)");
+                }else if(windows.Remove(watchKey))alerts.Add("Estimated restock window withdrawn: insufficient fresh continuous evidence.");
+            }
+            foreach(var alert in alerts){string key=CurrentProfileId+"|"+item.Source+"|"+item.Location+"|"+w.ItemId+"|"+alert;string stamp=item.ObservedUtc.ToString("O");if(_itemAlertSeen.TryGetValue(key,out var seen)&&(seen==stamp||(alert.StartsWith("Estimated")&&DateTime.TryParse(seen,out var last)&&DateTime.UtcNow-last.ToUniversalTime()<TimeSpan.FromHours(1))))continue;_itemAlertSeen[key]=stamp;
                 _itemNotifier??=new NotifyIcon{Icon=SystemIcons.Information,Visible=true,Text="Torn Commander item intelligence"};_itemNotifier.ShowBalloonTip(8000,w.Name+" · "+w.Location,alert,ToolTipIcon.Info);
             }
         }
-        IntelStore.Save(CurrentProfileId,"item-alert-receipts",_itemAlertSeen.Where(x=>x.Key.StartsWith(CurrentProfileId)).TakeLast(1000).ToDictionary(x=>x.Key,x=>x.Value));
+        IntelStore.Save(CurrentProfileId,"item-forecast-alerts",windows);
+        IntelStore.Save(CurrentProfileId,"item-alert-receipts",_itemAlertSeen.Where(x=>x.Key.StartsWith(CurrentProfileId+"|",StringComparison.Ordinal)).TakeLast(1000).ToDictionary(x=>x.Key,x=>x.Value));
     }
     private void ImportItemHistory(){
         using var dialog=new OpenFileDialog{Filter="Stock history CSV|*.csv",Title="Import timestamped stock observations"};if(dialog.ShowDialog(this)!=DialogResult.OK)return;
@@ -85,14 +95,14 @@ public sealed partial class MainForm
         foreach(var key in new[]{"source","location","itemId","name","observedUtc","quantity","cost"})if(!names.ContainsKey(key))throw new InvalidDataException("CSV requires source,location,itemId,name,observedUtc,quantity,cost; optional marketValue.");
         var rows=new List<ItemObservation>();while(!parser.EndOfData){var f=parser.ReadFields()!;string Get(string key)=>names.TryGetValue(key,out var i)&&i<f.Length?f[i]:"";var text=Get("observedUtc");if(!(text.EndsWith('Z')||System.Text.RegularExpressions.Regex.IsMatch(text,@"[+-]\d{2}:\d{2}$"))||!DateTimeOffset.TryParse(text,CultureInfo.InvariantCulture,DateTimeStyles.None,out var observed))throw new InvalidDataException("Each timestamp needs UTC Z or an explicit offset.");
             if(!int.TryParse(Get("itemId"),out var id)||!int.TryParse(Get("quantity"),out var qty)||!long.TryParse(Get("cost"),out var cost))throw new InvalidDataException("Invalid numeric CSV field.");long? market=null;if(Get("marketValue").Length>0){if(!long.TryParse(Get("marketValue"),out var m))throw new InvalidDataException("Invalid market value.");market=m;}
-            rows.Add(new("CSV:"+Get("source"),Get("location"),id,Get("name"),observed.UtcDateTime,DateTime.UtcNow,qty,cost,market));if(rows.Count>50000)throw new InvalidDataException("CSV exceeds 50000 rows.");}
+            rows.Add(new(Get("source").StartsWith("CSV:",StringComparison.Ordinal)?Get("source"):"CSV:"+Get("source"),Get("location"),id,Get("name"),observed.UtcDateTime,DateTime.UtcNow,qty,cost,market));if(rows.Count>50000)throw new InvalidDataException("CSV exceeds 50000 rows.");}
         int added=IntelStore.Add(rows,DateTime.UtcNow);_itemStatus="Imported "+added+" actual observations. Import sources remain separate from live providers.";InvalidateItemDashboard();UpdateModernDashboard();
     }
     private void ExportItemHistory(){var rows=IntelStore.Read();SaveCsvReport("commander-item-history",new[]{ReportCsv.Row("source","location","itemId","name","observedUtc","quantity","cost","marketValue")}.Concat(rows.Select(x=>ReportCsv.Row(x.Source,x.Location,x.ItemId,x.Name,x.ObservedUtc.ToString("O"),x.Quantity,x.Cost,x.MarketValue))));}
     private object? _itemDashboardCache;
     private string _itemDashboardProfile="";
     private DateTime _itemDashboardAt;
-    private void InvalidateItemDashboard()=>_itemDashboardCache=null;
+    private void InvalidateItemDashboard(){_itemDashboardCache=null;_evidenceTravel=null;}
     private object ItemIntelligenceDashboard(){if(_itemDashboardCache!=null&&_itemDashboardProfile==CurrentProfileId&&DateTime.UtcNow-_itemDashboardAt<TimeSpan.FromSeconds(15))return _itemDashboardCache;_itemDashboardProfile=CurrentProfileId;_itemDashboardAt=DateTime.UtcNow;return _itemDashboardCache=BuildItemIntelligenceDashboard();}
     private object BuildItemIntelligenceDashboard(){try{
         var s=ItemSettings();var latest=IntelStore.Latest();var rows=s.Watches.SelectMany(w=>IntelStore.Read(w.ItemId,w.Location,s.RetentionDays)).ToList();

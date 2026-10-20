@@ -1,0 +1,23 @@
+ITEM INTELLIGENCE — SOURCES AND HISTORY
+
+Neumune Tablet is item 361, sold in Switzerland. This module watches foreign-shop reports, not a player's bazaar or the city Pharmacy. Crime rewards have different mechanics and are not modeled as shop restocks.
+
+Refresh stocks to record a public YATA report, or enable monitoring while Commander stays open. The report time can be older than the fetch time. Stale reports stay visibly stale. Polling the same provider timestamp again does not create a new observation.
+
+The independent estimator needs at least five continuously observed zero-to-positive events in the latest uninterrupted segment. Gaps over 20 minutes break the segment. It returns an evidence-based interval, never a promised countdown. Low/Moderate are evidence labels, not probabilities. Error metrics compare earlier forecasts against later observed event windows. No observations means no forecast.
+
+Optional Torn Intel stock access requires an approved application client key. A website login key is different. Ask via https://torn-intel.com/contact with the required foreign-stock endpoints and polling frequency. Keys stay in Windows Credential Manager and are not included in exports. The website's private prediction model, faction data and company database are not accessible through this stock API.
+
+CSV IMPORT / EXPORT
+Required columns: source,location,itemId,name,observedUtc,quantity,cost
+Optional: marketValue
+Use a full destination name such as Switzerland. Timestamp must be ISO 8601 with Z or an explicit offset. Quantity and cost must be actual nonnegative observations; an unknown quantity must not be written as zero. A missing market value stays unknown.
+Imported observations are kept under CSV:<source>, separately from live providers. Re-importing the same source/location/item/time is idempotent. Invalid batches roll back. Files are limited to 20 MB and 50,000 rows. History older than the supported retention/import range is rejected.
+
+Alerts work locally while Commander is open. Windows may suppress notification balloons based on notification settings. Stock/price thresholds need actual values from the selected source. Forecast reminders are optional; there are no automatic purchases or Discord messages.
+
+TRAVEL
+Local observations feed the existing route and sequence tools. For supported estimated windows, the planner uses the end of the window as a conservative planning point; the UI retains the whole window. Basket quantities after a predicted restock are assumptions, not a reservation. Compare waiting against available alternatives after synchronizing the actual destination/landing time, and check the shop again on landing.
+
+COMPANIES
+Company history and scenarios use only the current profile's saved records. Switching a saved-history view does not authorize scans of an old company. Sync uses the account's actual current company. Revenue-change scenarios are your assumptions; incomplete costs cannot produce a claimed net profit. Inactivity heatmaps show observed API penalties at scan times, not continuous employee presence.

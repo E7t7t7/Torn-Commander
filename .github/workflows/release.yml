@@ -138,6 +138,8 @@ jobs:
       - name: Check item history and restock intelligence
         shell: pwsh
         run: |
+          & 'Torn Commander/TEST_COMPANY_SCENARIOS.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Company/travel scenario regression failed.' }
           & 'Torn Commander/TEST_ITEM_INTELLIGENCE.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Item intelligence regression failed; release withheld.' }
       - name: Check shared API pacing and cooldown

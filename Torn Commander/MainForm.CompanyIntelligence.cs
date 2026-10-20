@@ -290,6 +290,8 @@ public sealed partial class MainForm
             status = journal.Status,
             state = advice.State,
             advice = advice.Message,
+            historySuite = CompanyHistoryData(journal),
+            scenario = _companyScenarioProfile==CurrentProfileId&&_companyHistoryView.GetValueOrDefault(CurrentProfileId,journal.ActiveCompanyId)==_companyScenarioId?_companyScenarioResult:null,
             adTrial = CompanyAdvertisingTrial.Report(journal,DateTime.UtcNow),
             business = CompanyIntelligence.BusinessReport(days),
             market = CompanyMarket.Report(latest, journal.Market),

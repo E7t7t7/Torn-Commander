@@ -1,3 +1,13 @@
+v0.6.55 (2026-10-20) — Company history/scenarios and evidence-aware travel
+- Organize company tools into Overview, Staff, History & Scenarios, and Costs & Records without removing existing tools.
+- Add profile-scoped saved-company comparisons, employee stat deltas, wage/effectiveness evidence, scan-hour inactivity-penalty heatmaps, and comparable completed-day advertising cohorts.
+- Financial what-if calculations preserve unknown costs, show assumed revenue/net, break-even shortfall and conditional funds runway; no Torn settings are changed.
+- Show unit-margin pricing diagnostics and company funds more prominently.
+- Feed fresh SQLite observations and supported local restock windows into existing travel and sequence tools; retire legacy unbounded point-cycle extrapolation without deleting saved history.
+- Add destination-specific wait-versus-alternative comparisons using actual landing context and the end of a forecast window, with explicit quantity/liquidity assumptions.
+- Add optional material forecast-change/withdrawal alerts, provider market-value charts when available, import round-trip deduplication and Intel credential cleanup on profile deletion.
+- Add company/travel calculation and dashboard isolation regressions, plus an interpretation/import guide.
+
 v0.6.54 (2026-10-20) — Item Intelligence and source-aware historical foundation
 - Add a versioned SQLite history database, latest-observation index, transactional imports, deduplication, retention and profile-isolated settings/private snapshots; existing JSON journals remain compatible.
 - Native Item Intelligence page: searchable foreign-item catalog, watchlists, stock/price thresholds, real history charts and CSV import/export; Neumune Tablet #361 in Switzerland is the initial watch.

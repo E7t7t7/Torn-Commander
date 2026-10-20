@@ -153,3 +153,9 @@ console.log('UNIFIED LOSS DESK PASSED: optional solo account, selected order and
 context.renderItemIntelligence({status:'Fixture',catalog:[{id:361,name:'Neumune Tablet',location:'Switzerland'}],cards:[{watch:{itemId:361,name:'Neumune Tablet',location:'Switzerland'},providers:[]}],health:[],count:0},'one');
 assert(nodes.iiCards.innerHTML.includes('No timestamped stock reports'),'Invented item availability in empty state');
 nodes.iiClientKey.value='fixture-not-a-key';context.renderItemIntelligence({status:'Fixture',catalog:[],cards:[],health:[]},'two');assert.equal(nodes.iiClientKey.value,'','Credential input crossed profiles');
+
+context.renderCompanyHistory({selected:7,liveCompany:7,companies:[{id:7,name:'Company A'}],staff:[{id:1,name:'Worker',position:'Sales',manualDelta:100,intelligenceDelta:null,enduranceDelta:20,wage:0}],cohorts:[],heatmap:[],baseline:{revenue:1000,net:null,note:'Fixture'}},null,'one');
+assert(nodes.coScenarioResult.innerHTML.includes('Unknown'),'Unknown scenario costs became a false profit');assert(nodes.coEmployeeHistory.innerHTML.includes('100'),'Employee delta missing');
+nodes.coScenarioAds.value='123';context.renderCompanyHistory({selected:8,liveCompany:8,companies:[{id:8,name:'Company B'}],staff:[],cohorts:[],heatmap:[]},null,'two');assert.equal(nodes.coScenarioAds.value,'','Scenario input crossed companies/profiles');
+context.renderTravelWait({waitAdvice:{location:'Hawaii',at:'2026-10-20T10:00:00Z',options:[{kind:'Buy available alternative',item:'Fixture',waitMinutes:0,futureMinutes:20,conditionalProfit:1000,conditionalProfitPerHour:3000,source:'Fixture',evidence:'Verify shelf'}],note:'Scenario'}});
+assert(nodes.travelWaitAdvice.innerHTML.includes('Verify shelf')&&nodes.travelWaitAdvice.innerHTML.includes('3000'),'Wait alternatives missing');

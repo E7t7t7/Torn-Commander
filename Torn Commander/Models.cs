@@ -352,6 +352,8 @@ public sealed class TravelForecastItem
     public DateTime? StockUpdatedAtUtc { get; set; }
     public DateTime? PricingUpdatedAtUtc { get; set; }
     public bool IsStale { get; set; }
+    public DateTime? RestockWindowStartUtc {get;set;}
+    public DateTime? RestockWindowEndUtc {get;set;}
     public DateTime? RestockAtUtc { get; set; }
     public DateTime? SuggestedDepartureUtc { get; set; }
     public DateTime? ArrivalAtUtc { get; set; }
