@@ -67,6 +67,11 @@ internal static class CredentialManager
         if (profileId.Equals("main", StringComparison.OrdinalIgnoreCase)) CredDelete(LegacyTarget, CredTypeGeneric, 0);
     }
 
+    private static string IntelTarget(string profile,bool client) => "TornCommander:"+new string(profile.Where(c=>char.IsLetterOrDigit(c)||c is '-' or '_').ToArray())+(client?":TornIntelClientKey":":TornIntelLoginKey");
+    public static void SaveIntelKey(string profile,string value,bool client){if(string.IsNullOrWhiteSpace(value)||value.Length>512||value.Any(char.IsControl))throw new ArgumentException("Invalid credential.");Write(IntelTarget(profile,client),value.Trim());}
+    public static string? LoadIntelKey(string profile,bool client)=>Read(IntelTarget(profile,client));
+    public static void ForgetIntelKey(string profile,bool client)=>CredDelete(IntelTarget(profile,client),CredTypeGeneric,0);
+
     private static void Write(string target, string value)
     {
         var bytes = Encoding.Unicode.GetBytes(value);

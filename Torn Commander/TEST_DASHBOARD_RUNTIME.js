@@ -60,6 +60,7 @@ console.log('DASHBOARD RUNTIME PASSED: real markup IDs, company rendering, profi
 
 for(const node of Object.values(nodes)) node.replaceChildren=function(...children){this.options=children};
 Object.assign(context,{S:{},casinoAdviceGeneration:0,Option:function(name,id){this.text=name;this.value=id},applyTheme:()=>{},renderApiActivity:()=>{},renderItinerary:()=>{},renderArrival:()=>{},setFilters:()=>{},renderTravelRows:()=>{},renderProgression:()=>{},renderScriptTools:()=>{},renderTrading:()=>{}});
+vm.runInContext(script.slice(script.indexOf("let itemConfigIdentity="),script.indexOf("let lossEditorIdentity=")),context);
 vm.runInContext(script.slice(script.indexOf("let lossEditorIdentity="),script.indexOf('function renderSection(')),context);
 vm.runInContext(render,context);
 const state={profileId:'one',profiles:[{id:'one',name:'Account A'},{id:'two',name:'Account B'}],buildPath:'Fixture.exe',company:{name:'Fixture Company',rows:[]}};
@@ -148,3 +149,7 @@ assert.equal(nodes.lossAccountB.options[0].value,'');assert.equal(nodes.lossOrde
 nodes.lossTarget.value='12345';context.renderLossOrders({profileId:'one',profiles:[{id:'one',name:'A'},{id:'two',name:'B'}],lossOrders:[],loss:null});
 assert.equal(nodes.lossTarget.value,'12345','Background updates erased the new-order draft');
 console.log('UNIFIED LOSS DESK PASSED: optional solo account, selected order and draft preservation.');
+
+context.renderItemIntelligence({status:'Fixture',catalog:[{id:361,name:'Neumune Tablet',location:'Switzerland'}],cards:[{watch:{itemId:361,name:'Neumune Tablet',location:'Switzerland'},providers:[]}],health:[],count:0},'one');
+assert(nodes.iiCards.innerHTML.includes('No timestamped stock reports'),'Invented item availability in empty state');
+nodes.iiClientKey.value='fixture-not-a-key';context.renderItemIntelligence({status:'Fixture',catalog:[],cards:[],health:[]},'two');assert.equal(nodes.iiClientKey.value,'','Credential input crossed profiles');

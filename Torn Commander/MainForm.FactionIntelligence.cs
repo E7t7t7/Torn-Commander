@@ -21,7 +21,10 @@ public sealed partial class MainForm
         }
         return _factionJournal;
     }
-    private void SaveFactionJournal() => Storage.SaveAtomic(FactionJournalPath(), GetFactionJournal());
+    private void SaveFactionJournal(){var j=GetFactionJournal();Storage.SaveAtomic(FactionJournalPath(),j);try{
+        if(j.Snapshot is {} scan)IntelStore.Snapshot(CurrentProfileId,"official-faction",scan.Id.ToString(),scan.ScannedUtc,scan);
+        if(j.ActivityLastBucket!=DateTime.MinValue)IntelStore.Snapshot(CurrentProfileId,"official-faction-activity",j.ActivityLastFaction.ToString(),j.ActivityLastBucket,j.Activity.Where(x=>x.Hour>=j.ActivityLastBucket.AddHours(-1)).ToList());
+    }catch{_itemStatus="Faction JSON saved; SQLite history mirror unavailable.";}}
     private readonly Dictionary<string,DateTime> _activityNext = new();
     private void TickFactionActivity()
     {

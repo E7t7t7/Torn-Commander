@@ -135,6 +135,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Full loss cycle regression failed.' }
           & 'Torn Commander/TEST_LOSS_ACCOUNTING.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Loss accounting test failed; release withheld.' }
+      - name: Check item history and restock intelligence
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_ITEM_INTELLIGENCE.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Item intelligence regression failed; release withheld.' }
       - name: Check shared API pacing and cooldown
         shell: pwsh
         run: |

@@ -37,3 +37,8 @@ build-last.log
 .env.*
 *api-key*.txt
 *secret*.json
+
+# Local intelligence databases and SQLite journals are never source artifacts.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

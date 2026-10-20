@@ -44,7 +44,10 @@ public sealed partial class MainForm
         }
         return _companyJournal;
     }
-    private void SaveCompanyJournal() => Storage.SaveAtomic(CompanyJournalPath(), GetCompanyJournal());
+    private void SaveCompanyJournal(){var j=GetCompanyJournal();Storage.SaveAtomic(CompanyJournalPath(),j);try{
+        foreach(var day in j.Days.Where(x=>x.FromApi))IntelStore.Snapshot(CurrentProfileId,"official-company",day.CompanyId.ToString(),day.ObservedUtc,day);
+        if(j.Team is {EmployeesLoaded:true} team)IntelStore.Snapshot(CurrentProfileId,"official-company-team",team.CompanyId.ToString(),team.ScannedUtc,team);
+    }catch{_itemStatus="Company JSON saved; SQLite history mirror unavailable.";}}
     private async Task SyncCompanyIntelligenceAsync()
     {
         if (_companySyncing) return;

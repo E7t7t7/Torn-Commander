@@ -1,3 +1,13 @@
+v0.6.54 (2026-10-20) — Item Intelligence and source-aware historical foundation
+- Add a versioned SQLite history database, latest-observation index, transactional imports, deduplication, retention and profile-isolated settings/private snapshots; existing JSON journals remain compatible.
+- Native Item Intelligence page: searchable foreign-item catalog, watchlists, stock/price thresholds, real history charts and CSV import/export; Neumune Tablet #361 in Switzerland is the initial watch.
+- Independent restock windows require observed cycles, reject long gaps and stale reports, and expose walk-forward midpoint MAE and observed-window overlap; insufficient history is explicit.
+- Add background public YATA collection, optional approved-key Torn Intel stock provider, provider health, authentication circuit-break and exponential backoff/Retry-After.
+- Separate Windows Credential Manager entries for approved application and website login keys. Documented stock API access is not confused with website permissions; private Torn Intel history sync is not claimed.
+- Desktop stock/threshold notifications while running, persisted duplicate suppression, and optional estimated-window reminders.
+- Begin mirroring company, staff and faction observations into SQLite without removing legacy histories.
+- Add a feature audit/architecture roadmap and CI tests for forecasting, provider fixtures, history rollback/dedupe/persistence and profile isolation.
+
 v0.6.53 (2026-10-20) — Unified Loss Desk and resizable fight pane
 - Create solo or dual-account orders directly in Commander; choose existing orders and view their matching progress without switching to Classic.
 - Keep primary run controls together, show account status and Resume controls, and collapse timing and advanced manual tools.
