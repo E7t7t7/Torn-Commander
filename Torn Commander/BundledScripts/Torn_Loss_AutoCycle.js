@@ -100,7 +100,14 @@
     // actionable weapon slot identifies ownership; DOM order and Pillow artwork
     // do not (the opponent may also equip a Pillow).
     const slots=roots.flatMap(area=>Array.from(area.querySelectorAll('[id="weapon_melee"]')).filter(visible).map(slot=>({area,slot})));
-    if(slots.length)return slots.length===1?slots[0].area:null;
+    if(slots.length){
+      // Torn also renders weapon_melee on the opponent's unavailable weapon.
+      // The attack action name, not that duplicated ID, establishes ownership.
+      const attacks=slots.filter(({slot})=>[slot,...slot.querySelectorAll('[aria-label],[title],span')].some(el=>
+        [el.getAttribute?.('aria-label'),el.getAttribute?.('title'),el.innerText].some(v=>/^attack with pillow[.!]?$/i.test(clean(v)))));
+      if(attacks.length)return attacks.length===1?attacks[0].area:null;
+      return slots.length===1?slots[0].area:null;
+    }
     const actionable=roots.filter(area=>Array.from(area.querySelectorAll('button,[role="button"],[aria-label]')).some(el=>
       visible(el)&&[el.getAttribute?.('aria-label'),el.innerText].some(v=>/^attack with pillow[.!]?$/i.test(clean(v)))));
     return actionable.length===1?actionable[0]:null;

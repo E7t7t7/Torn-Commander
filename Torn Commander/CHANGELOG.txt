@@ -1,3 +1,9 @@
+v0.6.59 (2026-10-21) — Live-page Pillow ownership correction
+- Read the stalled live fight: both combatants use playerArea and both weapon controls use weapon_melee.
+- Distinguish the attacker's Attack with Pillow action from the opponent's This weapon is not available control, instead of treating the duplicated ID as ownership.
+- Extend the two-combatant fixtures to duplicate melee IDs, with single/dual multi-hit fights, reversed display order and paused-fight recovery.
+- Retain duplicate actionable-control refusal and disabled-state checks; no fight or medicine was triggered during live inspection.
+
 v0.6.58 (2026-10-21) — Correct two-combatant Pillow detection
 - Fix the reported zero-hit timeout when both attacker and defender use Torn's playerArea class.
 - Select the attacker's unique actionable melee slot, with a named attack-control fallback; never identify ownership by DOM order or Pillow artwork.

@@ -50,7 +50,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
     weapon=slot;
    }
    const area=options.sharedPlayerClass?node('div','',{class:'playerArea___wkSjF'},[weapon]):node('div','',{class:'playerArea_outer'},[node('div','',{class:'playerArea_inner'},[weapon])]);
-   const defender=node('div','',{class:options.sharedPlayerClass?'playerArea___wkSjF':'defenderArea'},[button('Pillow',()=>counts.wrong++)]);
+   const defender=node('div','',{class:options.sharedPlayerClass?'playerArea___wkSjF':'defenderArea'},[options.sharedPlayerClass?button('This weapon is not available',()=>counts.wrong++,{id:'weapon_melee'}):button('Pillow',()=>counts.wrong++)]);
    if(options.duplicateMelee){const other=node('div','',{id:'weapon_melee',role:'button','aria-label':'Attack with Pillow'});other.onclick=()=>counts.wrong++;defender.children.push(other);other.parentElement=defender;}
    const roots=options.defenderFirst?[defender,area]:[area,defender];if(ambiguous)roots.push(node('div','',{class:'playerArea_second'},[button('Pillow',()=>counts.wrong++)]));
    return node('body','Combat',{},roots);
