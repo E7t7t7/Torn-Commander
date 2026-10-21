@@ -21,3 +21,8 @@ Local observations feed the existing route and sequence tools. For supported est
 
 COMPANIES
 Company history and scenarios use only the current profile's saved records. Switching a saved-history view does not authorize scans of an old company. Sync uses the account's actual current company. Revenue-change scenarios are your assumptions; incomplete costs cannot produce a claimed net profit. Inactivity heatmaps show observed API penalties at scan times, not continuous employee presence.
+
+MARKET ASKS (v0.6.57)
+Enable optional official-market sampling in Item Intelligence and save collection settings. Automatic sampling also requires monitoring enabled; Refresh now is available manually. Up to five distinct watched IDs rotate each poll through the shared Torn API queue. Default sampling is off. Source health shows permission failures/cooldowns. Existing Trading scans also save aggregate asking-price samples.
+Lowest returned ask and returned quantity describe that response, not every listing, completed sales or demand. No returned offers means unknown price, never a zero-dollar bargain. Price alerts require a fresh crossing between observations no more than 20 minutes apart. Foreign-stock alerts remain independent; when official-market sampling is enabled, price alerts use that market series instead of provider indicative values.
+CSV exports include all retained rows; market records remain scoped to the selected profile. Retention is configurable from 7 to 365 days. History accumulates only while scans are made. Settings > Data-source diagnostics summarizes origins and timestamps; individual cards retain per-observation timestamps.

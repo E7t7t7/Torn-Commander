@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.56. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.57. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -153,3 +153,6 @@ The SQLite database lives in LOCALAPPDATA/TornCommander/Intelligence alongside r
 ### Company scenarios and travel evidence (v0.6.56)
 Companies now have Overview, Staff, History & Scenarios, and Costs & Records views. Compare recorded advertising groups with matching staff/star counts, inspect measured employee development, and preview hypothetical costs/revenue/funds runway without changing Torn. Private snapshots remain profile-scoped. A historical company selector is a saved-data view, not authority to scan that company.
 Travel and sequence plans consume fresh SQLite stock evidence. Supported local forecasts retain their full interval and use its end conservatively; waiting comparisons show time opportunity cost and conditional basket profit. The previous legacy point-cycle extrapolator is retired. Existing JSON observations remain intact. See Guides/ITEM_INTELLIGENCE.txt for supported sources, imports and interpretation.
+
+### Item-market history and source diagnostics (v0.6.57)
+Item Intelligence can optionally sample official Torn item-market asks for watched items, rotating up to five IDs per poll through the shared API queue. Saved samples produce local price charts and threshold-crossing alerts. These are returned asking prices, not completed sales, a complete bazaar scan, or a promised profit. Empty offers remain unknown. Settings includes a source/freshness overview. Stock and profile-scoped market history export to CSV without the on-screen history limit. The v0.6.56 Pillow and fight-resume fixes are retained.

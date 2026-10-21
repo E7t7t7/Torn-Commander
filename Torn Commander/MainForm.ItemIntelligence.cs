@@ -17,7 +17,7 @@ public sealed partial class MainForm
     private void TickItemMonitor(){if(_itemPolling||DateTime.UtcNow<_itemNextUtc)return;try{if(ItemSettings().Monitor){_itemNextUtc=DateTime.UtcNow.AddMinutes(5);_=PollItemIntelligenceAsync();}}catch{_itemNextUtc=DateTime.UtcNow.AddMinutes(10);}}
     private void SaveItemSettings(JsonElement r){
         if(r.GetProperty("profileId").GetString()!=CurrentProfileId)throw new InvalidDataException("Profile changed; review settings.");
-        var s=ItemSettings();s.Monitor=r.GetProperty("monitor").GetBoolean();s.UseTornIntel=r.GetProperty("intel").GetBoolean();s.PollMinutes=Math.Clamp(r.GetProperty("minutes").GetInt32(),1,60);s.RetentionDays=Math.Clamp(r.GetProperty("retention").GetInt32(),7,365);
+        var s=ItemSettings();s.MarketQuotes=r.TryGetProperty("market",out var market)&&market.GetBoolean();s.Monitor=r.GetProperty("monitor").GetBoolean();s.UseTornIntel=r.GetProperty("intel").GetBoolean();s.PollMinutes=Math.Clamp(r.GetProperty("minutes").GetInt32(),1,60);s.RetentionDays=Math.Clamp(r.GetProperty("retention").GetInt32(),7,365);
         IntelStore.Save(CurrentProfileId,"item-settings",s);_itemNextUtc=DateTime.MinValue;InvalidateItemDashboard();UpdateModernDashboard();
     }
     private void SaveIntelCredential(JsonElement r){
@@ -60,18 +60,21 @@ public sealed partial class MainForm
                     if(profile==CurrentProfileId)_itemStatus=source+": "+status+". Cached history retained.";
                 }
             }
+            await CollectWatchMarketAsync(profile,settings);
             if(success)IntelStore.Prune(_settings.Profiles.Select(x=>ItemSettings(x.Id).RetentionDays).DefaultIfEmpty(settings.RetentionDays).Max());
             _itemNextUtc=DateTime.UtcNow.AddMinutes(Math.Clamp(settings.PollMinutes,1,60));
         }catch{if(profile==CurrentProfileId)_itemStatus="History database unavailable. Existing Commander modules remain usable.";_itemNextUtc=DateTime.UtcNow.AddMinutes(10);}
         finally{_itemPolling=false;if(profile==CurrentProfileId)InvalidateItemDashboard();UpdateModernDashboard();}
     }
+    private static ItemWatch settingsForAlerts(ItemWatch w,bool quotes)=>new(){BackInStock=w.BackInStock,BelowQuantity=w.BelowQuantity,AboveQuantity=w.AboveQuantity,PriceBelow=quotes?null:w.PriceBelow,PriceAbove=quotes?null:w.PriceAbove};
     private void NotifyItemChanges(ItemIntelligenceSettings s,IEnumerable<ItemObservation> before,IEnumerable<ItemObservation> after){
         var saved=IntelStore.Load(CurrentProfileId,"item-alert-receipts",new Dictionary<string,string>());
         foreach(var pair in saved)_itemAlertSeen[pair.Key]=pair.Value;
         var windows=IntelStore.Load(CurrentProfileId,"item-forecast-alerts",new Dictionary<string,DateTime>());
         foreach(var w in s.Watches)foreach(var item in after.Where(x=>x.ItemId==w.ItemId&&x.Location==w.Location)){
             var old=before.Where(x=>x.Source==item.Source&&x.Location==item.Location&&x.ItemId==item.ItemId).OrderBy(x=>x.ObservedUtc).LastOrDefault();
-            var alerts=ItemAlertRules.Crossings(w,old,item,DateTime.UtcNow);
+            var alertWatch=settingsForAlerts(w,s.MarketQuotes);
+            var alerts=ItemAlertRules.Crossings(alertWatch,old,item,DateTime.UtcNow);
             if(w.ForecastAlerts&&item.Quantity==0&&DateTime.UtcNow-item.ObservedUtc<=TimeSpan.FromMinutes(20)){
                 var estimate=RestockEstimator.Analyze(IntelStore.Read(item.ItemId,item.Location,s.RetentionDays).Where(x=>x.Source==item.Source).Append(item).DistinctBy(x=>x.ObservedUtc),DateTime.UtcNow);
                 string watchKey=item.Source+"|"+item.Location+"|"+item.ItemId;
@@ -98,7 +101,26 @@ public sealed partial class MainForm
             rows.Add(new(Get("source").StartsWith("CSV:",StringComparison.Ordinal)?Get("source"):"CSV:"+Get("source"),Get("location"),id,Get("name"),observed.UtcDateTime,DateTime.UtcNow,qty,cost,market));if(rows.Count>50000)throw new InvalidDataException("CSV exceeds 50000 rows.");}
         int added=IntelStore.Add(rows,DateTime.UtcNow);_itemStatus="Imported "+added+" actual observations. Import sources remain separate from live providers.";InvalidateItemDashboard();UpdateModernDashboard();
     }
-    private void ExportItemHistory(){var rows=IntelStore.Read();SaveCsvReport("commander-item-history",new[]{ReportCsv.Row("source","location","itemId","name","observedUtc","quantity","cost","marketValue")}.Concat(rows.Select(x=>ReportCsv.Row(x.Source,x.Location,x.ItemId,x.Name,x.ObservedUtc.ToString("O"),x.Quantity,x.Cost,x.MarketValue))));}
+    private Task ExportItemHistoryAsync()=>ExportIntelligenceCsvAsync("commander-item-history",new[]{ReportCsv.Row("source","location","itemId","name","observedUtc","quantity","cost","marketValue")}.Concat(IntelStore.ExportItems().Select(x=>ReportCsv.Row(x.Source,x.Location,x.ItemId,x.Name,x.ObservedUtc.ToString("O"),x.Quantity,x.Cost,x.MarketValue))));
+    private async Task ExportIntelligenceCsvAsync(string name,IEnumerable<string> rows){
+        using var dialog=new SaveFileDialog{Filter="CSV spreadsheet (*.csv)|*.csv",FileName=name+".csv",OverwritePrompt=true};if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+        var path=dialog.FileName;var temporary=path+".partial-"+Guid.NewGuid().ToString("N");
+        try{await Task.Run(()=>{using(var writer=new StreamWriter(temporary,false,new System.Text.UTF8Encoding(true)))foreach(var row in rows)writer.WriteLine(row);File.Move(temporary,path,true);});FlashStatus("Intelligence history CSV saved.");}
+        finally{try{if(File.Exists(temporary))File.Delete(temporary);}catch{}}
+    }
+    private object DatasetSourceDiagnostics(){
+        DateTime? Known(DateTime x)=>x==DateTime.MinValue?null:x;
+        var company=GetCompanyJournal();var faction=GetFactionJournal();var stocks=GetStockJournal();
+        return new object[]{
+            new{dataset="Company finances",source="Official Torn company API + locally entered costs",scope="Current profile",lastObserved=company.Days.OrderBy(x=>x.ObservedUtc).LastOrDefault()?.ObservedUtc,detail="Daily reports are observations; missing expenses stay unknown."},
+            new{dataset="Employees",source="Official Torn company employee API",scope="Current profile / scanned company",lastObserved=company.Team?.ScannedUtc,detail="Snapshots and measured deltas; no continuous presence claim."},
+            new{dataset="Faction roster",source="Official Torn faction API",scope="Current profile / authorized faction",lastObserved=faction.Snapshot?.ScannedUtc,detail="Permissions determine returned fields."},
+            new{dataset="Faction activity",source="Opt-in local Torn API sampling",scope="Current profile / faction",lastObserved=Known(faction.ActivityLastBucket),detail="No records are invented for app downtime."},
+            new{dataset="Stock market",source="Official Torn stock API",scope="Current profile",lastObserved=Known(stocks.ScannedUtc),detail="Exchange quotes and permitted holdings; saved prices can be old."},
+            new{dataset="Travel feeds",source=_travelForecast.Source,scope="Public provider reports",lastObserved=Known(_travelForecast.RetrievedAtUtc),detail="This is fetch time. Per-item report times and staleness are shown separately."},
+            new{dataset="Item / market intelligence",source="YATA, optional approved Torn Intel stock API, official item market, CSV",scope="Public stock history; private market/settings scoped by profile",lastObserved=(DateTime?)null,detail="See provider health below and each card's source/report time. CSV remains a distinct origin."}};
+    }
+    private void CopyIntelLogin(JsonElement request){if(request.GetProperty("profileId").GetString()!=CurrentProfileId)throw new InvalidDataException("Profile changed.");var key=CredentialManager.LoadIntelKey(CurrentProfileId,false);if(string.IsNullOrWhiteSpace(key))throw new InvalidOperationException("No website login key saved for this profile.");Clipboard.SetText(key);FlashStatus("Saved login key copied for normal Torn Intel website sign-in.");}
     private object? _itemDashboardCache;
     private string _itemDashboardProfile="";
     private DateTime _itemDashboardAt;
@@ -108,7 +130,7 @@ public sealed partial class MainForm
         var s=ItemSettings();var latest=IntelStore.Latest();var rows=s.Watches.SelectMany(w=>IntelStore.Read(w.ItemId,w.Location,s.RetentionDays)).ToList();
         var catalog=latest.GroupBy(x=>(x.Location,x.ItemId)).Select(g=>g.OrderByDescending(x=>x.ObservedUtc).First()).OrderBy(x=>x.Name).Take(1000).Select(x=>new{id=x.ItemId,name=x.Name,location=x.Location}).ToList();
         if(!catalog.Any(x=>x.id==361&&x.location=="Switzerland"))catalog.Add(new{id=361,name="Neumune Tablet",location="Switzerland"});
-        var cards=s.Watches.Select(w=>new{watch=w,providers=latest.Where(x=>x.ItemId==w.ItemId&&x.Location==w.Location).Select(x=>new{observation=x,stale=DateTime.UtcNow-x.ObservedUtc>TimeSpan.FromMinutes(20),forecast=RestockEstimator.Analyze(rows.Where(y=>y.Source==x.Source&&y.Location==x.Location&&y.ItemId==x.ItemId),DateTime.UtcNow),points=rows.Where(y=>y.Source==x.Source&&y.Location==x.Location&&y.ItemId==x.ItemId).TakeLast(100).Select(y=>new{at=y.ObservedUtc,quantity=y.Quantity,price=y.MarketValue}).ToList()}).ToList()}).ToList();
-        return new{status=_itemStatus,monitor=s.Monitor,minutes=s.PollMinutes,retention=s.RetentionDays,useIntel=s.UseTornIntel,polling=_itemPolling,catalog,cards,count=IntelStore.Count(),health=new[]{"YATA","Torn Intel"}.Select(id=>IntelStore.Load(CurrentProfileId,"provider:"+id,new ProviderHealth(id,"Not checked",null,null,""))).ToList(),clientSaved=!string.IsNullOrWhiteSpace(CredentialManager.LoadIntelKey(CurrentProfileId,true)),loginSaved=!string.IsNullOrWhiteSpace(CredentialManager.LoadIntelKey(CurrentProfileId,false))};
+        var cards=s.Watches.Select(w=>new{watch=w,market=WatchMarketData(w.ItemId),providers=latest.Where(x=>x.ItemId==w.ItemId&&x.Location==w.Location).Select(x=>new{observation=x,stale=DateTime.UtcNow-x.ObservedUtc>TimeSpan.FromMinutes(20),forecast=RestockEstimator.Analyze(rows.Where(y=>y.Source==x.Source&&y.Location==x.Location&&y.ItemId==x.ItemId),DateTime.UtcNow),points=rows.Where(y=>y.Source==x.Source&&y.Location==x.Location&&y.ItemId==x.ItemId).TakeLast(100).Select(y=>new{at=y.ObservedUtc,quantity=y.Quantity,price=y.MarketValue}).ToList()}).ToList()}).ToList();
+        return new{status=_itemStatus,monitor=s.Monitor,minutes=s.PollMinutes,retention=s.RetentionDays,useIntel=s.UseTornIntel,marketQuotes=s.MarketQuotes,polling=_itemPolling,catalog,cards,diagnostics=DatasetSourceDiagnostics(),count=IntelStore.Count(),health=new[]{"YATA","Torn Intel","Official Torn item market"}.Select(id=>IntelStore.Load(CurrentProfileId,"provider:"+id,new ProviderHealth(id,"Not checked",null,null,""))).ToList(),clientSaved=!string.IsNullOrWhiteSpace(CredentialManager.LoadIntelKey(CurrentProfileId,true)),loginSaved=!string.IsNullOrWhiteSpace(CredentialManager.LoadIntelKey(CurrentProfileId,false))};
         }catch{return new{status="Intelligence storage is unavailable. Existing modules are unaffected.",cards=Array.Empty<object>(),catalog=Array.Empty<object>(),health=Array.Empty<object>()};}}
 }

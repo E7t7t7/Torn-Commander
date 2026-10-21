@@ -16,6 +16,7 @@ internal sealed class ItemIntelligenceSettings
     public bool Monitor {get;set;}
     public int PollMinutes {get;set;}=5;
     public int RetentionDays {get;set;}=90;
+    public bool MarketQuotes {get;set;}
     public bool UseTornIntel {get;set;}
     public List<ItemWatch> Watches {get;set;}=new(){new()};
 }

@@ -1,3 +1,12 @@
+v0.6.57 (2026-10-21) — Market history, alerts and source diagnostics
+- Retain the v0.6.56 Pillow slot and unfinished-fight resume repairs.
+- Add opt-in official item-market sampling for watched IDs, bounded rotation, shared API pacing, cached history and failure cooldown.
+- Chart profile-scoped lowest returned asks separately from foreign-shop stock; unknown offers remain unknown and old samples are marked stale.
+- Add price threshold-crossing notifications, suppress startup/stale/long-gap/future-data alerts, and mirror manual trading scans into history.
+- Export complete saved stock/market history to CSV in the background with profile-safe retention.
+- Add Settings source/freshness diagnostics and explicit local website-login-key copy; no automatic third-party login or private-history access.
+- Extend price, database retention/export and dashboard isolation tests.
+
 v0.6.56 (2026-10-20) — Pillow combat recovery
 - Resolve the verified Pillow melee slot before nested artwork/information controls, and reacquire it after each turn.
 - Preserve disabled-control and player/weapon identity checks; count only successfully dispatched click attempts.

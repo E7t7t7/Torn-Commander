@@ -87,6 +87,7 @@ public sealed partial class MainForm
      .GroupBy(x=>x.ItemId).SelectMany(g=>g.OrderByDescending(x=>x.ObservedUtc).Take(100)).ToList();
    Storage.SaveAtomic(TradingPath(profile),journal);
    _tradingJournal=journal;
+   MirrorTradingQuotes(profile,observations);
    _tradeScanNote="Scanned "+observations.Count+" items. Quotes are asking prices, not executed sales. Recheck before committing cash.";
   }catch(OperationCanceledException){if(profile==CurrentProfileId)_tradeScanNote="Scan cancelled. Previous observations retained.";}
   catch(Exception ex){if(profile==CurrentProfileId)_tradeScanNote="Scan failed; previous observations retained. "+ex.Message;}

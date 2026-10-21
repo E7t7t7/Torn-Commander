@@ -37,3 +37,6 @@ This is a multi-stage expansion. Full armory/banking/territory/alliance/recruitm
 - v0.6.54: SQLite foundation, public/approved stock providers, native item watchlists, conservative restock windows with evaluation, CSV stock history, source diagnostics and desktop alerts; company/faction mirrors retained alongside JSON.
 - v0.6.55: company history/scenarios and internal navigation, employee deltas/scan-penalty heatmap, comparable advertising groups, integration with travel/sequence plans and waiting alternatives; legacy unconstrained point extrapolation retired.
 These releases do not implement every feature in the master directive. Remaining items include provider-authorized private-history import schemas, complete market/auction backfills, native armory/banking/territory/alliance/recruitment tools, arbitrary faction comparisons, and remote Discord notifications. No blockers have been worked around through private endpoints.
+
+- v0.6.56: urgent Pillow slot resolution and paused-fight resume repair, with repeated-hit solo/dual regression fixtures.
+- v0.6.57: opt-in official market-ask sampling/history, crossing alerts, manual-trade mirroring, complete streaming CSV exports and source diagnostics. Full sales-demand/auction/bazaar history remains outside this stage.
