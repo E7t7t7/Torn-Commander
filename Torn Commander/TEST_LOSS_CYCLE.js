@@ -49,9 +49,10 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
     slot.attrs['aria-disabled']=clock-(counts.pillowTimes.at(-1)||fightJoinAt)<(options.turnWait||0)?'true':'false';
     weapon=slot;
    }
-   const area=node('div','',{class:'playerArea_outer'},[node('div','',{class:'playerArea_inner'},[weapon])]);
-   const defender=node('div','',{class:'defenderArea'},[button('Pillow',()=>counts.wrong++)]);
-   const roots=[area,defender];if(ambiguous)roots.push(node('div','',{class:'playerArea_second'},[button('Pillow',()=>counts.wrong++)]));
+   const area=options.sharedPlayerClass?node('div','',{class:'playerArea___wkSjF'},[weapon]):node('div','',{class:'playerArea_outer'},[node('div','',{class:'playerArea_inner'},[weapon])]);
+   const defender=node('div','',{class:options.sharedPlayerClass?'playerArea___wkSjF':'defenderArea'},[button('Pillow',()=>counts.wrong++)]);
+   if(options.duplicateMelee){const other=node('div','',{id:'weapon_melee',role:'button','aria-label':'Attack with Pillow'});other.onclick=()=>counts.wrong++;defender.children.push(other);other.parentElement=defender;}
+   const roots=options.defenderFirst?[defender,area]:[area,defender];if(ambiguous)roots.push(node('div','',{class:'playerArea_second'},[button('Pillow',()=>counts.wrong++)]));
    return node('body','Combat',{},roots);
   }
   if(scene==='loss')return node('body','Seller lost to Target.');
@@ -96,8 +97,8 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const coordinator={remaining:4,owner:'',receipt:'',commits:0,waits:0,
  claim(slot,h,m){if(this.owner){this.waits++;h.onClaim(m.requestId,false,'','Target busy');return;}if(!this.remaining){h.onClaim(m.requestId,false,'','No remaining losses');return;}this.owner=slot;this.receipt='shared-'+this.remaining;h.onClaim(m.requestId,true,this.receipt,'Granted');},
  commit(slot,h,m){assert.equal(slot,this.owner);assert.equal(m.claimId,this.receipt);this.owner='';this.commits++;h.onCommit(m.claimId,true,--this.remaining,'Saved');}};
- const dualA=fixture(false,false,false,{coordinator,slot:'A',nestedMelee:true,pillowHits:4,turnWait:1500,initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
- const dualB=fixture(false,false,false,{coordinator,slot:'B',nestedMelee:true,pillowHits:3,turnWait:2000,initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
+ const dualA=fixture(false,false,false,{coordinator,slot:'A',nestedMelee:true,sharedPlayerClass:true,defenderFirst:true,pillowHits:4,turnWait:1500,initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
+ const dualB=fixture(false,false,false,{coordinator,slot:'B',nestedMelee:true,sharedPlayerClass:true,pillowHits:3,turnWait:2000,initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
  for(let i=0;i<1500&&(dualA.h.getState().stage!=='complete'||dualB.h.getState().stage!=='complete');i++){await dualA.step(250);await dualB.step(250);}
  assert.equal(dualA.h.getState().stage,'complete',dualA.h.getState().status);assert.equal(dualB.h.getState().stage,'complete',dualB.h.getState().status);
  assert.equal(coordinator.commits,4);assert.equal(coordinator.owner,'');assert(coordinator.waits>0);assert.equal(dualA.counts.join+dualB.counts.join,4);
@@ -116,7 +117,10 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const exhaustedA=fixture(false,false,false,{coordinator,slot:'A',energy:0}),exhaustedB=fixture(false,false,false,{coordinator,slot:'B',energy:0});
  for(let i=0;i<50;i++){await exhaustedA.step(250);await exhaustedB.step(250);}
  assert.equal(exhaustedA.h.getState().stage,'paused');assert.equal(exhaustedB.h.getState().stage,'paused');assert.equal(coordinator.remaining,4);assert.equal(coordinator.commits,0);assert.equal(coordinator.owner,'');
- let resumed=fixture(false,false,false,{nestedMelee:true,pillowHits:4,turnWait:1500,delay:1000});
+ const duplicates=fixture(false,false,false,{nestedMelee:true,sharedPlayerClass:true,duplicateMelee:true});
+ for(let i=0;i<250&&duplicates.h.getState().stage!=='paused';i++)await duplicates.step(250);
+ assert.equal(duplicates.h.getState().stage,'paused');assert.equal(duplicates.counts.pillow,0);assert.equal(duplicates.counts.wrong,0);
+ let resumed=fixture(false,false,false,{nestedMelee:true,sharedPlayerClass:true,defenderFirst:true,pillowHits:4,turnWait:1500,delay:1000});
  for(let i=0;i<100&&resumed.counts.pillow<1;i++)await resumed.step(250);
  assert.equal(resumed.counts.pillow,1);resumed.h.pause();assert.equal(resumed.h.resume(),true);
  assert.equal(resumed.h.getState().stage,'fight','Resume must continue an unfinished fight with its existing reservation');
@@ -160,5 +164,5 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  assert.equal(f.h.getState().stage,'paused');assert(f.h.getState().status.includes('Medical tab'));assert.equal(f.counts.medicine,0);
  f=fixture(false,false,true);for(let i=0;i<70;i++)await f.step();
  assert.equal(f.h.getState().stage,'paused');assert(f.h.getState().status.includes('JOIN FIGHT'));assert.equal(f.counts.pillow,0);
- console.log('LOSS FULL CYCLE PASSED: two solo losses, nested player roots, image identity, scroll, medical tab, label-only FAK row, confirmation, return, final recovery collapsed-kit expansion, bounded expansion failure, ambiguous-kit refusal, adjustable attack spacing and ambiguous-player refusal.');
+ console.log('LOSS FULL CYCLE PASSED: shared combatant classes, opponent Pillow in either DOM order, ambiguous-slot refusal, two solo losses, nested player roots, image identity, scroll, medical tab, label-only FAK row, confirmation, return, final recovery collapsed-kit expansion, bounded expansion failure, ambiguous-kit refusal, adjustable attack spacing and ambiguous-player refusal.');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -73,12 +73,12 @@
   function isItemsPage() { return location.pathname === '/item.php'; }
 
   function hospitalBanner() {
-    return /you can(?:not|'t|’t) attack while in (?:the )?hospital|you are (?:currently |still )?in (?:the )?hospital/i.test(bodyText());
+    return /you can(?:not|'t|â€™t) attack while in (?:the )?hospital|you are (?:currently |still )?in (?:the )?hospital/i.test(bodyText());
   }
 
   function insufficientEnergy() {
     // Use Torn's explicit refusal, never infer a balance from unrelated page numbers.
-    return /you (?:do not|don't|don’t) have (?:enough|sufficient) energy|you have (?:insufficient|not enough) energy|not enough energy to (?:attack|start|join)|you need (?:at least )?25 energy to (?:attack|start|join)/i.test(bodyText());
+    return /you (?:do not|don't|donâ€™t) have (?:enough|sufficient) energy|you have (?:insufficient|not enough) energy|not enough energy to (?:attack|start|join)|you need (?:at least )?25 energy to (?:attack|start|join)/i.test(bodyText());
   }
   function pauseForEnergy(state) {
     return pauseState(state,'Not enough energy to attack. This account is paused and its slot released; the other running account can continue. Resume this account after restoring energy.',true);
@@ -95,7 +95,15 @@
   const outerRoots = nodes => [...new Set(nodes)].filter(a=>!nodes.some(b=>b!==a&&b.contains?.(a)));
   function playerArea() {
     const roots=outerRoots(Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible));
-    return roots.length===1?roots[0]:null;
+    if(roots.length===1)return roots[0];
+    // Both combatants can use Torn's playerArea class. Only the attacker's
+    // actionable weapon slot identifies ownership; DOM order and Pillow artwork
+    // do not (the opponent may also equip a Pillow).
+    const slots=roots.flatMap(area=>Array.from(area.querySelectorAll('[id="weapon_melee"]')).filter(visible).map(slot=>({area,slot})));
+    if(slots.length)return slots.length===1?slots[0].area:null;
+    const actionable=roots.filter(area=>Array.from(area.querySelectorAll('button,[role="button"],[aria-label]')).some(el=>
+      visible(el)&&[el.getAttribute?.('aria-label'),el.innerText].some(v=>/^attack with pillow[.!]?$/i.test(clean(v)))));
+    return actionable.length===1?actionable[0]:null;
   }
   function enabledControl(el, boundary) {
     for(let node=el;node&&node!==boundary;node=node.parentElement)
@@ -214,9 +222,9 @@
     for(const node of counts)for(const key of ['data-qty','data-quantity']){
       const value=node.getAttribute?.(key);if(value!==null&&value!==undefined&&/^\d+$/.test(value))return Number(value);
     }
-    const match=clean(row.textContent).match(/First Aid Kit\s*[x×]\s*(\d+)\b/i);
+    const match=clean(row.textContent).match(/First Aid Kit\s*[xÃ—]\s*(\d+)\b/i);
     if(match)return Number(match[1]);
-    const before=clean(row.textContent).match(/(?:^|\s)[x×]\s*(\d+)\s*First Aid Kit\b/i);
+    const before=clean(row.textContent).match(/(?:^|\s)[xÃ—]\s*(\d+)\s*First Aid Kit\b/i);
     return before?Number(before[1]):null;
   }
 
@@ -247,7 +255,7 @@
 
   function medicalVisible() {
     const text = bodyText();
-    return /your items\s*[-–—]\s*medical\b/i.test(text) || firstAidRow() !== null;
+    return /your items\s*[-â€“â€”]\s*medical\b/i.test(text) || firstAidRow() !== null;
   }
 
   function confirmUseButton() {
@@ -765,7 +773,7 @@
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
       return {pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
-        pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
+        combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },
     pump() { void tick(); return true; },
     getState() { return load(); }
