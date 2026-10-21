@@ -1,3 +1,10 @@
+v0.6.56 (2026-10-20) — Pillow combat recovery
+- Resolve the verified Pillow melee slot before nested artwork/information controls, and reacquire it after each turn.
+- Preserve disabled-control and player/weapon identity checks; count only successfully dispatched click attempts.
+- Resume paused combat on its existing fight and reservation instead of incorrectly entering hospital recovery.
+- Expand worker diagnostics with control IDs, disabled states, turn count and previous stage.
+- Add multi-hit solo/dual fixtures with nested controls, delayed turn readiness and pause/resume accounting. Live-account validation remains required.
+
 v0.6.55 (2026-10-20) — Company history/scenarios and evidence-aware travel
 - Organize company tools into Overview, Staff, History & Scenarios, and Costs & Records without removing existing tools.
 - Add profile-scoped saved-company comparisons, employee stat deltas, wage/effectiveness evidence, scan-hour inactivity-penalty heatmaps, and comparable completed-day advertising cohorts.

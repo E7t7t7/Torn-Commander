@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.55. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.56. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -150,6 +150,6 @@ Native foreign-item watchlists, timestamped SQLite observations, source health, 
 YATA public stock works without a key; Torn Intel's documented stock API requires an approved application key requested through its contact page. Website login credentials are stored separately in Credential Manager and do not grant native private-history synchronization. Website sign-in remains a normal embedded browser workflow. No paid predictions, hidden APIs or browser-extension impersonation are used.
 The SQLite database lives in LOCALAPPDATA/TornCommander/Intelligence alongside retained JSON journals, outside versioned installations. Company scans, staff snapshots and faction collection mirror into profile-scoped history. See INTELLIGENCE_ROADMAP.md for the audit, implemented boundaries and remaining stages.
 
-### Company scenarios and travel evidence (v0.6.55)
+### Company scenarios and travel evidence (v0.6.56)
 Companies now have Overview, Staff, History & Scenarios, and Costs & Records views. Compare recorded advertising groups with matching staff/star counts, inspect measured employee development, and preview hypothetical costs/revenue/funds runway without changing Torn. Private snapshots remain profile-scoped. A historical company selector is a saved-data view, not authority to scan that company.
 Travel and sequence plans consume fresh SQLite stock evidence. Supported local forecasts retain their full interval and use its end conservatively; waiting comparisons show time opportunity cost and conditional basket profit. The previous legacy point-cycle extrapolator is retired. Existing JSON observations remain intact. See Guides/ITEM_INTELLIGENCE.txt for supported sources, imports and interpretation.

@@ -41,6 +41,14 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
     const action=node('div','',{'role':'button','aria-label':'Attack with Pillow',id:'weapon_melee'},[node('span','Turn artwork')]);
     action.onclick=pillow.onclick;action.attrs['aria-disabled']=clock-(counts.pillowTimes.at(-1)||0)<1500?'true':'false';weapon=action;
    }
+   if(options.nestedMelee){
+    const art=node('button','Weapon information');art.onclick=()=>counts.wrong++;
+    const label=node('span','',{'aria-label':'Attack with Pillow'});
+    const slot=node('div','',{id:'weapon_melee',role:'button'},[art,label]);
+    slot.onclick=pillow.onclick;
+    slot.attrs['aria-disabled']=clock-(counts.pillowTimes.at(-1)||fightJoinAt)<(options.turnWait||0)?'true':'false';
+    weapon=slot;
+   }
    const area=node('div','',{class:'playerArea_outer'},[node('div','',{class:'playerArea_inner'},[weapon])]);
    const defender=node('div','',{class:'defenderArea'},[button('Pillow',()=>counts.wrong++)]);
    const roots=[area,defender];if(ambiguous)roots.push(node('div','',{class:'playerArea_second'},[button('Pillow',()=>counts.wrong++)]));
@@ -66,7 +74,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   return node('body','Torn');
  }
  let lastKey='',cached;
- function body(){const key=scene+stock+expanded+(options.replacedControls?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
+ function body(){const key=scene+stock+expanded+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
  const document={title:'Torn',get body(){return body()},querySelectorAll:s=>body().querySelectorAll(s)};
  const location={href:'https://www.torn.com/index.php',pathname:'/index.php',assign(url){const u=new URL(url);this.href=url;this.pathname=u.pathname;scene=u.pathname==='/item.php'?'items':'attack';expanded=false}};
  class Clock extends Date{static now(){return clock}}
@@ -88,8 +96,8 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const coordinator={remaining:4,owner:'',receipt:'',commits:0,waits:0,
  claim(slot,h,m){if(this.owner){this.waits++;h.onClaim(m.requestId,false,'','Target busy');return;}if(!this.remaining){h.onClaim(m.requestId,false,'','No remaining losses');return;}this.owner=slot;this.receipt='shared-'+this.remaining;h.onClaim(m.requestId,true,this.receipt,'Granted');},
  commit(slot,h,m){assert.equal(slot,this.owner);assert.equal(m.claimId,this.receipt);this.owner='';this.commits++;h.onCommit(m.claimId,true,--this.remaining,'Saved');}};
- const dualA=fixture(false,false,false,{coordinator,slot:'A',initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
- const dualB=fixture(false,false,false,{coordinator,slot:'B',initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
+ const dualA=fixture(false,false,false,{coordinator,slot:'A',nestedMelee:true,pillowHits:4,turnWait:1500,initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
+ const dualB=fixture(false,false,false,{coordinator,slot:'B',nestedMelee:true,pillowHits:3,turnWait:2000,initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true});
  for(let i=0;i<1500&&(dualA.h.getState().stage!=='complete'||dualB.h.getState().stage!=='complete');i++){await dualA.step(250);await dualB.step(250);}
  assert.equal(dualA.h.getState().stage,'complete',dualA.h.getState().status);assert.equal(dualB.h.getState().stage,'complete',dualB.h.getState().status);
  assert.equal(coordinator.commits,4);assert.equal(coordinator.owner,'');assert(coordinator.waits>0);assert.equal(dualA.counts.join+dualB.counts.join,4);
@@ -108,6 +116,14 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const exhaustedA=fixture(false,false,false,{coordinator,slot:'A',energy:0}),exhaustedB=fixture(false,false,false,{coordinator,slot:'B',energy:0});
  for(let i=0;i<50;i++){await exhaustedA.step(250);await exhaustedB.step(250);}
  assert.equal(exhaustedA.h.getState().stage,'paused');assert.equal(exhaustedB.h.getState().stage,'paused');assert.equal(coordinator.remaining,4);assert.equal(coordinator.commits,0);assert.equal(coordinator.owner,'');
+ let resumed=fixture(false,false,false,{nestedMelee:true,pillowHits:4,turnWait:1500,delay:1000});
+ for(let i=0;i<100&&resumed.counts.pillow<1;i++)await resumed.step(250);
+ assert.equal(resumed.counts.pillow,1);resumed.h.pause();assert.equal(resumed.h.resume(),true);
+ assert.equal(resumed.h.getState().stage,'fight','Resume must continue an unfinished fight with its existing reservation');
+ for(let i=0;i<800&&resumed.h.getState().stage!=='complete';i++)await resumed.step(250);
+ assert.equal(resumed.h.getState().stage,'complete',resumed.h.getState().status);
+ assert.equal(resumed.counts.pillow,8);assert.equal(resumed.counts.wrong,0);
+ assert.equal(resumed.messages.filter(m=>m.type==='tc-loss-claim').length,2);
  let f=fixture(false,false,false,{initialHospital:true,kitsRequired:2,collapsed:true,headerOnly:true,pillowHits:3,replacedControls:true});
  for(let i=0;i<1000&&f.h.getState().stage!=='complete';i++)await f.step(250);
  assert.equal(f.h.getState().stage,'complete',f.h.getState().status);assert.equal(f.counts.medicine,6);assert.equal(f.counts.join,2);assert.equal(f.messages.filter(m=>m.type==='tc-loss-claim').length,2);

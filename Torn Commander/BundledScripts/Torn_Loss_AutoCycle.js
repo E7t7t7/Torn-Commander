@@ -105,6 +105,19 @@
   function pillowControl(reveal=true) {
     const area=playerArea();if(!area)return null;
     if(reveal)area.scrollIntoView?.({block:'center',inline:'nearest'});
+    // Target the weapon slot itself, not a nested artwork/info button. Torn
+    // replaces descendants between turns; the stable slot owns the attack action.
+    const melee=Array.from(area.querySelectorAll('[id="weapon_melee"]')).filter(visible);
+    if(melee.length){
+      if(melee.length!==1)return null;
+      const slot=melee[0];
+      const identity=[slot,...slot.querySelectorAll('[aria-label],[title],[alt],img')].some(el=>
+        ['aria-label','title','alt'].some(k=>/^(?:attack with )?pillow[.!]?$/i.test(clean(el.getAttribute?.(k))))||
+        /\/(?:items|weapons)\/440(?:[/.?]|$)/i.test(el.getAttribute?.('src')||''))||
+        Array.from(slot.querySelectorAll('span,strong,p')).some(el=>/^pillow$/i.test(clean(el.textContent)));
+      // A known melee slot holding another weapon must never fall through.
+      return identity&&enabledControl(slot,area)?slot:null;
+    }
     // Torn may replace the weapon artwork with a turn animation. Its named attack
     // control remains the authoritative target; resolve it afresh on every turn.
     const named=Array.from(area.querySelectorAll('[aria-label],[title],button,[role="button"]'))
@@ -439,12 +452,16 @@
           if (now() - state.pillowMissingSince > 45000) pauseState(state, 'Pillow control could not be identified for 45 seconds. Auto-cycle paused.', false);
           return;
         }
+        if (!click(pillow)) {
+          state.status = 'Pillow changed before the click. Rechecking the current weapon control.';
+          save(state);
+          return;
+        }
         state.pillowMissingSince = 0;
         state.pillowTurns = Number(state.pillowTurns || 0) + 1;
         state.lastPillowAt = now();
         state.status = `Pillow turn ${state.pillowTurns}; watching for the visible loss result.`;
         save(state);
-        click(pillow);
         return;
       }
 
@@ -655,7 +672,9 @@
       state.sessionToken = token;
       state.running = true;
       const reconcile = state.previousStage === 'commit-wait' && !!state.claimId;
-      state.stage = reconcile ? 'commit-wait' : state.claimId ? 'recovery-probe' : 'claim';
+      const resumeFight = state.claimId && state.previousStage === 'fight' && isAttackPage(state.targetId);
+      state.stage = reconcile ? 'commit-wait' : resumeFight ? 'fight' : state.claimId ? 'recovery-probe' : 'claim';
+      if(resumeFight){state.pillowMissingSince=0;state.fightStartedAt=now();}
       state.claimAttempts=0; state.commitAttempts=1; state.replyWaitAt=now();
       state.pendingClaimRequest='';
       state.probeStartedAt = now();
@@ -743,8 +762,8 @@
       return true;
     },
     diagnostics() {
-      const summary=el=>el?{tag:el.tagName,className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {stage:load()?.stage,status:load()?.status,path:location.pathname,
+      const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
+      return {pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },
