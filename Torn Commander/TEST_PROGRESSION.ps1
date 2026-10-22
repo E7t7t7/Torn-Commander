@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderProgression'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('Models.cs','TornRoutes.cs','LossAccounting.cs','TravelPreview.cs','TravelTiming.cs','ProgressionAdvisor.cs','EducationObservation.cs','DashboardJson.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
+foreach($file in @('Models.cs','SmartMedicalOptimizer.cs','TornRoutes.cs','LossAccounting.cs','TravelPreview.cs','TravelTiming.cs','ProgressionAdvisor.cs','EducationObservation.cs','DashboardJson.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
 $prog=@'
 using System.Text.Json;
 using TornCommander;

@@ -8,6 +8,7 @@ v0.6.60 (2026-10-22) — Smart Medical Management for Loss Desk
 - Add a collapsible responsive Loss Desk section with per-account permissions, recommendation-only default, opt-in automatic consumption, bonus overrides, price/reserve controls and permanently-disabled-drug notice.
 - Display account-separated live hospital/cooldown, quantities, recommendation, complete-heal cooldown, session losses/items/cooldown, completed-recovery FAK comparison and explicitly estimated remaining heals/losses.
 - Record profile-local verified-use/failure audit snapshots without credentials or browser markup. Audit failure does not invalidate an already verified use.
+- Update the standalone progression test harness to include the new medical-settings model dependency.
 - Add 120-case brute-force DP comparison plus durations, bonus combinations, capacities, overshoot, stock/reserve/cost ties, stale data, failed verification, account isolation and drug-exclusion tests.
 - Extend synthetic worker tests across all four item selectors, delayed/failed consumption, wrong accounts, recommendation mode, cooldown resume and simultaneous sessions; add dashboard consent/profile/draft tests and a Windows release test gate.
 - Validation: local .NET build, medical planner/verifier, worker/protocol and dashboard suites; UI inspected with synthetic data only. Live account consumption was not performed during development.
