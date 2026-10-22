@@ -1,3 +1,11 @@
+v0.6.61 (2026-10-22) — Reduce repeated Smart Medical verification delays
+- Bound medical optimization by the current hospital duration instead of searching surplus inventory combinations; preserve minimum cooldown, reserve, price and quantity tie-break rules.
+- Reuse the same account/session API observation for pre-use authorization only while at most 10 seconds old. Recheck browser identity and inventory; refresh expired observations and always fetch new hospital/cooldown data after consumption.
+- Replace a silently ignored concurrent verification request with an explicit safe pause.
+- Show whether the worker is checking hospital/cooldown, authorizing an item, or verifying recovery instead of leaving the opening-Medical message visible.
+- Add a large-stockpile regression: 100 plans with a million of each aid kit and five Morphine must retain the minimum-cooldown choice and complete within five seconds.
+- Validation: release build and optimizer tests passed; existing shared API pacing remains in force. Live account consumption is not exercised by automated tests.
+
 v0.6.60 (2026-10-22) — Smart Medical Management for Loss Desk
 - Add a reusable bounded-knapsack SmartMedicalOptimizer: minimum medical cooldown, then fewer items, configured/reference price and supply abundance; recompute after each item.
 - Fixed backend allowlist includes Small FAK #68 (20m/10m), FAK #67 (40m/15m), Morphine #66 (70m/20m), and optional O-negative bag #739 (120m/30m). Drugs, empty/irradiated bags, other blood types and faction supplies are excluded.

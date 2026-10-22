@@ -235,7 +235,7 @@
   function requestMedical(state,type,extra={}){
     const owner=medicalOwnId();
     if(owner!==Number(state.playerId)){pauseState(state,'Medical account identity is missing or differs from this worker. No item was authorized.',true);return;}
-    state.medicalRequest='med_'+now()+'_'+Math.random().toString(36).slice(2);state.medicalReplyAt=now();state.stage='smart-medical-await';save(state);
+    state.medicalRequest='med_'+now()+'_'+Math.random().toString(36).slice(2);state.medicalReplyAt=now();state.stage='smart-medical-await';state.status=type==='tc-medical-plan'?'Checking hospital time and medical cooldown with Torn API.':type==='tc-medical-authorize'?'Checking medical permission before use.':'Verifying item use and hospital recovery with Torn API.';save(state);
     post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),...extra});
   }
   function replanMedical(state,reason){

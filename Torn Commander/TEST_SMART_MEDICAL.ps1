@@ -10,6 +10,13 @@ MedicalObservation Obs(int minutes,int cooldown=0,int maximum=21600,double bonus
 foreach(var test in new[]{(18,600,68),(38,900,67),(66,1200,66),(75,1800,0)}){
  var p=SmartMedicalOptimizer.Plan(Obs(test.Item1),settings,now);Assert(p.State=="Ready"&&p.CooldownSeconds==test.Item2,"hospital "+test.Item1);if(test.Item3!=0)Assert(p.Items.SequenceEqual(new[]{test.Item3}),"wrong medicine");
 }
+// Large supplies must not expand the search or change a strictly better cooldown choice.
+var watch=System.Diagnostics.Stopwatch.StartNew();
+for(int i=0;i<100;i++){
+ var abundant=SmartMedicalOptimizer.Plan(Obs(66,inventory:new(){{68,1000000},{67,1000000},{66,5}}),settings,now);
+ Assert(abundant.Items.SequenceEqual(new[]{66})&&abundant.CooldownSeconds==1200,"large inventory changed optimum");
+}
+watch.Stop();Assert(watch.Elapsed<TimeSpan.FromSeconds(5),"short hospital planning scales with stockpile");
 Assert(!settings.Automatic&&settings.Permissions[68]&&settings.Permissions[67]&&settings.Permissions[66]&&!settings.BloodBags,"unsafe defaults");
 foreach(var bonus in new[]{0d,10d,20d,30d,50d}){var p=SmartMedicalOptimizer.Plan(Obs(27,bonus:bonus),settings,now);Assert(p.CooldownSeconds==(bonus==50?600:900),"bonus combination");}
 Assert(SmartMedicalOptimizer.Plan(Obs(18,21599),settings,now).State=="Ready","final-item overshoot forbidden");

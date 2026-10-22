@@ -52,7 +52,10 @@ internal static class SmartMedicalOptimizer
         // largest item cost so the final item can legitimately overshoot the cap.
         var dp=new Dictionary<(int Cost,int Heal,int Last),Choice>{{(0,0,0),new(Array.Empty<int>(),0,0)}};
         foreach(var entry in available){
-            int remaining=Math.Min(entry.Count,maxCost/entry.Item.CooldownSeconds),bundle=1;
+            // Extra copies beyond a full recovery cannot improve any objective.
+            // Bound work by hospitalization, not the player's stockpile or cooldown capacity.
+            int useful=(target+entry.Item.HospitalSeconds/600-1)/(entry.Item.HospitalSeconds/600);
+            int remaining=Math.Min(entry.Count,Math.Min(useful,maxCost/entry.Item.CooldownSeconds)),bundle=1;
             while(remaining>0){int take=Math.Min(bundle,remaining);remaining-=take;bundle*=2;
                 int cost=entry.Item.CooldownSeconds*take,heal=entry.Item.HospitalSeconds/600*take;
                 foreach(var pair in dp.ToArray()){

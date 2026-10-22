@@ -58,7 +58,7 @@ public sealed partial class MainForm
         if(!_medicalSessions.TryGetValue(worker,out var s)||!MedicalContext(worker,s,request)){
             await worker.ReplyMedicalAsync(rid,new{state="Paused",reason="Account/session identity could not be verified. No item authorized."});return;
         }
-        if(s.Busy)return;s.Busy=true;
+        if(s.Busy){await worker.ReplyMedicalAsync(rid,new{state="Paused",reason="A medical verification is already running. No additional item was authorized."});return;}s.Busy=true;
         try{
             var settings=MedicalSettings(worker.ProfileId);settings.Validate();
             var inventory=ReadMedicalInventory(request);
@@ -80,7 +80,13 @@ public sealed partial class MainForm
             }else if(type=="tc-medical-authorize"){
                 if(!settings.Enabled||!settings.Automatic||s.Item is null||s.Observation is null||ReadWorkerString(request,"token")!=s.Pending||s.Issued||DateTime.UtcNow>s.PendingUntil)throw new InvalidDataException("Medical permission expired or is recommendation-only.");
                 if(inventory.GetValueOrDefault(s.Item.Id)!=s.Before.GetValueOrDefault(s.Item.Id)){s.Pending="";await worker.ReplyMedicalAsync(rid,new{state="Replan",reason="Personal inventory changed before dispatch; recalculating."});return;}
-                var fresh=await ReadMedicalObservationAsync(worker,s,inventory);
+                // The plan's API snapshot is still fresh while opening the item accordion.
+                // Avoid repeating two queued API reads immediately before the same dispatch.
+                // Inventory and browser identity were checked again above; after-use verification
+                // always obtains a new API snapshot.
+                var fresh=DateTime.UtcNow-s.Observation.ObservedUtc<=TimeSpan.FromSeconds(10)
+                    ?s.Observation with{Inventory=inventory}
+                    :await ReadMedicalObservationAsync(worker,s,inventory);
                 var plan=SmartMedicalOptimizer.Plan(fresh,settings,DateTime.UtcNow);
                 if(!MedicalContext(worker,s,request))return;
                 if(plan.State!="Ready"||plan.Items.FirstOrDefault()!=s.Item.Id){s.Pending="";await worker.ReplyMedicalAsync(rid,new{state="Replan",reason="Hospital/cooldown changed before dispatch; recalculating."});return;}
