@@ -1,3 +1,13 @@
+v0.6.63 (2026-10-22) — Guided leveling queue and full-life recovery planning
+- Add a separate modern Leveling page with profile-local ordered target imports (IDs, Torn links, ID-first CSV and FFScouter targets JSON), source links, current status/level, energy reserve, session attack limit and new-pass/skip controls.
+- Check account energy/life, medical cooldown and bonuses through documented Torn API endpoints; check up to ten candidate statuses per request using existing shared pacing. Open checked target rechecks before manually requested navigation. Stop the same profile's Loss Desk worker first.
+- Add 25/50/75/100% life targets, with Full life default. Plan the minimum-cooldown combination that satisfies both life recovery and hospital exit, applying current Smart Medical permissions, reserves, bonuses and legitimate final-item cooldown overshoot. No drugs, faction supplies or blood bags in this guided planner.
+- Read unambiguous personal medical quantities only from the active manually opened Medical page with verified account identity, or accept clearly identified user-entered estimates. Recalculate after each manual use.
+- Verify completed outgoing fights against account/target/start time and unseen official attack IDs. Separate Leave wins from other results; never count an unfinished or cached duplicate receipt. No XP is fabricated.
+- Follow Torn's current manually initiated game-request rule: queue checks/recommendations and user-initiated navigation are implemented; unattended combat, finishing and item use are not added. Provider list access uses links/imports, with no assumed private API access or credential transmission.
+- Preserve existing Loss Desk workers, medical settings, update channel and profile sessions.
+- Validation: release build, dashboard tests, 100-case exhaustive combined life/hospital oracle, import filtering, six/nine-hour caps, bonuses/reserves, stale data, drug exclusion and attack receipt replay/account/target tests. Live fights and item consumption are not run during validation.
+
 v0.6.62 (2026-10-22) — Recover interrupted medical authorization correctly
 - Preserve the pending medical operation across Pause/Resume. Observe and verify an already-dispatched item; do not skip to a new attack or repeat its Use click.
 - Reconcile an interrupted pre-dispatch authorization only with its matching account/session/token, an explicit not-dispatched state, unchanged inventory/hospital expiry, and fresh medical cooldown evidence. Unknown outcomes still pause.

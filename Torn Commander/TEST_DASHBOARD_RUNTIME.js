@@ -182,3 +182,15 @@ let medicalMessage;context.send=(type,data)=>{medicalMessage={type,data}};
 for(const id of [66,67,68,739]){nodes['medAllow'+id]={checked:id===66};nodes['medKeep'+id]={value:'2'};nodes['medPrice'+id]={value:'0'};}
 context.saveMedicalSettings();assert.equal(medicalMessage.data.profileId,'B');assert(!Object.keys(medicalMessage.data.settings.permissions).includes('206'),'Drug entered settings payload');
 console.log('SMART MEDICAL DASHBOARD PASSED: explicit consent, profile-specific permissions, reserve drafts, account stats and honest extra-cost display.');
+
+// Leveling functions are included by the medical/dashboard script slice above.
+context.S={profileId:'A'};let levelingMessage;context.send=(cmd,data)=>levelingMessage={cmd,data};
+const levelSession={energyReserve:25,lifePercent:100,attackLimit:5,wins:2,inventory:{68:5,67:3,66:2},targets:[{id:123,name:'Fixture',status:'Okay'}],pendingTarget:123,note:'Ready'};
+context.renderLeveling({profileId:'A',stale:false,session:levelSession,account:{energy:150,life:100,maximum:100,at:new Date().toISOString(),recovery:{state:'Ready',reason:'Full life',items:[]}},estimatedAttacks:5});
+assert.equal(nodes.levelLife.value,100);assert(!nodes.levelOpen.disabled);assert(nodes.levelRows.innerHTML.includes('Fixture'));
+nodes.levelReserve.value=99;context.renderLeveling({profileId:'A',stale:true,session:levelSession});
+assert.equal(nodes.levelReserve.value,99,'Leveling render erased draft');assert(nodes.levelOpen.disabled,'Stale check enabled attack');
+context.renderLeveling({profileId:'B',stale:true,session:{energyReserve:0,lifePercent:50,inventory:{},targets:[]}});
+assert.equal(nodes.levelReserve.value,0);assert.equal(nodes.levelLife.value,50);assert(!nodes.levelRows.innerHTML.includes('Fixture'),'Targets leaked across accounts');
+context.S={profileId:'B'};nodes.levelTargets.value='123';nodes.levelLimit.value=0;context.saveLeveling();assert.equal(levelingMessage.cmd,'levelSave');assert.equal(levelingMessage.data.profileId,'B');assert.equal(levelingMessage.data.targets,'123');
+console.log('LEVELING UI PASSED: full-life option, stale gating, draft retention, profile isolation and save payload.');

@@ -147,6 +147,11 @@ jobs:
         run: |
           & 'Torn Commander/TEST_SMART_MEDICAL.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Smart Medical regression failed; release withheld.' }
+      - name: Check guided leveling and recovery
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_LEVELING.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Leveling regression failed; release withheld.' }
       - name: Check shared API pacing and cooldown
         shell: pwsh
         run: |

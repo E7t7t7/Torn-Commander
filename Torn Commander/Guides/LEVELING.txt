@@ -1,0 +1,16 @@
+GUIDED LEVELING — v0.6.63
+
+1. Stop this profile's Loss Desk worker and equip a real fighting weapon.
+2. Open Leveling. Obtain IDs from Baldr's guide or FFScouter using their normal interfaces. Paste one ID per line, Torn profile/attack links, ID-first CSV, or a FFScouter targets JSON response. Save list/settings.
+3. Choose an energy reserve (0 spends down to fewer than 25 energy), an optional session attack limit, and the desired life target. Full life (100%) is the default. Queues/settings/results are separate for each local profile.
+4. Open Items / Medical manually and select Medical. Read visible medical counts checks the page/account before reading personal stocks. Alternatively enter quantities and save. Unseen items are unavailable to the planner until entered; no cached inventory is treated as verified consumption.
+5. Check next reads your profile, energy/life bars, medical cooldown and perks, then checks up to ten targets in order. Unavailable statuses are skipped and rate-limited through the existing shared API queue. Click again for more. New pass revisits completed/skipped entries without resetting session totals or limits.
+6. If recovery is required, follow the recommendation. It considers hospital time AND your selected life target, permitted Small FAK/FAK/Morphine, reserves, bonuses and capacity. Medicines restore base 5%/10%/15% life and remove base 20/40/70 minutes of hospital; cooldown costs are 10/15/20 minutes. The planner minimizes total medical cooldown, then item count and price. Estimates use conservative whole-life-point rounding. Use one item manually and recalculate after updating counts. Full healing can consume substantial medical cooldown.
+7. Open checked target rechecks the account and target, then opens the attack page following your click. You initiate combat and attacks and choose Leave. Commander never selects combat controls or consumes items in this mode.
+8. Check fight result uses official outgoing attack receipts, matching your account, the opened target, start time and an unseen attack ID. Only Attacked (Leave) counts as a leveling win. Other completed results are separate. Cached/unfinished results do not count. Skip current discards the pending target without claiming a win.
+
+Source access: links/import only; no FFScouter registration, paid access, keys or data-sharing assumed. No private provider scraping. No fabricated XP totals or win guarantees. User-entered quantities are estimates; API status/log caching remains possible.
+
+Rules reference: https://www.torn.com/rules.php (checked 2026-10-22). Non-API game requests must be manually initiated. This feature is guided, not unattended, and does not alter existing Loss Desk code.
+Medical references: https://wiki.torn.com/wiki/Small_First_Aid_Kit ; https://wiki.torn.com/wiki/First_Aid_Kit ; https://wiki.torn.com/wiki/Morphine
+API fields verified against https://www.torn.com/swagger/openapi.json: user/profile, user/{id}/profile, user/bars, user/cooldowns, user/perks and user/attacks. Attack receipt access requires a Limited/Full key.

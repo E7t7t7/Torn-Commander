@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.62. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.63. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -160,3 +160,10 @@ Item Intelligence can optionally sample official Torn item-market asks for watch
 
 ### Smart Medical Management (v0.6.60)
 Loss Desk now plans bounded combinations of personal Small FAKs, FAKs and Morphine to minimize medical cooldown, then item count and configured cost/scarcity. Automatic consumption is off by default: stop the relevant worker, open Loss Desk > Smart Medical Management, select the account, choose Automatic and save permissions before restarting. Each account has independent permissions, reserves, modifiers and statistics. Drug IDs and faction supplies are excluded. Optional blood support is limited to universal O-negative bags with API-verified IV eligibility. See Guides/SMART_MEDICAL.txt for verified API fields, limitations and recovery behavior.
+
+### Guided Leveling (v0.6.63)
+Use **Leveling** to import ordered IDs, Torn profile links, ID-first CSV or FFScouter targets JSON. Check next verifies account energy/life and target availability through the official Torn API. Open checked target navigates only after your click; fight and choose Leave yourself, then Check fight result verifies a new matching attack receipt. Source links open the original providers; Commander does not transmit keys to them or scrape their private lists.
+
+Choose a 25/50/75/100% life target (full life is the default), an energy reserve and an optional session attack limit. Read personal medicine quantities from the active Medical page you manually opened, or enter estimates. Recovery recommendations minimize medical cooldown while satisfying both hospital exit and the selected life target; use medicines manually and recalculate after each item. Saved Smart Medical permissions/reserves/bonuses apply. Drugs and blood bags are excluded from this guided planner.
+
+Guided operation follows the manually initiated request requirement in [Torn’s scripting rules](https://www.torn.com/rules.php). It does not add an unattended attack/healing loop. Target lists and FF estimates cannot guarantee wins; exact XP is not available here. Account data and queues remain profile-local. API logs/statuses may be cached. Limited API access is needed to verify attack results. See `Guides/LEVELING.txt`.
