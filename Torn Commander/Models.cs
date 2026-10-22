@@ -57,6 +57,7 @@ public sealed class AppSettings
     public string UpdateGithubRepo { get; set; } = "E7t7t7/Torn-Commander";
     // Dashboard palette is local to this Windows installation, not carried in release ZIPs.
     public string UiTheme { get; set; } = "midnight";
+    public Dictionary<string,SmartMedicalSettings> SmartMedicalProfiles { get; set; } = new();
     public int LossAttackDelayMs { get; set; } = 1900;
     public bool TravelShowRouteMap { get; set; } = false;
     public DateTime TravelPlanCustomStartUtc { get; set; } = DateTime.MinValue;

@@ -142,6 +142,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Company/travel scenario regression failed.' }
           & 'Torn Commander/TEST_ITEM_INTELLIGENCE.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Item intelligence regression failed; release withheld.' }
+      - name: Check Smart Medical optimizer and verification
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_SMART_MEDICAL.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Smart Medical regression failed; release withheld.' }
       - name: Check shared API pacing and cooldown
         shell: pwsh
         run: |

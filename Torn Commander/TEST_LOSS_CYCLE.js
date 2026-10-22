@@ -4,7 +4,7 @@ const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0;
- let activeLease='';
+ let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0;
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
@@ -62,26 +62,41 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   const medical=node('a','Medical');medical.onclick=()=>scene='medical';
   if(scene==='items')return node('body','Your items',{},missingMedical?[]:[node('li','',{},[medical])]);
   if(scene==='medical'||scene==='confirm'){
-   const name=node('span','First Aid Kit');name.onclick=()=>{counts.expand++;if(!options.expandFails)expanded=true;};
+   const chosenName=({66:'Morphine',67:'First Aid Kit',68:'Small First Aid Kit',739:'Blood Bag : O-'})[options.selectedMedicalId||67];
+   const name=node('span',chosenName);name.onclick=()=>{counts.expand++;if(!options.expandFails)expanded=true;};
    let heading=name;if(options.headerOnly){name.onclick=()=>{};heading=node('div','',{role:'tab',id:'ui-accordion-6-header-0'},[name]);heading.onclick=()=>{counts.expand++;expanded=true;};}
    const controls=[heading];if(!options.collapsed||expanded)controls.push(button('Use',()=>scene='confirm'));
    if(options.collapsed)controls.unshift(node('span','x'+stock));
    const row=node('li','',options.collapsed?{role:'tablist',class:'first-in-row m-first-in-row t-first-in-row last-row'}:{'data-quantity':String(stock)},controls);
-   const wrong=node('li','',{'data-item-id':'68'},[node('span','Small First Aid Kit'),button('Use',()=>counts.wrong++)]);
+   const wrong=node('li','',{'data-item-id':'68'},[node('span',options.selectedMedicalId===68?'First Aid Kit':'Small First Aid Kit'),button('Use',()=>counts.wrong++)]);
    const children=[row,wrong];if(options.ambiguousKit)children.push(node('li','',{'data-item-id':'67'},[node('span','First Aid Kit')]));
-   if(scene==='confirm')children.push(node('div','Use First Aid Kit?',{role:'dialog'},[button('Okay',()=>{stock--;counts.medicine++;hospital=counts.medicine%(options.kitsRequired||1)!==0;scene='medical'})]));
+   if(scene==='confirm')children.push(node('div','Use '+chosenName+'?',{role:'dialog'},[button('Okay',()=>{if(options.failedMedicalUse){scene='medical';return;}stock--;counts.medicine++;hospital=counts.medicine%(options.kitsRequired||1)!==0;scene='medical'})]));
    return node('body','Your items - Medical',{},children);
   }
   return node('body','Torn');
  }
  let lastKey='',cached;
  function body(){const key=scene+stock+expanded+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
- const document={title:'Torn',get body(){return body()},querySelectorAll:s=>body().querySelectorAll(s)};
+ const owner=node('a','Seller',{href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
+ const document={title:'Torn',get body(){return body()},querySelectorAll:s=>s.startsWith('[id="sidebar"] a')?(options.missingMedicalAccount?[]:[owner]):body().querySelectorAll(s)};
  const location={href:'https://www.torn.com/index.php',pathname:'/index.php',assign(url){const u=new URL(url);this.href=url;this.pathname=u.pathname;scene=u.pathname==='/item.php'?'items':'attack';expanded=false}};
  class Clock extends Date{static now(){return clock}}
  const store=m=>({getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)});
  const window={chrome:{webview:{postMessage:raw=>{
   const m=JSON.parse(raw);messages.push(m);
+  if(m.type.startsWith('tc-medical-')){
+   assert.equal(m.medicalSession,'session-'+(options.slot||'A'));assert.equal(m.browserPlayerId,321);
+   assert(m.inventory.every(x=>[66,67,68,739].includes(x.id)),'Non-medical inventory/action');
+   if(m.type==='tc-medical-plan'){
+    medicalPlans++;
+    if(options.medicalCooldownOnce&&hospital&&cooldownWaits++===0){replies.push(()=>h.onMedical(m.requestId,{state:'Cooldown',reason:'Fixture cooldown',waitUntil:new Date(clock+5000).toISOString(),autoResume:options.medicalAutoResume===true}));return;}
+    medicalToken='medical-'+medicalPlans;
+    replies.push(()=>h.onMedical(m.requestId,!hospital?{state:'Recovered'}:{state:'Ready',itemId:options.badMedicalItem?206:(options.selectedMedicalId||67),name:options.badMedicalItem?'Xanax':({66:'Morphine',67:'First Aid Kit',68:'Small First Aid Kit',739:'Blood Bag : O-'})[options.selectedMedicalId||67],quantity:stock,token:medicalToken,expires:new Date(clock+40000).toISOString(),automatic:!options.medicalRecommend}));
+   }
+   if(m.type==='tc-medical-authorize'){assert.equal(m.token,medicalToken);if(options.alwaysMedicalReplan||(options.replanMedicalOnce&&medicalPlans===1)){replies.push(()=>h.onMedical(m.requestId,{state:'Replan',reason:'Fixture changed before dispatch'}));return;}replies.push(()=>h.onMedical(m.requestId,{state:'Authorized',itemId:options.selectedMedicalId||67,token:medicalToken,expires:new Date(clock+30000).toISOString()}));}
+   if(m.type==='tc-medical-verify'){assert.equal(m.token,medicalToken);assert.equal(h.onMedical('stale-reply',{state:'Verified',token:medicalToken}),false);replies.push(()=>h.onMedical(m.requestId,options.failMedicalVerification?{state:'Paused',reason:'Fixture failed verification'}:{state:'Verified',token:medicalToken}));}
+   return;
+  }
   if(options.coordinator&&m.type==='tc-loss-abandon'){assert.equal(options.coordinator.owner,options.slot);options.coordinator.owner='';return;}
   if(options.coordinator&&m.type==='tc-loss-claim'){replies.push(()=>options.coordinator.claim(options.slot,h,m));return;}
   if(options.coordinator&&m.type==='tc-loss-commit'){replies.push(()=>options.coordinator.commit(options.slot,h,m));return;}
@@ -90,7 +105,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  }}}};
  const context={window,document,location,URL,Date:Clock,Math,console,localStorage:store(local),sessionStorage:store(session),getComputedStyle:()=>({visibility:'visible',display:'block'}),setInterval:fn=>{interval=fn},setTimeout:()=>{}};
  vm.createContext(context);vm.runInContext(source,context);h=window.TornCommanderLossCycle;
- h.start({profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',maxKits:4,attackDelayMs:options.delay??1900});
+ h.start({profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
  return {h,counts,messages,async step(milliseconds=1000){h.pump();while(replies.length)replies.shift()();clock+=milliseconds;await Promise.resolve()}};
 }
 (async()=>{
@@ -164,5 +179,38 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  assert.equal(f.h.getState().stage,'paused');assert(f.h.getState().status.includes('Medical tab'));assert.equal(f.counts.medicine,0);
  f=fixture(false,false,true);for(let i=0;i<70;i++)await f.step();
  assert.equal(f.h.getState().stage,'paused');assert(f.h.getState().status.includes('JOIN FIGHT'));assert.equal(f.counts.pillow,0);
+ const smart=fixture(false,false,false,{smartMedical:true,collapsed:true,headerOnly:true,pillowHits:3,nestedMelee:true,sharedPlayerClass:true});
+ for(let i=0;i<1200&&smart.h.getState().stage!=='complete';i++)await smart.step(250);
+ assert.equal(smart.h.getState().stage,'complete',smart.h.getState().status);assert.equal(smart.counts.medicine,2);assert.equal(smart.counts.wrong,0);
+ assert.equal(smart.messages.filter(m=>m.type==='tc-medical-authorize').length,2);assert.equal(smart.messages.filter(m=>m.type==='tc-medical-verify').length,2);
+ for(const mode of [{medicalRecommend:true},{badMedicalItem:true},{wrongMedicalAccount:true},{missingMedicalAccount:true},{failedMedicalUse:true},{failMedicalVerification:true}]){
+  const one=fixture(false,false,false,{smartMedical:true,initialHospital:true,collapsed:true,headerOnly:true,...mode});
+  for(let i=0;i<400&&one.h.getState().stage!=='paused';i++)await one.step(250);
+  assert.equal(one.h.getState().stage,'paused',JSON.stringify(mode)+one.h.getState().status);
+  assert.equal(one.counts.medicine,mode.failMedicalVerification?1:0,'Unsafe medical consumption '+JSON.stringify(mode));
+  assert(one.messages.filter(m=>m.type==='tc-medical-authorize').length<=1,'Repeated failed authorization');assert.equal(one.counts.wrong,0);
+ }
+ for(const selectedMedicalId of [66,68,739]){
+  const med=fixture(false,false,false,{smartMedical:true,selectedMedicalId,initialHospital:true,collapsed:true,headerOnly:true});
+  for(let i=0;i<1200&&med.h.getState().stage!=='complete';i++)await med.step(250);
+  assert.equal(med.h.getState().stage,'complete',String(selectedMedicalId)+med.h.getState().status);assert.equal(med.counts.wrong,0);assert.equal(med.counts.medicine,3);
+ }
+ const replan=fixture(false,false,false,{smartMedical:true,initialHospital:true,replanMedicalOnce:true});
+ for(let i=0;i<1200&&replan.h.getState().stage!=='complete';i++)await replan.step(250);
+ assert.equal(replan.h.getState().stage,'complete',replan.h.getState().status);assert.equal(replan.counts.medicine,3);
+ const unstable=fixture(false,false,false,{smartMedical:true,initialHospital:true,alwaysMedicalReplan:true});
+ for(let i=0;i<500&&unstable.h.getState().stage!=='paused';i++)await unstable.step(250);
+ assert.equal(unstable.h.getState().stage,'paused');assert.equal(unstable.counts.medicine,0);assert(unstable.h.getState().status.includes('changed repeatedly'));
+ const wait=fixture(false,false,false,{smartMedical:true,initialHospital:true,medicalCooldownOnce:true,medicalAutoResume:true});
+ for(let i=0;i<1200&&wait.h.getState().stage!=='complete';i++)await wait.step(250);
+ assert.equal(wait.h.getState().stage,'complete',wait.h.getState().status);assert.equal(wait.counts.medicine,3);
+ const noResume=fixture(false,false,false,{smartMedical:true,initialHospital:true,medicalCooldownOnce:true});
+ for(let i=0;i<60&&noResume.h.getState().stage!=='paused';i++)await noResume.step(250);
+ assert.equal(noResume.h.getState().stage,'paused');assert.equal(noResume.counts.medicine,0);
+ coordinator.remaining=4;coordinator.owner='';coordinator.commits=0;
+ const medA=fixture(false,false,false,{coordinator,slot:'A',smartMedical:true,pillowHits:2}),medB=fixture(false,false,false,{coordinator,slot:'B',smartMedical:true,pillowHits:3});
+ for(let i=0;i<1800&&(medA.h.getState().stage!=='complete'||medB.h.getState().stage!=='complete');i++){await medA.step(250);await medB.step(250);}
+ assert.equal(medA.h.getState().stage,'complete',medA.h.getState().status);assert.equal(medB.h.getState().stage,'complete',medB.h.getState().status);assert.equal(coordinator.commits,4);assert.equal(medA.counts.medicine+medB.counts.medicine,4);
+ console.log('SMART MEDICAL WORKER PASSED: explicit consent, preflight, one-use dispatch, failed use/verification, account mismatch, drug rejection, cooldown/resume and simultaneous sessions.');
  console.log('LOSS FULL CYCLE PASSED: shared combatant classes, opponent Pillow in either DOM order, ambiguous-slot refusal, two solo losses, nested player roots, image identity, scroll, medical tab, label-only FAK row, confirmation, return, final recovery collapsed-kit expansion, bounded expansion failure, ambiguous-kit refusal, adjustable attack spacing and ambiguous-player refusal.');
 })().catch(e=>{console.error(e);process.exitCode=1});

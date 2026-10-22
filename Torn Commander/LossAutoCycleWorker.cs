@@ -108,6 +108,10 @@ internal sealed class LossAutoCycleWorker : IDisposable
         IsArmed = true;
     }
 
+    public async Task ReplyMedicalAsync(string requestId,object payload){
+        await EnsureReadyAsync();
+        await _webView.CoreWebView2.ExecuteScriptAsync("window.TornCommanderLossCycle?.onMedical("+JsonSerializer.Serialize(requestId)+","+DashboardJson.Serialize(payload)+");");
+    }
     public async Task SetAttackDelayAsync(int milliseconds) => await InvokeAsync("setAttackDelay", milliseconds);
 
     public async Task PauseAsync() => await InvokeNoArgAsync("pause");
@@ -147,6 +151,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
     {
         try
         {
+            if(!Uri.TryCreate(e.Source,UriKind.Absolute,out var origin)||origin.Scheme!="https"||origin.Host!="www.torn.com")return;
             var text = e.TryGetWebMessageAsString();
             if (string.IsNullOrWhiteSpace(text)) return;
             using var doc = JsonDocument.Parse(text);

@@ -168,3 +168,17 @@ assert(nodes.iiMarketQuotes.checked&&nodes.iiDatasetSources.innerHTML.includes('
 context.renderItemIntelligence({catalog:[],cards:[],health:[],marketQuotes:false,diagnostics:[]},'market-B');
 assert(!nodes.iiMarketQuotes.checked&&!nodes.iiDatasetSources.innerHTML.includes('Official Torn'),'Market settings/diagnostics leaked across profiles');
 console.log('MARKET HISTORY UI PASSED: unknown asks, staleness, opt-in collection and profile isolation.');
+
+vm.runInContext(script.slice(script.indexOf('const medItems='),script.indexOf('function saveLossTiming(')),context);
+nodes.medProfile.value='A';
+const medProfiles=[{id:'A',name:'Account A',settings:{enabled:true,automatic:false,autoDetect:true,permissions:{66:true,67:true,68:true},reserves:{67:5}}},{id:'B',name:'Account B',settings:{enabled:true,automatic:true,autoDetect:false,manualBonusPercent:20,manualMaximumMinutes:540,permissions:{66:true}}}];
+context.renderSmartMedical({profiles:medProfiles,sessions:[{slot:'A',profile:'A',note:'Fixture',cooldownSeconds:1200,maximumSeconds:21600,hospitalSeconds:1800,itemsUsed:2,cooldownUsed:1800,savedSeconds:-300,losses:2,inventory:{67:10},next:'First Aid Kit',plannedCooldownSeconds:900}]});
+assert.equal(nodes.medMode.value,'recommend');assert(nodes.medItemSettings.innerHTML.includes('Small FAK')&&nodes.medItemSettings.innerHTML.includes('value="5"'),'Medical permissions/reserves missing');
+assert(nodes.medicalSessions.innerHTML.includes('extra cost')&&nodes.medicalSessions.innerHTML.includes('Account A'),'Misleading savings or session identity');
+nodes.medBonus.value='19';context.renderSmartMedical({profiles:medProfiles,sessions:[]});assert.equal(nodes.medBonus.value,'19','Background status erased medical draft');
+nodes.medProfile.value='B';context.loadMedicalSettings();assert.equal(nodes.medBonus.value,20);assert.equal(nodes.medMode.value,'automatic');
+assert(!nodes.medItemSettings.innerHTML.includes('Xanax'),'Drug permission present');
+let medicalMessage;context.send=(type,data)=>{medicalMessage={type,data}};
+for(const id of [66,67,68,739]){nodes['medAllow'+id]={checked:id===66};nodes['medKeep'+id]={value:'2'};nodes['medPrice'+id]={value:'0'};}
+context.saveMedicalSettings();assert.equal(medicalMessage.data.profileId,'B');assert(!Object.keys(medicalMessage.data.settings.permissions).includes('206'),'Drug entered settings payload');
+console.log('SMART MEDICAL DASHBOARD PASSED: explicit consent, profile-specific permissions, reserve drafts, account stats and honest extra-cost display.');

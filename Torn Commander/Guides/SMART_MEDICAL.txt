@@ -1,0 +1,37 @@
+SMART MEDICAL MANAGEMENT — v0.6.60
+Setup: stop the account's worker. In Loss Desk > Smart Medical Management select that local profile. Review item permissions/reserves, choose Automatic only if you want consumption, save, then start the worker. Default is recommendation-only. Existing accounts do not silently inherit permission to consume new item types. Settings persist locally. Stop/restart is required to change active permissions.
+
+DRUGS AND SUPPLIES
+A closed native item catalog and separate closed browser map allow only Small FAK #68, FAK #67, Morphine #66 and optional O-negative #739. Drug IDs can neither be configured nor returned by the planner. This module never schedules Xanax, uses drug cooldown, changes a drug schedule or selects drug fallback. It never opens or consumes faction armory supplies.
+O-negative is universally compatible; automatic use still needs an account-perks ability confirming IV blood-use eligibility. Blood support and its individual permission are both off initially. Other blood types, irradiated and empty bags remain excluded because the verified own-profile schema does not expose authoritative blood type. Manual bonus mode cannot assert blood eligibility.
+
+PLANNING
+Base hospital reductions/cooldown costs (minutes): Small FAK 20/10, FAK 40/15, Morphine 70/20, supported bag 120/30.
+Effectiveness bonuses increase hospital reduction, never the base cooldown cost. Education and faction percentages are additive. The planner enumerates bounded inventory combinations using dynamic programming with binary bundles. It minimizes cooldown, then number of items, configured/reference expense, then scarcity. A complete sequence must be feasible with reserves; it does not waste partial healing when no full recovery is possible.
+Each use is eligible while current cooldown is BELOW the limit. Without a user reserve, the last item can put the resulting cooldown above the limit. A configured cooldown reserve deliberately imposes a stricter post-use ceiling. If supplies can recover the account later, the next eligible check time is calculated rather than repeatedly attempting a disabled item.
+
+VERIFIED API (official OpenAPI inspected 2026-10-22)
+https://www.torn.com/swagger/openapi.json
+GET /v2/user/profile — public permission: profile.id, status.state and status.until (Unix time).
+GET /v2/user/cooldowns — minimal permission: cooldowns.medical in seconds. Drug/booster values are not used.
+GET /v2/user/perks — minimal permission: string arrays, including education/faction. Medical effectiveness percentages and reported medical cooldown extensions are parsed conservatively. Perks are refreshed at least every five minutes during use checks. Unrecognized medical modifiers pause for explicit manual configuration.
+Base capacity is six hours; reported upgrades can extend it to nine. Manual capacity/effectiveness settings are user supplied, clearly labeled and not API verified.
+GET /v2/user/inventory is documented as cached one hour per category. It is deliberately NOT treated as fresh consumption evidence. The worker scans the personal Items > Medical page, waits for stable quantities, and checks the sidebar account against the API account. Missing/ambiguous identity or item controls stop automatic consumption.
+
+EXECUTION AND RECOVERY
+A worker receives only the next item, not authority to consume the whole combination blindly. Before Use it obtains a fresh native account/hospital/cooldown authorization with an expiring one-use token. Browser account, item identity and quantity must still agree. Confirmation can be clicked once. Exactly one quantity decrement, the expected medical cooldown increment and the hospital reduction must all verify before another plan is allowed.
+A timeout or mismatched result pauses. It never retries an uncertain item, guesses success from a closed dialog, solves verification screens, or uses drugs. Review the diagnostic and visible game state before restarting after an uncertain dispatch.
+Cooldown waiting is automatic only when both Automatic consumption and Auto resume were explicitly enabled. The waiting worker releases any target claim, allowing another account to proceed. Manual Pause, Stop, app/browser restart and uncertain state do not silently auto-resume.
+
+STATISTICS
+Each active account session has separate losses, quantities, items and cooldown consumption. Completed verified recoveries compare actual cooldown cost with regular FAKs at the first observed hospital duration/bonus; negative savings mean extra cost. Remaining heals/losses are approximate from eligible supplies, last completed recovery cost/duration and remaining cooldown. They do not guarantee future hospital times, stock, energy, or losses. Earlier sessions' verified-use/failure audit snapshots remain profile-local in the intelligence database.
+
+TESTING / LIMITATIONS
+Tests include the required hospital durations, bonuses, six/nine-hour limits, final overshoot, empty/missing/reserved inventory, ties, multi-item solutions, stale/future observations, drug rejection, failed use/verification, cooldown resume, four item selectors and concurrent account sessions. DP results are compared with a brute-force oracle. Dashboard isolation/consent/draft tests are part of release validation.
+The UI was checked using synthetic data. No real items or drugs were consumed during development. Live Torn markup/permissions and server freshness can differ; the module pauses when it cannot establish the required evidence.
+
+Rules and item sources:
+https://wiki.torn.com/wiki/Medical
+https://wiki.torn.com/wiki/Hospital
+https://wiki.torn.com/wiki/Perks
+https://wiki.torn.com/wiki/Blood_Bag_:_O-

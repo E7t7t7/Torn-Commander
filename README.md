@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.59. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.60. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -156,3 +156,7 @@ Travel and sequence plans consume fresh SQLite stock evidence. Supported local f
 
 ### Item-market history and source diagnostics (v0.6.57)
 Item Intelligence can optionally sample official Torn item-market asks for watched items, rotating up to five IDs per poll through the shared API queue. Saved samples produce local price charts and threshold-crossing alerts. These are returned asking prices, not completed sales, a complete bazaar scan, or a promised profit. Empty offers remain unknown. Settings includes a source/freshness overview. Stock and profile-scoped market history export to CSV without the on-screen history limit. The v0.6.56 Pillow and fight-resume fixes are retained.
+
+
+### Smart Medical Management (v0.6.60)
+Loss Desk now plans bounded combinations of personal Small FAKs, FAKs and Morphine to minimize medical cooldown, then item count and configured cost/scarcity. Automatic consumption is off by default: stop the relevant worker, open Loss Desk > Smart Medical Management, select the account, choose Automatic and save permissions before restarting. Each account has independent permissions, reserves, modifiers and statistics. Drug IDs and faction supplies are excluded. Optional blood support is limited to universal O-negative bags with API-verified IV eligibility. See Guides/SMART_MEDICAL.txt for verified API fields, limitations and recovery behavior.

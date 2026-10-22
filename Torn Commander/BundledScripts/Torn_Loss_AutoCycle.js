@@ -176,6 +176,112 @@
     return null;
   }
 
+  // Closed personal-medical executor. Planning/consent live in the native backend.
+  const medicalPage=()=>isItemsPage()&&new URL(location.href).origin==='https://www.torn.com';
+  const medicalNames={66:'Morphine',67:'First Aid Kit',68:'Small First Aid Kit',739:'Blood Bag : O-'};
+  const sameMedicalName=(text,name)=>clean(text).replace(/\s*:\s*/g,':').toLowerCase()===clean(name).replace(/\s*:\s*/g,':').toLowerCase();
+  function medicalOwnId(){
+    const ids=new Set();
+    for(const link of document.querySelectorAll('[id="sidebar"] a[href*="profiles.php"],[id="sidebarroot"] a[href*="profiles.php"],[class*="sidebar"] a[href*="profiles.php"]')){
+      try{const u=new URL(link.getAttribute('href'),location.href),id=Number(u.searchParams.get('XID'));if(id>0)ids.add(id);}catch{}
+    }
+    return ids.size===1?[...ids][0]:null;
+  }
+  function medicalRow(id){
+    const name=medicalNames[id];if(!name||!medicalPage())return null;
+    const markers=Array.from(document.querySelectorAll('span,strong,b,h3,h4,a,div')).filter(el=>visible(el)&&!el.children?.length&&sameMedicalName(el.textContent,name));
+    const rows=[];
+    for(const marker of markers)for(let node=marker,depth=0;node&&depth<8;node=node.parentElement,depth++){
+      if(!visible(node))continue;
+      const tag=String(node.tagName||'').toLowerCase();
+      if(!['li','tr'].includes(tag))continue;
+      if(/faction|armory|borrowed/i.test(clean(node.textContent))||['data-faction-owned','data-armory','data-borrowed'].some(k=>['true','1'].includes(node.getAttribute?.(k))))break;
+      const ids=[node,...node.querySelectorAll('[data-item-id],[data-itemid],[data-item]')].flatMap(n=>['data-item-id','data-itemid','data-item'].map(k=>n.getAttribute?.(k)).filter(Boolean));
+      if(ids.some(x=>String(x)!==String(id)))break;
+      rows.push(node);break;
+    }
+    const roots=outerRoots(rows);return roots.length===1?roots[0]:null;
+  }
+  function medicalCount(id){
+    const row=medicalRow(id);if(!row)return null;
+    for(const node of [row,...row.querySelectorAll('[data-qty],[data-quantity]')])for(const key of ['data-qty','data-quantity']){const q=node.getAttribute?.(key);if(q!=null&&/^\d+$/.test(q))return Number(q);}
+    const text=clean(row.textContent).replace(/\s*:\s*/g,':'),name=medicalNames[id].replace(/\s*:\s*/g,':').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const m=text.match(new RegExp('(?:^|\\s)[x×]\\s*(\\d+)\\s*'+name+'(?=\\s|$)','i'))||text.match(new RegExp(name+'\\s*[x×]\\s*(\\d+)\\b','i'));
+    return m?Number(m[1]):null;
+  }
+  function medicalInventory(){
+    const rows=[];for(const id of Object.keys(medicalNames).map(Number)){const q=medicalCount(id);if(q!==null)rows.push({id,quantity:q});}return rows;
+  }
+  function medicalUse(id){
+    const row=medicalRow(id);if(!row)return null;
+    const candidates=Array.from(row.querySelectorAll('button,a,[role="button"],[data-action],span,div')).filter(el=>visible(el)&&enabledControl(el,row.parentElement)&&
+      (/^(use|use item)$/i.test(labelOf(el))||labelOf(el)==='use '+medicalNames[id].toLowerCase()||el.getAttribute?.('data-action')==='use'||(!labelOf(el)&&/\b(use|check|consume)\b/.test(String(el.className||'').replace(/[-_]/g,' ')))));
+    const roots=outerRoots(candidates);return roots.length===1?roots[0]:null;
+  }
+  function medicalExpand(id){
+    const row=medicalRow(id);if(!row)return null;
+    if([row,...row.querySelectorAll('[aria-expanded]')].some(x=>x.getAttribute?.('aria-expanded')==='true'))return null;
+    const headers=outerRoots(Array.from(row.querySelectorAll('[role="tab"],[id*="ui-accordion-"]')).filter(el=>visible(el)&&enabledControl(el,row.parentElement)&&(el.getAttribute?.('role')==='tab'||/-header-/.test(el.getAttribute?.('id')||''))));
+    if(headers.length)return headers.length===1?headers[0]:null;
+    const names=Array.from(row.querySelectorAll('span,strong,b,h3,h4,a')).filter(el=>visible(el)&&!el.children?.length&&sameMedicalName(el.textContent,medicalNames[id]));return names.length===1?names[0]:null;
+  }
+  function medicalConfirm(id){
+    const row=medicalRow(id),name=medicalNames[id];if(!row||!name)return null;
+    const roots=outerRoots(Array.from(document.querySelectorAll('[role="dialog"],[class*="confirm"],[class*="Confirm"],[class*="modal"],[class*="dialog"]')).filter(el=>visible(el)&&clean(el.textContent).length<1200&&clean(el.textContent).toLowerCase().includes(name.toLowerCase())&&
+      !Object.entries(medicalNames).some(([other,label])=>Number(other)!==id&&clean(el.textContent).toLowerCase().includes(label.toLowerCase())&&(id!==68||Number(other)!==67))));
+    if(roots.length!==1)return null;
+    const buttons=Array.from(roots[0].querySelectorAll('button,a,[role="button"]')).filter(el=>visible(el)&&enabledControl(el,roots[0].parentElement)&&/^(okay|ok|confirm|use)$/i.test(labelOf(el)));return buttons.length===1?buttons[0]:null;
+  }
+  function requestMedical(state,type,extra={}){
+    const owner=medicalOwnId();
+    if(owner!==Number(state.playerId)){pauseState(state,'Medical account identity is missing or differs from this worker. No item was authorized.',true);return;}
+    state.medicalRequest='med_'+now()+'_'+Math.random().toString(36).slice(2);state.medicalReplyAt=now();state.stage='smart-medical-await';save(state);
+    post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),...extra});
+  }
+  function replanMedical(state,reason){
+    state.medicalReplans=Number(state.medicalReplans||0)+1;
+    if(state.medicalReplans>3){pauseState(state,'Medical state changed repeatedly; review before continuing. No uncertain item was retried.',true);return;}
+    state.medicalOp=null;state.medicalExpandedAt=0;state.medicalInventorySignature='';state.stage='heal-open';state.status=reason;save(state);
+  }
+  function smartMedicalTick(state){
+    if(!medicalPage()||medicalOwnId()!==Number(state.playerId)){pauseState(state,'Medical page/account changed. No further item clicks allowed.',true);return;}
+    if(state.stage==='medical-cooldown'){
+      if(now()<state.medicalWakeAt)return;
+      state.medicalOp=null;requestMedical(state,'tc-medical-plan');return;
+    }
+    if(state.stage==='smart-medical-await'){
+      if(now()-state.medicalReplyAt>45000)pauseState(state,'Medical backend did not verify state within 45 seconds. No action was retried.',true);return;
+    }
+    const op=state.medicalOp;
+    if(!op||!medicalNames[op.itemId]||!sameMedicalName(op.name,medicalNames[op.itemId])||now()>Date.parse(op.expires)){
+      pauseState(state,'Medical operation expired or is not allowlisted. No item retry.',true);return;
+    }
+    if(state.stage==='smart-medical-ready'){
+      if(medicalCount(op.itemId)!==op.quantity){replanMedical(state,'Medical stock changed before dispatch; recalculating without a click.');return;}
+      const use=medicalUse(op.itemId);
+      if(!use){
+        if(!state.medicalExpandedAt){const header=medicalExpand(op.itemId);if(header){state.medicalExpandedAt=now();save(state);click(header);return;}}
+        if(now()-state.medicalReplyAt>15000)pauseState(state,'Selected medical item did not expose one verified Use control. No item consumed.',true);return;
+      }
+      requestMedical(state,'tc-medical-authorize',{token:op.token});return;
+    }
+    if(state.stage==='smart-medical-execute'){
+      if(state.medicalDispatched||medicalCount(op.itemId)!==op.quantity){pauseState(state,'Medical dispatch identity/count changed. No retry.',true);return;}
+      const use=medicalUse(op.itemId);if(!use){pauseState(state,'Authorized Use control disappeared. No retry.',true);return;}
+      state.medicalDispatched=true;state.medicalUseAt=now();state.medicalConfirmed=false;state.stage='smart-medical-wait';save(state);
+      if(!click(use))pauseState(state,'Medical click could not be dispatched; review before restarting.',true);return;
+    }
+    if(state.stage==='smart-medical-wait'){
+      let count=medicalCount(op.itemId);
+      if(count===null&&op.quantity===1&&medicalVisible()&&!medicalRow(op.itemId))count=0; // Backend still requires cooldown AND hospital evidence.
+      if(count===op.quantity-1){requestMedical(state,'tc-medical-verify',{token:op.token});return;}
+      if(count!==null&&count!==op.quantity){pauseState(state,'Medical stock changed by an unexpected amount; no retry.',true);return;}
+      const confirm=medicalConfirm(op.itemId);
+      if(confirm&&!state.medicalConfirmed){state.medicalConfirmed=true;save(state);click(confirm);return;}
+      if(now()-state.medicalUseAt>20000)pauseState(state,'Medical consumption not verified. No second item or drug fallback.',true);
+    }
+  }
+
   function firstAidRow() {
     const markers=Array.from(document.querySelectorAll('[data-item-id="67"],[data-id="67"],[data-item="67"],[data-itemid="67"]')).filter(visible);
     for(const leaf of document.querySelectorAll('span,div,strong,b,h3,h4,p'))if(visible(leaf)&&!leaf.children?.length&&clean(leaf.textContent)==='First Aid Kit')markers.push(leaf);
@@ -480,6 +586,7 @@
         return;
       }
 
+      if(state.smartMedical&&(state.stage.startsWith('smart-medical-')||state.stage==='medical-cooldown')){smartMedicalTick(state);return;}
       if (state.stage === 'heal-open') {
         if (!isItemsPage()) {
           state.status = 'Opening Items / Medical.';
@@ -507,6 +614,12 @@
           return;
         }
         state.medicalClickedAt = 0;
+        if(state.smartMedical){
+          const signature=JSON.stringify(medicalInventory());
+          if(state.medicalInventorySignature!==signature){state.medicalInventorySignature=signature;state.medicalInventorySettledAt=now();save(state);return;}
+          if(now()-Number(state.medicalInventorySettledAt||0)<1250)return;
+          state.medicalInventorySignature='';state.medicalOp=null;state.medicalExpandedAt=0;state.medicalDispatched=false;requestMedical(state,'tc-medical-plan');return;
+        }
         if (Number(state.kitsThisLoss || 0) >= Number(state.maxKits || 4)) {
           pauseState(state, 'First Aid Kit limit reached. Review hospital time before continuing.', true);
           return;
@@ -653,10 +766,11 @@
         orderId: String(config.orderId || ''),
         targetId: String(config.targetId || ''),
         selfName: String(config.selfName || ''),
+        smartMedical:config.smartMedical===true,playerId:Number(config.playerId||0),medicalSession:String(config.medicalSession||''),
         attackDelayMs: attackDelay(config.attackDelayMs ?? 1900),
         maxKits: Math.max(1, Math.min(8, Number(config.maxKits || 4))),
         running: true,
-        stage: 'claim',
+        stage: config.smartMedical===true?'heal-open':'claim',
         claimId: '',
         startedAt: now(),
         sessionToken: token,
@@ -776,9 +890,27 @@
       else openPage(state,ITEMS_URL,'Items / Medical');
       return true;
     },
+    onMedical(requestId,reply){
+      const state=load();if(!medicalPage()||!state?.running||!state.smartMedical||state.stage!=='smart-medical-await'||state.medicalRequest!==requestId)return false;
+      if(reply.state==='Ready'){
+        if(!medicalNames[reply.itemId]||!sameMedicalName(reply.name,medicalNames[reply.itemId])){pauseState(state,'Backend medical item is outside the fixed allowlist.',true);return false;}
+        state.medicalOp=reply;state.medicalDispatched=false;state.medicalExpandedAt=0;
+        if(!reply.automatic){pauseState(state,'Recommendation only: '+reply.name+'. Enable automatic consumption explicitly in Smart Medical Management to use it.',true);return true;}
+        state.stage='smart-medical-ready';state.status='Plan: '+reply.name+'. Verifying personal inventory and account.';save(state);return true;
+      }
+      if(reply.state==='Authorized'&&state.medicalOp?.token===reply.token&&state.medicalOp.itemId===reply.itemId){state.medicalOp.expires=reply.expires;state.stage='smart-medical-execute';save(state);return true;}
+      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token){state.medicalOp=null;state.medicalReplans=0;state.stage='recovery-probe';state.probeStartedAt=now();state.status='Medical quantity, cooldown and hospital changes verified. Rechecking recovery.';save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
+      if(reply.state==='Replan'){replanMedical(state,reply.reason||'Recalculating medical plan before dispatch.');return true;}
+      if(reply.state==='Recovered'){state.stage='recovery-probe';state.probeStartedAt=now();save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
+      if(reply.state==='Cooldown'&&reply.autoResume&&Number.isFinite(Date.parse(reply.waitUntil))){
+        if(state.claimId){post({type:'tc-loss-abandon',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,reason:'Medical cooldown waiting'});state.claimId='';}
+        state.stage='medical-cooldown';state.medicalWakeAt=Math.max(now()+1000,Date.parse(reply.waitUntil));state.status='Medical cooldown/reserve wait until '+new Date(state.medicalWakeAt).toLocaleTimeString()+'. Drugs permanently disabled.';save(state);return true;
+      }
+      pauseState(state,(reply.reason||'Medical state could not be verified.')+(reply.waitUntil?' Available after '+new Date(reply.waitUntil).toLocaleString():''),true);return true;
+    },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {medicalSession:load()?.medicalSession,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },

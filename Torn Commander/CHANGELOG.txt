@@ -1,3 +1,18 @@
+v0.6.60 (2026-10-22) — Smart Medical Management for Loss Desk
+- Add a reusable bounded-knapsack SmartMedicalOptimizer: minimum medical cooldown, then fewer items, configured/reference price and supply abundance; recompute after each item.
+- Fixed backend allowlist includes Small FAK #68 (20m/10m), FAK #67 (40m/15m), Morphine #66 (70m/20m), and optional O-negative bag #739 (120m/30m). Drugs, empty/irradiated bags, other blood types and faction supplies are excluded.
+- Verify current official user/profile, user/cooldowns and user/perks fields/permissions; use Hospital until, medical cooldown, reported education/faction modifiers and capacity extensions. Manual overrides are explicitly unverified. Unknown modifiers pause.
+- Avoid the hour-cached user/inventory endpoint for consumption decisions: scan stable personal Medical-page rows and quantities, confirm browser/API account identity, and require fresh one-use native authorization.
+- Bind every plan, dispatch and receipt to worker/profile/order/session; verify exactly one quantity decrement plus medical cooldown and hospital changes. Expired, failed or uncertain actions pause without repeating consumption.
+- Respect six/nine-hour eligibility before each item, including legitimate final-item overshoot; support inventory/cooldown reserves and eligible-time calculation. Optional automatic cooldown resume releases target reservations and honors explicit pause/restart boundaries.
+- Add a collapsible responsive Loss Desk section with per-account permissions, recommendation-only default, opt-in automatic consumption, bonus overrides, price/reserve controls and permanently-disabled-drug notice.
+- Display account-separated live hospital/cooldown, quantities, recommendation, complete-heal cooldown, session losses/items/cooldown, completed-recovery FAK comparison and explicitly estimated remaining heals/losses.
+- Record profile-local verified-use/failure audit snapshots without credentials or browser markup. Audit failure does not invalidate an already verified use.
+- Add 120-case brute-force DP comparison plus durations, bonus combinations, capacities, overshoot, stock/reserve/cost ties, stale data, failed verification, account isolation and drug-exclusion tests.
+- Extend synthetic worker tests across all four item selectors, delayed/failed consumption, wrong accounts, recommendation mode, cooldown resume and simultaneous sessions; add dashboard consent/profile/draft tests and a Windows release test gate.
+- Validation: local .NET build, medical planner/verifier, worker/protocol and dashboard suites; UI inspected with synthetic data only. Live account consumption was not performed during development.
+- Limitations: other blood types require an authoritative blood-type source and remain unsupported; no armory mode. API/UI uncertainty pauses. Automatic mode requires a saved opt-in for each account and must be changed while its worker is stopped.
+
 v0.6.59 (2026-10-21) — Live-page Pillow ownership correction
 - Read the stalled live fight: both combatants use playerArea and both weapon controls use weapon_melee.
 - Distinguish the attacker's Attack with Pillow action from the opponent's This weapon is not available control, instead of treating the duplicated ID as ownership.
