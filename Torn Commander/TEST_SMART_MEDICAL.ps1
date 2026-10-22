@@ -47,6 +47,14 @@ Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{ProfileId="B"},67,now.
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{CooldownSeconds=1000},67,now.AddSeconds(5)),"unverified cooldown");
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{HospitalUntilUtc=before.HospitalUntilUtc},67,now.AddSeconds(5)),"unverified hospital reduction");
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after,206,now.AddSeconds(5)),"drug verification accepted");
+var unused=before with{ObservedUtc=now.AddSeconds(5),CooldownSeconds=995};
+Assert(SmartMedicalOptimizer.VerifyUnused(before,unused,67,now.AddSeconds(5)),"unused authorization not recoverable");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,after,67,now.AddSeconds(5)),"consumed item reauthorized");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{ProfileId="B"},67,now.AddSeconds(5)),"cross-account unused authorization");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{CooldownSeconds=1500},67,now.AddSeconds(5)),"changed cooldown treated as unused");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{HospitalUntilUtc=now},67,now.AddSeconds(5)),"changed hospital treated as unused");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused,67,now.AddMinutes(2)),"stale pending authorization reused");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused,206,now.AddSeconds(5)),"drug unused authorization");
 var random=new Random(901);settings=new SmartMedicalSettings();
 for(int trial=0;trial<120;trial++){
  int a=random.Next(5),b=random.Next(5),c=random.Next(5),hospital=random.Next(1,160),cd=random.Next(19000,21700);var o=Obs(hospital,cd,inventory:new(){{68,a},{67,b},{66,c}});var actual=SmartMedicalOptimizer.Plan(o,settings,now);int expected=int.MaxValue;

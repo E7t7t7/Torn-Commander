@@ -1,3 +1,11 @@
+v0.6.62 (2026-10-22) — Recover interrupted medical authorization correctly
+- Preserve the pending medical operation across Pause/Resume. Observe and verify an already-dispatched item; do not skip to a new attack or repeat its Use click.
+- Reconcile an interrupted pre-dispatch authorization only with its matching account/session/token, an explicit not-dispatched state, unchanged inventory/hospital expiry, and fresh medical cooldown evidence. Unknown outcomes still pause.
+- Retain the operation token through replanning so unused authorization can be reconciled. Expired unused plans replan before clicking; consumed items can still be verified after their pre-use permission expires.
+- Distinguish disabled automatic healing, mismatched requests, already-authorized operations and unused-plan expiry instead of reporting them all as a permission failure.
+- Preserve all existing per-account medical permissions and zero reserves. Drugs remain excluded.
+- Validation: add worker interruption tests before authorization, after authorization and after consumption; add pure verification tests for unused/consumed, changed hospital/cooldown, stale snapshots, account mismatch and drug rejection. No live item consumption in testing.
+
 v0.6.61 (2026-10-22) — Reduce repeated Smart Medical verification delays
 - Bound medical optimization by the current hospital duration instead of searching surplus inventory combinations; preserve minimum cooldown, reserve, price and quantity tie-break rules.
 - Reuse the same account/session API observation for pre-use authorization only while at most 10 seconds old. Recheck browser identity and inventory; refresh expired observations and always fetch new hospital/cooldown data after consumption.

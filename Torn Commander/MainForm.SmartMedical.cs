@@ -63,10 +63,14 @@ public sealed partial class MainForm
             var settings=MedicalSettings(worker.ProfileId);settings.Validate();
             var inventory=ReadMedicalInventory(request);
             if(type=="tc-medical-plan"){
-                if(!string.IsNullOrEmpty(s.Pending)&&s.Issued&&!s.Verified)throw new InvalidDataException("A prior item dispatch is unverified; do not retry consumption. Stop and review the worker diagnostic.");
+                // Authorization is not proof of a click. Recover a pre-dispatch interruption
+                // only when the matching browser operation and fresh API evidence prove no use.
+                bool unresolved=!string.IsNullOrEmpty(s.Pending)&&s.Issued&&!s.Verified;
+                if(unresolved&&(s.Item is null||s.Observation is null||ReadWorkerString(request,"operationToken")!=s.Pending||!request.TryGetProperty("medicalDispatched",out var dispatched)||dispatched.ValueKind!=JsonValueKind.False))throw new InvalidDataException("The previous healing operation still needs verification. Resume that operation before another attack; if its outcome cannot be verified, stop and review. Your healing permissions are enabled.");
                 if(DateTime.UtcNow-s.LastRequest<TimeSpan.FromSeconds(3))throw new InvalidDataException("Medical refresh requested too quickly; pause and review.");s.LastRequest=DateTime.UtcNow;
                 var observation=await ReadMedicalObservationAsync(worker,s,inventory);
                 if(!MedicalContext(worker,s,request))return;
+                if(unresolved&&!SmartMedicalOptimizer.VerifyUnused(s.Observation!,observation,s.Item!.Id,DateTime.UtcNow))throw new InvalidDataException("Could not prove the previous healing permission was unused. No second item authorized; stop and review the item count and cooldown.");
                 s.Observation=observation;s.Plan=SmartMedicalOptimizer.Plan(observation,settings,DateTime.UtcNow);s.Note=s.Plan.Reason;
                 if(s.EpisodeBaseline==0&&s.Plan.State=="Ready"){s.EpisodeBaseline=s.Plan.FakBaselineSeconds;s.LastHospitalSeconds=s.Plan.HospitalSeconds;}
                 s.Pending="";s.Issued=false;s.Verified=false;
@@ -78,7 +82,10 @@ public sealed partial class MainForm
                 s.Item=SmartMedicalOptimizer.Item(s.Plan.Items[0]);s.Before=inventory;s.Pending=Guid.NewGuid().ToString("N");s.PendingUntil=DateTime.UtcNow.AddSeconds(40);
                 await worker.ReplyMedicalAsync(rid,new{state="Ready",reason=s.Plan.Reason,token=s.Pending,itemId=s.Item.Id,name=s.Item.Name,quantity=inventory.GetValueOrDefault(s.Item.Id),expires=s.PendingUntil,automatic=settings.Enabled&&settings.Automatic,medicalSession=s.Id});
             }else if(type=="tc-medical-authorize"){
-                if(!settings.Enabled||!settings.Automatic||s.Item is null||s.Observation is null||ReadWorkerString(request,"token")!=s.Pending||s.Issued||DateTime.UtcNow>s.PendingUntil)throw new InvalidDataException("Medical permission expired or is recommendation-only.");
+                if(!settings.Enabled||!settings.Automatic)throw new InvalidDataException("Automatic healing is disabled for this account. Save Automatic mode in its medical settings.");
+                if(s.Item is null||s.Observation is null||ReadWorkerString(request,"token")!=s.Pending)throw new InvalidDataException("Healing request does not match this account's pending operation; no item authorized.");
+                if(s.Issued)throw new InvalidDataException("This healing operation was already authorized. Verify its outcome before requesting another use; your saved permissions are enabled.");
+                if(DateTime.UtcNow>s.PendingUntil){s.Pending="";await worker.ReplyMedicalAsync(rid,new{state="Replan",reason="The unused healing plan expired; refreshing hospital and cooldown."});return;}
                 if(inventory.GetValueOrDefault(s.Item.Id)!=s.Before.GetValueOrDefault(s.Item.Id)){s.Pending="";await worker.ReplyMedicalAsync(rid,new{state="Replan",reason="Personal inventory changed before dispatch; recalculating."});return;}
                 // The plan's API snapshot is still fresh while opening the item accordion.
                 // Avoid repeating two queued API reads immediately before the same dispatch.

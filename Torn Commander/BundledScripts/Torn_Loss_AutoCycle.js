@@ -236,12 +236,12 @@
     const owner=medicalOwnId();
     if(owner!==Number(state.playerId)){pauseState(state,'Medical account identity is missing or differs from this worker. No item was authorized.',true);return;}
     state.medicalRequest='med_'+now()+'_'+Math.random().toString(36).slice(2);state.medicalReplyAt=now();state.stage='smart-medical-await';state.status=type==='tc-medical-plan'?'Checking hospital time and medical cooldown with Torn API.':type==='tc-medical-authorize'?'Checking medical permission before use.':'Verifying item use and hospital recovery with Torn API.';save(state);
-    post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),...extra});
+    post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),operationToken:state.medicalOp?.token||'',medicalDispatched:state.medicalDispatched===true,...extra});
   }
   function replanMedical(state,reason){
     state.medicalReplans=Number(state.medicalReplans||0)+1;
     if(state.medicalReplans>3){pauseState(state,'Medical state changed repeatedly; review before continuing. No uncertain item was retried.',true);return;}
-    state.medicalOp=null;state.medicalExpandedAt=0;state.medicalInventorySignature='';state.stage='heal-open';state.status=reason;save(state);
+    state.medicalExpandedAt=0;state.medicalInventorySignature='';state.stage='heal-open';state.status=reason;save(state);
   }
   function smartMedicalTick(state){
     if(!medicalPage()||medicalOwnId()!==Number(state.playerId)){pauseState(state,'Medical page/account changed. No further item clicks allowed.',true);return;}
@@ -253,8 +253,11 @@
       if(now()-state.medicalReplyAt>45000)pauseState(state,'Medical backend did not verify state within 45 seconds. No action was retried.',true);return;
     }
     const op=state.medicalOp;
-    if(!op||!medicalNames[op.itemId]||!sameMedicalName(op.name,medicalNames[op.itemId])||now()>Date.parse(op.expires)){
-      pauseState(state,'Medical operation expired or is not allowlisted. No item retry.',true);return;
+    if(!op||!medicalNames[op.itemId]||!sameMedicalName(op.name,medicalNames[op.itemId])){
+      pauseState(state,'Medical operation is missing or outside the allowlist. No item retry.',true);return;
+    }
+    if(!state.medicalDispatched&&now()>Date.parse(op.expires)){
+      replanMedical(state,'Unused medical plan expired; refreshing before any click.');return;
     }
     if(state.stage==='smart-medical-ready'){
       if(medicalCount(op.itemId)!==op.quantity){replanMedical(state,'Medical stock changed before dispatch; recalculating without a click.');return;}
@@ -618,7 +621,7 @@
           const signature=JSON.stringify(medicalInventory());
           if(state.medicalInventorySignature!==signature){state.medicalInventorySignature=signature;state.medicalInventorySettledAt=now();save(state);return;}
           if(now()-Number(state.medicalInventorySettledAt||0)<1250)return;
-          state.medicalInventorySignature='';state.medicalOp=null;state.medicalExpandedAt=0;state.medicalDispatched=false;requestMedical(state,'tc-medical-plan');return;
+          state.medicalInventorySignature='';state.medicalExpandedAt=0;if(!state.medicalOp)state.medicalDispatched=false;requestMedical(state,'tc-medical-plan');return;
         }
         if (Number(state.kitsThisLoss || 0) >= Number(state.maxKits || 4)) {
           pauseState(state, 'First Aid Kit limit reached. Review hospital time before continuing.', true);
@@ -802,7 +805,12 @@
       state.running = true;
       const reconcile = state.previousStage === 'commit-wait' && !!state.claimId;
       const resumeFight = state.claimId && state.previousStage === 'fight' && isAttackPage(state.targetId);
-      state.stage = reconcile ? 'commit-wait' : resumeFight ? 'fight' : state.claimId ? 'recovery-probe' : 'claim';
+      // Resume the pending medical operation before requesting another attack.
+      // A dispatched item is observed/verified only; it must never be clicked again.
+      const resumeMedical=state.smartMedical&&state.medicalOp&&String(state.previousStage||'').startsWith('smart-medical-');
+      state.stage = resumeMedical ? (state.medicalDispatched?'smart-medical-wait':'heal-open') : reconcile ? 'commit-wait' : resumeFight ? 'fight' : state.claimId ? 'recovery-probe' : 'claim';
+      if(resumeMedical&&!state.medicalDispatched){state.medicalInventorySignature='';state.medicalExpandedAt=0;state.healEnteredAt=0;}
+
       if(resumeFight){state.pillowMissingSince=0;state.fightStartedAt=now();}
       state.claimAttempts=0; state.commitAttempts=1; state.replyWaitAt=now();
       state.pendingClaimRequest='';
@@ -899,7 +907,7 @@
         state.stage='smart-medical-ready';state.status='Plan: '+reply.name+'. Verifying personal inventory and account.';save(state);return true;
       }
       if(reply.state==='Authorized'&&state.medicalOp?.token===reply.token&&state.medicalOp.itemId===reply.itemId){state.medicalOp.expires=reply.expires;state.stage='smart-medical-execute';save(state);return true;}
-      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token){state.medicalOp=null;state.medicalReplans=0;state.stage='recovery-probe';state.probeStartedAt=now();state.status='Medical quantity, cooldown and hospital changes verified. Rechecking recovery.';save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
+      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token){state.medicalOp=null;state.medicalDispatched=false;state.medicalReplans=0;state.stage='recovery-probe';state.probeStartedAt=now();state.status='Medical quantity, cooldown and hospital changes verified. Rechecking recovery.';save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
       if(reply.state==='Replan'){replanMedical(state,reply.reason||'Recalculating medical plan before dispatch.');return true;}
       if(reply.state==='Recovered'){state.stage='recovery-probe';state.probeStartedAt=now();save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
       if(reply.state==='Cooldown'&&reply.autoResume&&Number.isFinite(Date.parse(reply.waitUntil))){

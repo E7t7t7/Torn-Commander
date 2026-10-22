@@ -82,6 +82,12 @@ internal static class SmartMedicalOptimizer
         int baseline=(int)Math.Ceiling(hospital/(2400*(1+o.BonusPercent/100)))*900;
         return new("Ready","Minimum medical cooldown; ties use fewer items, then configured cost and plentiful supplies.",sequence,feasible.Key.Cost,hospital,baseline);
     }
+    internal static bool VerifyUnused(MedicalObservation before,MedicalObservation after,int itemId,DateTime now){
+        if(!AllowedId(itemId)||before.ProfileId!=after.ProfileId||before.PlayerId!=after.PlayerId||after.ObservedUtc<before.ObservedUtc||now-after.ObservedUtc>TimeSpan.FromSeconds(45)||after.ObservedUtc>now.AddSeconds(2)||now-before.ObservedUtc>TimeSpan.FromSeconds(90))return false;
+        if(!before.Inventory.ContainsKey(itemId)||!after.Inventory.ContainsKey(itemId)||before.Inventory[itemId]!=after.Inventory[itemId])return false;
+        double elapsed=(after.ObservedUtc-before.ObservedUtc).TotalSeconds;
+        return Math.Abs(after.CooldownSeconds-Math.Max(0,before.CooldownSeconds-elapsed))<=5&&after.HospitalUntilUtc==before.HospitalUntilUtc;
+    }
     internal static bool VerifyUse(MedicalObservation before,MedicalObservation after,int itemId,DateTime now){
         if(!AllowedId(itemId)||before.ProfileId!=after.ProfileId||before.PlayerId!=after.PlayerId||after.ObservedUtc<before.ObservedUtc||now-after.ObservedUtc>TimeSpan.FromSeconds(45)||after.ObservedUtc>now.AddSeconds(2)||now-before.ObservedUtc>TimeSpan.FromSeconds(90))return false;
         var item=Item(itemId);if(after.Inventory.GetValueOrDefault(itemId)!=before.Inventory.GetValueOrDefault(itemId)-1)return false;

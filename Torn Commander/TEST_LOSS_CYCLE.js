@@ -183,6 +183,19 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  for(let i=0;i<1200&&smart.h.getState().stage!=='complete';i++)await smart.step(250);
  assert.equal(smart.h.getState().stage,'complete',smart.h.getState().status);assert.equal(smart.counts.medicine,2);assert.equal(smart.counts.wrong,0);
  assert.equal(smart.messages.filter(m=>m.type==='tc-medical-authorize').length,2);assert.equal(smart.messages.filter(m=>m.type==='tc-medical-verify').length,2);
+ // Interruptions must resume/reconcile the same medical operation before another attack.
+ for(const pauseAt of ['smart-medical-ready','smart-medical-execute','consumed']){
+  const interrupted=fixture(false,false,false,{smartMedical:true,initialHospital:true,collapsed:true,headerOnly:true});
+  for(let i=0;i<150;i++){await interrupted.step(250);if(pauseAt==='consumed'?interrupted.counts.medicine===1:interrupted.h.getState().stage===pauseAt)break;}
+  assert(pauseAt==='consumed'?interrupted.counts.medicine===1:interrupted.h.getState().stage===pauseAt,'Missing interruption stage '+pauseAt);
+  interrupted.h.pause();interrupted.h.resume();
+  assert.equal(interrupted.h.getState().stage,pauseAt==='consumed'?'smart-medical-wait':'heal-open','Resume discarded pending medicine');
+  assert.equal(interrupted.messages.filter(m=>m.type==='tc-loss-claim').length,0,'Claimed attack before recovery verification');
+  for(let i=0;i<1200&&interrupted.h.getState().stage!=='complete';i++)await interrupted.step(250);
+  assert.equal(interrupted.h.getState().stage,'complete',interrupted.h.getState().status);
+  assert.equal(interrupted.counts.medicine,3,'Interrupted recovery double-consumed medicine');
+  assert.equal(interrupted.messages.filter(m=>m.type==='tc-medical-verify').length,3);
+ }
  for(const mode of [{medicalRecommend:true},{badMedicalItem:true},{wrongMedicalAccount:true},{missingMedicalAccount:true},{failedMedicalUse:true},{failMedicalVerification:true}]){
   const one=fixture(false,false,false,{smartMedical:true,initialHospital:true,collapsed:true,headerOnly:true,...mode});
   for(let i=0;i<400&&one.h.getState().stage!=='paused';i++)await one.step(250);
