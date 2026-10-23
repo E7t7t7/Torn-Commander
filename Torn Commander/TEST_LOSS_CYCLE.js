@@ -3,7 +3,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
- let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0;
+ let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0;
  let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[]},local=new Map(),session=new Map();
  class Node{
@@ -70,21 +70,33 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
    const name=node('span',chosenName);name.onclick=()=>{counts.expand++;if(!options.expandFails)expanded=true;};
    let heading=name;if(options.headerOnly){name.onclick=()=>{};heading=node('div','',{role:'tab',id:'ui-accordion-6-header-0'},[name]);heading.onclick=()=>{counts.expand++;expanded=true;};}
    const controls=[heading];if(!options.collapsed||expanded)controls.push(button('Use',()=>scene='confirm'));
-   if(options.collapsed)controls.unshift(node('span','x'+stock));
-   const row=node('li','',options.collapsed?{role:'tablist',class:'first-in-row m-first-in-row t-first-in-row last-row'}:{'data-quantity':String(stock)},controls);
+   if((options.collapsed||options.staleMedicalQuantity||options.lastMedicalItem)&&(!options.lastMedicalItem||stock>0))controls.unshift(node('span','x'+stock));
+   const row=node('li','',options.collapsed?{role:'tablist',class:'first-in-row m-first-in-row t-first-in-row last-row'}:{'data-quantity':String(options.lastMedicalItem?1:options.staleMedicalQuantity?20:stock)},controls);
    const wrong=node('li','',{'data-item-id':'68'},[node('span',options.selectedMedicalId===68?'First Aid Kit':'Small First Aid Kit'),button('Use',()=>counts.wrong++)]);
+   if(options.lastMedicalItem&&stock===0){row.className+=' remove-act';row.children.push(node('span','You use your '+chosenName+' on your wounded body.'));}
    const children=[row,wrong];if(options.ambiguousKit)children.push(node('li','',{'data-item-id':'67'},[node('span','First Aid Kit')]));
-   if(scene==='confirm')children.push(node('div','Use '+chosenName+'?',{role:'dialog'},[button('Okay',()=>{if(options.failedMedicalUse){scene='medical';return;}stock--;counts.medicine++;hospital=counts.medicine%(options.kitsRequired||1)!==0;scene='medical'})]));
+   if(scene==='confirm'){
+    const consume=()=>{if(options.failedMedicalUse){scene='medical';return;}stock--;counts.medicine++;hospital=counts.medicine%(options.kitsRequired||1)!==0;scene='medical'};
+    if(options.inlineMedicalConfirmation){
+     const prompt=node('span','Would you like to use the '+(options.wrongMedicalPrompt?'Morphine':chosenName)+'?',{id:'wai-action-desc',role:'status'});
+     const confirm=node('a','',{'aria-labelledby':'wai-action-desc',href:'#'});confirm.onclick=consume;
+     const cancel=node('a','Cancel',{href:'#'});cancel.onclick=()=>counts.wrong++;
+     row.children.push(prompt,confirm,cancel);for(const x of [prompt,confirm,cancel])x.parentElement=row;
+    }else children.push(node('div','Use '+chosenName+'?',{role:'dialog'},[button('Okay',consume)]));
+   }
    return node('body','Your items - Medical',{},children);
   }
   return node('body','Torn');
  }
  let lastKey='',cached;
  function body(){const key=scene+stock+expanded+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
- const owner=node('a',options.decoratedOwner?'2BDecided [wife]':'Seller',{href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
+ const owner=node('a',options.decoratedOwner?'2BDecided [wife]':'Seller',{...(options.ariaMedicalOwner?{'aria-label':'Name: Seller'}:{}),href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
  const ownerLabel=node('span','Name:');const ownerRow=node('div','',{},[ownerLabel,owner]);if(options.medicalOwnerHidden){ownerLabel.getClientRects=()=>[];owner.getClientRects=()=>[];}const stranger=node('a','Unrelated chat user',{href:'/profiles.php?XID=777'});
+ const secondStranger=node('a','Other chat avatar',{href:'/profiles.php?XID=888'});
+ if(options.chatSidebar){node('button','',{id:'chat_panel_button:777'},[stranger]);node('button','',{id:'chat_panel_button:888'},[secondStranger]);}
  const document={title:'Torn',get body(){return body()},querySelectorAll:s=>{
-  if(s.startsWith('[id="sidebar"] a'))return options.missingMedicalAccount||options.noSidebarWrapper||clock-1700000000000<(options.identityDelayMs||0)?[]:options.sidebarOtherIds?[owner,stranger]:[owner];
+  if(s.startsWith('[id="sidebar"] a'))return options.missingMedicalAccount||options.noSidebarWrapper||clock-1700000000000<(options.identityDelayMs||0)?[]:options.chatSidebar?[stranger,secondStranger,owner]:options.sidebarOtherIds?[owner,stranger]:[owner];
+  if(s==='a[href*="profiles.php"]')return options.missingMedicalAccount?[]:options.chatSidebar?[stranger,secondStranger,owner]:[owner];
   const found=body().querySelectorAll(s);if(s.startsWith('span,strong,b,div,dt,td')&&options.labeledMedicalOwner&&clock-1700000000000>=(options.identityDelayMs||0))found.push(ownerLabel);return found;
  }};
  const location={href:'https://www.torn.com/index.php',pathname:'/index.php',assign(url){const u=new URL(url);this.href=url;this.pathname=u.pathname;scene=u.pathname==='/item.php'?'items':'attack';expanded=false}};
@@ -221,7 +233,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   assert.equal(one.counts.medicine,mode.failMedicalVerification?1:0,'Unsafe medical consumption '+JSON.stringify(mode));
   assert(one.messages.filter(m=>m.type==='tc-medical-authorize').length<=1,'Repeated failed authorization');assert.equal(one.counts.wrong,0);
  }
- for(const identity of [{decoratedOwner:true},{decoratedOwner:true,leveling:true},{labeledMedicalOwner:true,sidebarOtherIds:true},{labeledMedicalOwner:true,noSidebarWrapper:true,medicalOwnerHidden:true},{labeledMedicalOwner:true,noSidebarWrapper:true},{labeledMedicalOwner:true,noSidebarWrapper:true,identityDelayMs:7000}]){
+ for(const identity of [{decoratedOwner:true,chatSidebar:true,inlineMedicalConfirmation:true,staleMedicalQuantity:true,collapsed:false,levelMedicalPending:true},{decoratedOwner:true,chatSidebar:true,inlineMedicalConfirmation:true,staleMedicalQuantity:true,collapsed:false},{decoratedOwner:true,chatSidebar:true,inlineMedicalConfirmation:true},{decoratedOwner:true,chatSidebar:true,inlineMedicalConfirmation:true,leveling:true},{decoratedOwner:true,chatSidebar:true},{decoratedOwner:true,chatSidebar:true,leveling:true},{decoratedOwner:true,ariaMedicalOwner:true,sidebarOtherIds:true},{decoratedOwner:true},{decoratedOwner:true,leveling:true},{labeledMedicalOwner:true,sidebarOtherIds:true},{labeledMedicalOwner:true,noSidebarWrapper:true,medicalOwnerHidden:true},{labeledMedicalOwner:true,noSidebarWrapper:true},{labeledMedicalOwner:true,noSidebarWrapper:true,identityDelayMs:7000}]){
   const identified=fixture(false,false,false,{smartMedical:true,initialHospital:true,collapsed:true,headerOnly:true,...identity});
   for(let i=0;i<1400&&identified.h.getState().stage!=='complete';i++)await identified.step(250);
   assert.equal(identified.h.getState().stage,'complete',identified.h.getState().status);assert.equal(identified.counts.medicine,3);assert.equal(identified.counts.wrong,0);
@@ -233,6 +245,16 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   assert.equal(blocked.h.getState().stage,'paused');
   assert.equal(blocked.messages.filter(m=>m.type==='tc-medical-authorize').length,0);
  }
+ const lastKit=fixture(false,false,false,{smartMedical:true,initialHospital:true,lastMedicalItem:true,inlineMedicalConfirmation:true});
+ for(let i=0;i<400&&!lastKit.messages.some(m=>m.type==='tc-medical-verify');i++)await lastKit.step(250);
+ assert.equal(lastKit.counts.medicine,1);assert(lastKit.messages.some(m=>m.type==='tc-medical-verify'),'Last consumed row was not verified');
+ assert.equal(lastKit.messages.find(x=>x.type==='tc-medical-verify').inventory.find(x=>x.id===67)?.quantity,0,'Last-item stale attribute was treated as inventory');
+ const wrongPrompt=fixture(false,false,false,{smartMedical:true,initialHospital:true,inlineMedicalConfirmation:true,wrongMedicalPrompt:true});
+ for(let i=0;i<250&&wrongPrompt.h.getState().stage!=='paused';i++)await wrongPrompt.step(250);
+ assert.equal(wrongPrompt.counts.medicine,0);assert.equal(wrongPrompt.counts.wrong,0);assert.equal(wrongPrompt.h.getState().stage,'paused');
+ const wrongAria=fixture(false,false,false,{smartMedical:true,initialHospital:true,decoratedOwner:true,ariaMedicalOwner:true,wrongMedicalAccount:true,chatSidebar:true});
+ for(let i=0;i<100&&wrongAria.h.getState().stage!=='paused';i++)await wrongAria.step(250);
+ assert.equal(wrongAria.counts.medicine,0);assert.equal(wrongAria.h.getState().stage,'paused');assert(wrongAria.h.getState().status.includes('expects 321'));
  const wrongLabeled=fixture(false,false,false,{smartMedical:true,initialHospital:true,labeledMedicalOwner:true,noSidebarWrapper:true,wrongMedicalAccount:true});
  for(let i=0;i<100&&wrongLabeled.h.getState().stage!=='paused';i++)await wrongLabeled.step(250);
  assert.equal(wrongLabeled.counts.medicine,0);assert.equal(wrongLabeled.h.getState().stage,'paused');assert(wrongLabeled.h.getState().status.includes('expects 321'),'Wrong account was not distinguished from missing identity');

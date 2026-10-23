@@ -56,7 +56,14 @@ public sealed partial class MainForm {
     JSON.stringify((()=>{
      const visible=e=>e.getClientRects().length&&getComputedStyle(e).display!=='none';
      const named=new Set();
+     const inChat=e=>{for(let n=e;n;n=n.parentElement){const id=n.getAttribute?.('id')||'';if(id.startsWith('chat_panel_button:')||id.startsWith('chat_panel:'))return true;}return false;};
+     for(const link of document.querySelectorAll('a[href*="profiles.php"]')){
+      if(inChat(link)||![link.getAttribute('aria-label'),link.getAttribute('title'),link.textContent].some(v=>/^(?:name|username)\s*:/i.test((v||'').replace(/\s+/g,' ').trim())))continue;
+      try{const u=new URL(link.href);const id=Number(u.searchParams.get('XID'));if(u.protocol==='https:'&&(u.hostname==='www.torn.com'||u.hostname==='torn.com')&&Number.isSafeInteger(id)&&id>0)named.add(id);}catch{}
+     }
+
      for(const label of document.querySelectorAll('span,strong,b,div,dt,td,p,li,dd,label,th,section')){
+      if(inChat(label))continue;
       const text=label.textContent.replace(/\s+/g,' ').trim();if(text.length>300||!/^(?:name|username)\s*:/i.test(text))continue;
       let scope=label;for(let depth=0;scope&&depth<3;depth++,scope=scope.parentElement){
        const text=scope.textContent.replace(/\s+/g,' ').trim();if(text.length>300||!/^(?:name|username)\s*:/i.test(text))break;

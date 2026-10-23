@@ -47,6 +47,9 @@ Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{ProfileId="B"},67,now.
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{CooldownSeconds=1000},67,now.AddSeconds(5)),"unverified cooldown");
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{HospitalUntilUtc=before.HospitalUntilUtc},67,now.AddSeconds(5)),"unverified hospital reduction");
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after,206,now.AddSeconds(5)),"drug verification accepted");
+Assert(SmartMedicalOptimizer.VerifyUse(before,after with{ObservedUtc=now.AddSeconds(110),CooldownSeconds=1790},67,now.AddSeconds(110)),"delayed receipt should verify without authorizing another item");
+Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{ObservedUtc=now.AddSeconds(181),CooldownSeconds=1719},67,now.AddSeconds(181)),"unbounded old receipt accepted");
+
 var unused=before with{ObservedUtc=now.AddSeconds(5),CooldownSeconds=995};
 Assert(SmartMedicalOptimizer.VerifyUnused(before,unused,67,now.AddSeconds(5)),"unused authorization not recoverable");
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,after,67,now.AddSeconds(5)),"consumed item reauthorized");

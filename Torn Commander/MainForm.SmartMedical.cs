@@ -108,8 +108,12 @@ public sealed partial class MainForm
                 if(!inventory.ContainsKey(s.Item.Id))inventory[s.Item.Id]=0;
                 var after=await ReadMedicalObservationAsync(worker,s,inventory);if(!MedicalContext(worker,s,request))return;
                 if(!SmartMedicalOptimizer.VerifyUse(s.Observation,after,s.Item.Id,DateTime.UtcNow)){
-                    if(s.Leveling&&++s.VerifyAttempts<=4){await worker.ReplyMedicalAsync(rid,new{state="PendingVerification",token=s.Pending,reason="The item count changed; waiting for Torn's life/cooldown snapshot to catch up. No item will be repeated."});return;}
-                    throw new InvalidDataException("Item/cooldown/hospital/life changes disagree (or API is stale). Paused; never repeat the item blindly.");
+                    double elapsed=(after.ObservedUtc-s.Observation.ObservedUtc).TotalSeconds;
+                    var verification=new{itemId=s.Item.Id,attempt=s.VerifyAttempts+1,beforeObserved=s.Observation.ObservedUtc,afterObserved=after.ObservedUtc,beforeQuantity=s.Before.GetValueOrDefault(s.Item.Id),afterQuantity=inventory.GetValueOrDefault(s.Item.Id),beforeCooldown=s.Observation.CooldownSeconds,afterCooldown=after.CooldownSeconds,expectedCooldownCost=s.Item.CooldownSeconds,observedCooldownDelta=after.CooldownSeconds-Math.Max(0,s.Observation.CooldownSeconds-elapsed),beforeHospitalUntil=s.Observation.HospitalUntilUtc,afterHospitalUntil=after.HospitalUntilUtc,beforeLife=s.Observation.Life,afterLife=after.Life,maximumLife=after.MaximumLife,bonus=s.Observation.BonusPercent};
+                    try{IntelStore.Snapshot(worker.ProfileId,"medical-verification",s.Id,DateTime.UtcNow,verification);}catch{}
+                    if(++s.VerifyAttempts<=6){await worker.ReplyMedicalAsync(rid,new{state="PendingVerification",token=s.Pending,verification,reason="Item count decreased once. Waiting for Torn's cooldown/hospital snapshot; no further item click."});return;}
+                    s.Note="Medical receipt still disagrees after six refreshes: cooldown "+s.Observation.CooldownSeconds+" -> "+after.CooldownSeconds+" seconds, expected item cost "+s.Item.CooldownSeconds+". Copy worker diagnostic. No repeat use.";
+                    await worker.ReplyMedicalAsync(rid,new{state="Paused",verification,reason=s.Note});return;
                 }
                 s.Verified=true;s.ItemsUsed++;s.CooldownUsed+=s.Item.CooldownSeconds;s.EpisodeCost+=s.Item.CooldownSeconds;s.Observation=after;
                 if(after.HospitalUntilUtc<=DateTime.UtcNow){s.Saved+=s.EpisodeBaseline-s.EpisodeCost;s.LastHealCost=s.EpisodeCost;s.EpisodeBaseline=0;s.EpisodeCost=0;}

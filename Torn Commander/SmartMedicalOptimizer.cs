@@ -89,7 +89,7 @@ internal static class SmartMedicalOptimizer
         return Math.Abs(after.CooldownSeconds-Math.Max(0,before.CooldownSeconds-elapsed))<=5&&after.HospitalUntilUtc==before.HospitalUntilUtc;
     }
     internal static bool VerifyUse(MedicalObservation before,MedicalObservation after,int itemId,DateTime now){
-        if(!AllowedId(itemId)||before.ProfileId!=after.ProfileId||before.PlayerId!=after.PlayerId||after.ObservedUtc<before.ObservedUtc||now-after.ObservedUtc>TimeSpan.FromSeconds(45)||after.ObservedUtc>now.AddSeconds(2)||now-before.ObservedUtc>TimeSpan.FromSeconds(90))return false;
+        if(!AllowedId(itemId)||before.ProfileId!=after.ProfileId||before.PlayerId!=after.PlayerId||after.ObservedUtc<before.ObservedUtc||now-after.ObservedUtc>TimeSpan.FromSeconds(45)||after.ObservedUtc>now.AddSeconds(2)||now-before.ObservedUtc>TimeSpan.FromSeconds(180))return false;
         var item=Item(itemId);if(after.Inventory.GetValueOrDefault(itemId)!=before.Inventory.GetValueOrDefault(itemId)-1)return false;
         double elapsed=(after.ObservedUtc-before.ObservedUtc).TotalSeconds;
         double delta=after.CooldownSeconds-Math.Max(0,before.CooldownSeconds-elapsed);
