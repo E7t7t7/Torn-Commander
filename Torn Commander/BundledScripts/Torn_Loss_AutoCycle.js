@@ -200,13 +200,28 @@
   const medicalPage=()=>isItemsPage()&&new URL(location.href).origin==='https://www.torn.com';
   const medicalNames={66:'Morphine',67:'First Aid Kit',68:'Small First Aid Kit',739:'Blood Bag : O-'};
   const sameMedicalName=(text,name)=>clean(text).replace(/\s*:\s*/g,':').toLowerCase()===clean(name).replace(/\s*:\s*/g,':').toLowerCase();
-  function medicalOwnId(){
-    const ids=new Set();
-    for(const link of document.querySelectorAll('[id="sidebar"] a[href*="profiles.php"],[id="sidebarroot"] a[href*="profiles.php"],[class*="sidebar"] a[href*="profiles.php"]')){
-      try{const u=new URL(link.getAttribute('href'),location.href),id=Number(u.searchParams.get('XID'));if(id>0)ids.add(id);}catch{}
+  function medicalIdentity(){
+    const labeled=new Set(),sidebar=new Set(),named=new Set();
+    const idOf=link=>{try{const u=new URL(link.getAttribute('href'),location.href);return u.protocol==='https:'&&(u.hostname==='www.torn.com'||u.hostname==='torn.com')?Number(u.searchParams.get('XID')):0;}catch{return 0;}};
+    // Torn's own Name row remains identifiable even when responsive sidebar wrappers change.
+    for(const label of document.querySelectorAll('span,strong,b,div,dt,td,p,li,dd,label,th,section')){
+      if(clean(label.textContent).length>300||!/^(?:name|username)\s*:/i.test(clean(label.textContent)))continue;
+      let scope=label;
+      for(let depth=0;scope&&depth<3;depth++,scope=scope.parentElement){
+        const text=clean(scope.textContent);if(text.length>300||!/^(?:name|username)\s*:/i.test(text))break;
+        const ids=new Set(Array.from(scope.querySelectorAll('a[href*="profiles.php"]')).map(idOf).filter(id=>Number.isSafeInteger(id)&&id>0));
+        if(ids.size===1){labeled.add([...ids][0]);break;}
+      }
     }
-    return ids.size===1?[...ids][0]:null;
+    const self=clean(load()?.selfName).toLowerCase();
+    for(const link of document.querySelectorAll('[id="sidebar"] a[href*="profiles.php"],[id="sidebarroot"] a[href*="profiles.php"],[class*="sidebar"] a[href*="profiles.php"]')){
+      const id=idOf(link);if(!Number.isSafeInteger(id)||id<=0)continue;sidebar.add(id);
+      const text=clean(link.textContent).toLowerCase();if(self&&(text===self||text==='name: '+self))named.add(id);
+    }
+    const owner=labeled.size===1?[...labeled][0]:labeled.size>1?null:named.size===1?[...named][0]:null;
+    return{owner,strategy:labeled.size?'name-field':named.size?'sidebar-name':'unavailable',labeledIds:[...labeled],sidebarIds:[...sidebar]};
   }
+  function medicalOwnId(){return medicalIdentity().owner;}
   function medicalRow(id){
     const name=medicalNames[id];if(!name||!medicalPage())return null;
     const markers=Array.from(document.querySelectorAll('span,strong,b,h3,h4,a,div')).filter(el=>visible(el)&&!el.children?.length&&sameMedicalName(el.textContent,name));
@@ -254,7 +269,9 @@
   }
   function requestMedical(state,type,extra={}){
     const owner=medicalOwnId();
-    if(owner!==Number(state.playerId)){pauseState(state,'Medical account identity is missing or differs from this worker. No item was authorized.',true);return;}
+    if(owner===null){state.medicalIdentityWaitAt=state.medicalIdentityWaitAt||now();state.medicalIdentityRequest={type,extra};state.stage='smart-medical-identity';state.status='Waiting for Torn to show this account’s Name / profile identity. No item authorized.';save(state);return;}
+    if(owner!==Number(state.playerId)){pauseState(state,'Medical page belongs to player '+owner+'; this worker expects '+state.playerId+' (profile '+state.profileId+'). Check this profile’s Torn login and API key. No item authorized.',true);return;}
+    state.medicalIdentityWaitAt=0;state.medicalIdentityRequest=null;
     state.medicalRequest='med_'+now()+'_'+Math.random().toString(36).slice(2);state.medicalReplyAt=now();state.stage='smart-medical-await';state.status=type==='tc-medical-plan'?'Checking hospital time and medical cooldown with Torn API.':type==='tc-medical-authorize'?'Checking medical permission before use.':'Verifying item use and hospital recovery with Torn API.';save(state);
     post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),operationToken:state.medicalOp?.token||'',medicalDispatched:state.medicalDispatched===true,...extra});
   }
@@ -264,6 +281,12 @@
     state.medicalExpandedAt=0;state.medicalInventorySignature='';state.stage='heal-open';state.status=reason;save(state);
   }
   function smartMedicalTick(state){
+    if(state.stage==='smart-medical-identity'){
+      if(!medicalPage()){pauseState(state,'Medical page changed while waiting for account identity.',true);return;}
+      const owner=medicalOwnId();
+      if(owner!==null){const request=state.medicalIdentityRequest;if(!request){pauseState(state,'Medical identity request was lost; stop and restart the worker.',true);return;}requestMedical(state,request.type,request.extra||{});return;}
+      if(now()-state.medicalIdentityWaitAt>15000)pauseState(state,'Torn’s account Name/profile field could not be verified after 15 seconds. Copy the worker diagnostic; no medicine consumed.',true);return;
+    }
     if(!medicalPage()||medicalOwnId()!==Number(state.playerId)){pauseState(state,'Medical page/account changed. No further item clicks allowed.',true);return;}
     if(state.stage==='medical-cooldown'){
       if(now()<state.medicalWakeAt)return;
@@ -846,9 +869,9 @@
       const resumeFight = state.claimId && state.previousStage === 'fight' && isAttackPage(state.targetId);
       // Resume the pending medical operation before requesting another attack.
       // A dispatched item is observed/verified only; it must never be clicked again.
-      const resumeMedical=state.smartMedical&&state.medicalOp&&String(state.previousStage||'').startsWith('smart-medical-');
+      const resumeMedical=state.smartMedical&&(state.medicalOp||state.previousStage==='smart-medical-identity')&&String(state.previousStage||'').startsWith('smart-medical-');
       state.stage = resumeMedical ? (state.medicalDispatched?'smart-medical-wait':'heal-open') : reconcile ? 'commit-wait' : resumeFight ? 'fight' : state.claimId ? 'recovery-probe' : 'claim';
-      if(resumeMedical&&!state.medicalDispatched){state.medicalInventorySignature='';state.medicalExpandedAt=0;state.healEnteredAt=0;}
+      if(resumeMedical&&!state.medicalDispatched){state.medicalIdentityWaitAt=0;state.medicalIdentityRequest=null;state.medicalInventorySignature='';state.medicalExpandedAt=0;state.healEnteredAt=0;}
 
       if(resumeFight){state.pillowMissingSince=0;state.fightStartedAt=now();}
       state.claimAttempts=0; state.commitAttempts=1; state.replyWaitAt=now();
@@ -974,7 +997,7 @@
     },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },

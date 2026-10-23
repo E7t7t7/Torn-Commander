@@ -1,3 +1,11 @@
+v0.6.65 (2026-10-23) — Medical account identity recognition
+- Read Torn's explicit Name/Username profile field before considering responsive sidebar wrappers, including a collapsed sidebar on narrow worker views. Unrelated spouse/chat/profile links no longer make a valid account ambiguous; sidebar fallback must match the configured player name.
+- Keep native API/account/session ID verification unchanged. Conflicting name fields or an actual different account still block consumption. Accept only positive numeric profile IDs on HTTPS Torn links.
+- Wait up to 15 seconds for a missing account identity before planning, without clicking an item or making an unverified authorization request. Resume an interrupted identity check through Medical rather than starting another fight.
+- Distinguish missing identity from an actual mismatch and show expected/visible player IDs and local profile in the message/diagnostic. Include identity strategy and candidate IDs without credentials.
+- Apply the explicit Name-field reader to manual leveling stock reads as well.
+- Validation: add medical worker fixtures for extra sidebar profile links, changed/missing sidebar wrappers, delayed identity rendering and wrong-account rejection; rerun loss-cycle and automatic leveling regression tests. Live-account behavior still requires local confirmation.
+
 v0.6.64 (2026-10-23) — Direct Baldr loading and automatic leveling fights
 - Add Load Baldr's list with named-group/All lists selection. Fetch the public OranWeb data.json without credentials, validate string IDs/levels and optional reported stats, preserve order, deduplicate and exclude the identified player. Keep the existing queue if download/schema validation fails or the account changes. Show source, load time and historical-stat labels.
 - Validate the real public dataset: seven groups, 383 entries and 382 distinct targets at development time. Add synthetic malformed-data, group selection, order/dedup/self exclusion and source-rendering tests.

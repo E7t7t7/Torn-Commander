@@ -54,8 +54,16 @@ public sealed partial class MainForm {
     string result=await web.CoreWebView2.ExecuteScriptAsync("""
     JSON.stringify((()=>{
      const visible=e=>e.getClientRects().length&&getComputedStyle(e).display!=='none';
-     const own=[...document.querySelectorAll('[id="sidebar"] a[href*="profiles.php"],[id="sidebarroot"] a[href*="profiles.php"],[class*="sidebar"] a[href*="profiles.php"]')].map(a=>Number(new URL(a.href).searchParams.get('XID'))).filter(n=>n>0);
-     const ids=[...new Set(own)];const inventory=[];
+     const named=new Set();
+     for(const label of document.querySelectorAll('span,strong,b,div,dt,td,p,li,dd,label,th,section')){
+      const text=label.textContent.replace(/\s+/g,' ').trim();if(text.length>300||!/^(?:name|username)\s*:/i.test(text))continue;
+      let scope=label;for(let depth=0;scope&&depth<3;depth++,scope=scope.parentElement){
+       const text=scope.textContent.replace(/\s+/g,' ').trim();if(text.length>300||!/^(?:name|username)\s*:/i.test(text))break;
+       const ids=[...new Set([...scope.querySelectorAll('a[href*="profiles.php"]')].map(a=>{try{const u=new URL(a.href);return u.protocol==='https:'&&(u.hostname==='www.torn.com'||u.hostname==='torn.com')?Number(u.searchParams.get('XID')):0;}catch{return 0;}}).filter(n=>Number.isSafeInteger(n)&&n>0))];
+       if(ids.length===1){named.add(ids[0]);break;}
+      }
+     }
+     const ids=[...named];const inventory=[];
      for(const [id,name] of [[68,'small first aid kit'],[67,'first aid kit'],[66,'morphine']]){
       const leaves=[...document.querySelectorAll('span.name,span,strong')].filter(e=>visible(e)&&!e.children.length&&e.textContent.trim().toLowerCase()===name);
       const rows=[...new Set(leaves.map(e=>e.closest('li')).filter(Boolean))];if(rows.length!==1)continue;
