@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderLeveling'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('LevelingQueue.cs','SmartMedicalOptimizer.cs','BaldrListProvider.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
+foreach($file in @('LevelingQueue.cs','SmartMedicalOptimizer.cs','BaldrListProvider.cs','LevelingScouting.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
 $program=@'
 using TornCommander;
 static void Check(bool ok,string reason){if(!ok)throw new Exception(reason);}
@@ -21,6 +21,26 @@ foreach(var invalid in new[]{"[]","{}",baldr.Replace("\"123\"","\"invalid\"")}){
 try{BaldrListProvider.Parse(baldr,"Missing list",0,DateTime.UtcNow);throw new Exception("missing group accepted");}catch(InvalidDataException){}
 var actualFixture=Environment.GetEnvironmentVariable("BALDR_LIST_TEST_FIXTURE");
 if(!string.IsNullOrEmpty(actualFixture)){var actual=BaldrListProvider.Parse(File.ReadAllText(actualFixture),"",0,DateTime.UtcNow);Check(actual.Targets.Count==382&&actual.Groups.Count==7,"current public Baldr data fixture");Console.WriteLine("PUBLIC BALDR DATA PASSED: 382 unique targets across seven lists.");}
+var scoutNow=DateTime.UtcNow;
+var scoutSession=new LevelingSession{OwnStats=300,OwnStatsUtc=scoutNow,MaxStatRatio=0.5};
+LevelingTarget weak=new(){Id=123,EstimatedStats=100,EstimateUtc=scoutNow,ScannedUtc=scoutNow,LastActionUtc=scoutNow.AddDays(-30)};
+Check(LevelingScouting.Eligible(weak,scoutSession,scoutNow),"100-stat inactive target accepted for 300-stat account");
+weak.EstimatedStats=1000;Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"1000-stat target blocked");
+weak.EstimatedStats=null;Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"unknown stats blocked");
+weak.EstimatedStats=150;Check(LevelingScouting.Eligible(weak,scoutSession,scoutNow),"inclusive strength cap");
+weak.LastActionUtc=scoutNow;Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow)&&LevelingScouting.StrengthEligible(weak,scoutSession,scoutNow),"active account excluded");
+weak.LastActionUtc=null;Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"unknown activity excluded");
+weak.LastActionUtc=scoutNow.AddDays(-30);weak.EstimateUtc=scoutNow.AddDays(-31);Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"stale estimate excluded");
+weak.EstimateUtc=scoutNow.AddDays(1);Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"future estimate excluded");
+weak.EstimateUtc=scoutNow;scoutSession.OwnStatsUtc=scoutNow.AddHours(-1);Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"stale own stats blocked");
+scoutSession.OwnStatsUtc=scoutNow;weak.ScannedUtc=scoutNow.AddDays(-2);Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"old scan blocked");
+LevelingScouting.ApplyStats(new[]{weak},"""[{"player_id":123,"bs_estimate":120,"fair_fight":1.2,"last_updated":1700000000,"source":"bss"}]""",scoutNow);
+Check(weak.EstimatedStats==120&&weak.FairFight==1.2&&weak.EstimateUtc==DateTimeOffset.FromUnixTimeSeconds(1700000000).UtcDateTime,"FFScouter parsing");
+LevelingScouting.ApplyStats(new[]{weak},"""[{"player_id":456,"bs_estimate":10}]""",scoutNow);Check(weak.EstimatedStats==null,"missing result clears old estimate");
+var searched=LevelingScouting.SearchResults("""{"parameters":{"key":"not-persisted"},"targets":[{"player_id":123,"name":"Fixture","level":25,"last_action":1700000000},{"player_id":123},{"player_id":456}]}""",456);
+Check(searched.Count==1&&searched[0].Id==123&&searched[0].LastActionUtc!=null,"search dedupe/self/activity");
+Check(!System.Text.Json.JsonSerializer.Serialize(searched).Contains("not-persisted"),"key echo not persisted");
+Console.WriteLine("STRENGTH SCOUTING PASSED: low-stat limits, stale/unknown data, activity, parsing, credential echo exclusion.");
 var now=DateTime.UtcNow;
 var o=new MedicalObservation("A",1,now,now,0,21600,0,false,"fixture",new(){{68,200},{67,200},{66,200},{206,200}});
 var cfg=new SmartMedicalSettings();

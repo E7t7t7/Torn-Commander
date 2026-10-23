@@ -72,6 +72,11 @@ internal static class CredentialManager
     public static string? LoadIntelKey(string profile,bool client)=>Read(IntelTarget(profile,client));
     public static void ForgetIntelKey(string profile,bool client)=>CredDelete(IntelTarget(profile,client),CredTypeGeneric,0);
 
+    private static string ScouterTarget(string profile)=>"TornCommander:"+new string(profile.Where(c=>char.IsLetterOrDigit(c)||c is '-' or '_').ToArray())+":FFScouterKey";
+    public static string? LoadScouterKey(string profile)=>Read(ScouterTarget(profile));
+    public static void SaveScouterKey(string profile,string key){key=key.Trim();if(key.Length!=16||!key.All(char.IsLetterOrDigit))throw new ArgumentException("FFScouter keys must be 16 letters/numbers.");Write(ScouterTarget(profile),key);}
+    public static void ForgetScouterKey(string profile)=>CredDelete(ScouterTarget(profile),CredTypeGeneric,0);
+
     private static void Write(string target, string value)
     {
         var bytes = Encoding.Unicode.GetBytes(value);

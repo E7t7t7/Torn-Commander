@@ -1,3 +1,12 @@
+LEVELING STRENGTH SCOUTING - v0.6.67
+1. Select the account being leveled. Open Find targets this account can handle and save its registered FFScouter key. It stays in Windows Credential Manager and is sent only to FFScouter. Your existing Torn Limited key supplies your own battle stats.
+2. Apply strength filters. Default 50% means a 300-stat account targets at most 150 estimated opponent stats. Default FF cap is 2, inactivity at least 14 days, estimate age at most 30 days.
+3. Choose Find FFScouter targets, or load any/all Baldr lists then Scan strength of entire loaded list. All loaded targets are batched (up to 205 IDs per request). Provider estimates may be old or unknown; scanning does not create exact current stats.
+4. Review dates and exclusion reasons. Within strength limit filters the displayed list. Automatic/manual selection independently enforce the saved limits. Unknown, stale or over-limit opponents cannot be opened. Current Torn activity/status is checked before every target grant.
+5. Equip a proper fighting weapon and start as below. A low stat total is not a guaranteed win: distribution, armour, weapon, life and effects matter. Lower the strength percentage if needed.
+FFScouter Fair Fight is relative to the key owner. Its check-key response does not identify that owner; save a key for the correct account. Strength caps always use the selected account, regardless of FFScouter's key owner.
+Sources: https://ffscouter.com/openapi ; https://ffscouter.com/openapi/spec.yaml ; https://ffscouter.com/guides/target-finder ; https://www.torn.com/swagger/openapi.json
+
 LEVELING — v0.6.64
 
 DIRECT BALDR LOADING

@@ -7,7 +7,7 @@ public sealed partial class MainForm {
  private sealed record LevelingAccount(int Player,string Name,int Energy,int Life,int Maximum,string Status,MedicalObservation Medical,LevelingHealPlan Recovery,DateTime At);
  private LevelingSession LevelingFor(string profile){if(!_leveling.TryGetValue(profile,out var s)){s=IntelStore.Load(profile,"leveling-queue",new LevelingSession());_leveling[profile]=s;}return s;}
  private void SaveLeveling(string profile)=>IntelStore.Save(profile,"leveling-queue",LevelingFor(profile));
- private object LevelingDashboard(){var s=LevelingFor(CurrentProfileId);_levelingAccounts.TryGetValue(CurrentProfileId,out var a);var worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Key;MedicalSession? medical=null;if(worker!=null)_medicalSessions.TryGetValue(worker,out medical);return new{profileId=CurrentProfileId,session=s,account=a,worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Value?.Status??"Not started",medical=medical==null?null:new{itemsUsed=medical.ItemsUsed,cooldownUsed=medical.CooldownUsed},estimatedAttacks=a==null?(int?)null:Math.Max(0,(a.Energy-s.EnergyReserve)/25),stale=a==null||DateTime.UtcNow-a.At>TimeSpan.FromSeconds(45)};}
+ private object LevelingDashboard(){var s=LevelingFor(CurrentProfileId);_levelingAccounts.TryGetValue(CurrentProfileId,out var a);var worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Key;MedicalSession? medical=null;if(worker!=null)_medicalSessions.TryGetValue(worker,out medical);return new{scouterConfigured=!string.IsNullOrWhiteSpace(CredentialManager.LoadScouterKey(CurrentProfileId)),profileId=CurrentProfileId,session=s,account=a,worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Value?.Status??"Not started",medical=medical==null?null:new{itemsUsed=medical.ItemsUsed,cooldownUsed=medical.CooldownUsed},estimatedAttacks=a==null?(int?)null:Math.Max(0,(a.Energy-s.EnergyReserve)/25),stale=a==null||DateTime.UtcNow-a.At>TimeSpan.FromSeconds(45)};}
  private async Task<LevelingAccount> ReadLevelingAccountAsync(string profile){
   var key=CredentialManager.LoadApiKey(profile);if(string.IsNullOrWhiteSpace(key))throw new InvalidDataException("Save this account's Torn API key first.");
   var s=LevelingFor(profile);
@@ -27,7 +27,8 @@ public sealed partial class MainForm {
   if(_levelingBusy)throw new InvalidOperationException("A leveling check is already running.");_levelingBusy=true;
   var s=LevelingFor(profile);
   try{
-   if(action=="levelLoadBaldr"){
+   if(action.StartsWith("levelScout")){await LevelingScoutActionAsync(action,root,profile);
+   }else if(action=="levelLoadBaldr"){
     if(s.OpenedUtc!=null)throw new InvalidOperationException("Check or skip the pending fight before replacing its target list.");
     var data=await BaldrListProvider.LoadAsync(ReadWorkerString(root,"group"),_levelingAccounts.GetValueOrDefault(profile)?.Player??0);
     if(CurrentProfileId!=profile)throw new InvalidOperationException("Account changed during download. The existing queue was kept.");
@@ -97,7 +98,7 @@ public sealed partial class MainForm {
    }else if(action=="levelCheck"||action=="levelOpen"){
     EnsureLevelingProfileIdle(profile);
     if(s.OpenedUtc!=null)throw new InvalidOperationException("Check the pending attack result before opening another target.");
-    var a=await ReadLevelingAccountAsync(profile);
+    var a=await ReadLevelingAccountAsync(profile);await RefreshLevelingStrengthAsync(profile);
     if(a.Status!="Okay"){s.Note="Account status: "+a.Status+". Recover or return to Torn before fighting.";s.PendingTarget=0;}
     else if(a.Energy-s.EnergyReserve<25){s.Note="Energy reserve reached: fewer than 25 spendable energy. No target opened.";s.PendingTarget=0;}
     else if(s.AttackLimit>0&&s.Wins+s.OtherResults>=s.AttackLimit){s.Note="Session attack limit reached.";s.PendingTarget=0;}
@@ -106,9 +107,13 @@ public sealed partial class MainForm {
      string key=CredentialManager.LoadApiKey(profile)!;var candidates=(action=="levelOpen"?s.Targets.Where(t=>t.Id==s.PendingTarget):s.Targets.Where(t=>!t.Finished&&(t.CheckedUtc==null||t.Status=="Okay"||DateTime.UtcNow-t.CheckedUtc>TimeSpan.FromMinutes(1)))).ToList();
      s.PendingTarget=0;int scanned=0;
      foreach(var target in candidates.ToList()){
+      if(scanned>=10)break;
       if(target.Id==a.Player){target.Finished=true;target.Status="Own account excluded";continue;}
+      target.Suitability=LevelingScouting.Suitability(target,s,DateTime.UtcNow);if(!LevelingScouting.StrengthEligible(target,s,DateTime.UtcNow))continue;
+      scanned++;
       using var d=JsonDocument.Parse(await _api.FetchEndpointAsync("user/"+target.Id+"/profile",key));var p=d.RootElement.GetProperty("profile");if(p.GetProperty("id").GetInt32()!=target.Id)throw new InvalidDataException("Target identity mismatch.");
-      target.Name=p.GetProperty("name").GetString()??"";target.Level=p.GetProperty("level").GetInt32();target.Status=p.GetProperty("status").GetProperty("state").GetString()??"Unknown";target.CheckedUtc=DateTime.UtcNow;
+      target.Name=p.GetProperty("name").GetString()??"";target.Level=p.GetProperty("level").GetInt32();target.Status=p.GetProperty("status").GetProperty("state").GetString()??"Unknown";target.CheckedUtc=DateTime.UtcNow;target.LastActionUtc=LevelingScouting.Time(p.GetProperty("last_action"),"timestamp");target.Suitability=LevelingScouting.Suitability(target,s,DateTime.UtcNow);
+      if(!LevelingScouting.Eligible(target,s,DateTime.UtcNow))continue;
       if(target.Status=="Okay"){
        s.PendingTarget=target.Id;s.Note="Ready: "+target.Name+". Equip a proper fighting weapon, complete the fight yourself and choose Leave. Listed targets and estimates do not guarantee a win.";
        if(action=="levelOpen"){
@@ -117,9 +122,9 @@ public sealed partial class MainForm {
         s.OpenedUtc=DateTime.UtcNow;NavigateActive("https://www.torn.com/page.php?sid=attack&user2ID="+target.Id);
        }break;
       }
-      if(++scanned>=10){s.Note="Checked ten unavailable targets. Check next again to continue without flooding the API.";break;}
+      if(scanned>=10){s.Note="Checked ten unavailable targets. Check next again to continue without flooding the API.";break;}
      }
-     if(s.PendingTarget==0&&scanned<10)s.Note="No ready target found in this pass. Try again after statuses refresh, or start a new pass after completing the list.";
+     if(s.PendingTarget==0&&scanned<10)s.Note="No eligible target found. Scan strength estimates, review filters, or wait for availability to change.";
     }
    }
    SaveLeveling(profile);

@@ -201,3 +201,15 @@ nodes.levelBaldrGroup.value="Baldr's List 1";context.loadBaldrList();assert.equa
 context.renderLeveling({profileId:'B',stale:true,session:{baldrLoadedUtc:'2026-10-23T12:00:00Z',targets:[{id:1,name:'Fixture',source:"Baldr's List 1",listedBattleStats:640}]}});
 assert(nodes.levelBaldrSource.textContent.includes('OranWeb')&&nodes.levelRows.innerHTML.includes('historical'),'Baldr source or stats labeling missing');
 console.log('AUTOMATIC LEVELING / BALDR UI PASSED: medical permission, equipped weapon, timing, direct list load, source and historical stats.');
+
+context.S={profileId:'B'};
+nodes.levelStatRatio.value='50';nodes.levelMaxFF.value='2';nodes.levelEstimateDays.value='30';nodes.levelInactive.checked=true;
+context.saveScoutFilters();assert.equal(levelingMessage.cmd,'levelScoutSave');assert.equal(levelingMessage.data.ratio,0.5);assert(levelingMessage.data.inactive);
+nodes.levelScoutKey.value='TESTKEYONLY00000';context.saveScouterKey();assert.equal(nodes.levelScoutKey.value,'');assert.equal(levelingMessage.cmd,'levelScoutKey');assert.equal(levelingMessage.data.profileId,'B');
+const scoutingData={profileId:'B',scouterConfigured:true,session:{ownStats:300,ownStatsUtc:new Date().toISOString(),maxStatRatio:0.5,maxFairFight:2,maxEstimateDays:30,targets:[{id:5,name:'Weak',estimatedStats:100,estimateUtc:new Date().toISOString(),scannedUtc:new Date().toISOString()},{id:6,name:'TooStrong',estimatedStats:1000,estimateUtc:new Date().toISOString(),scannedUtc:new Date().toISOString()}]}};
+context.renderLeveling(scoutingData);nodes.levelScoutView.value='within';context.renderLeveling(scoutingData);
+assert(nodes.levelRows.innerHTML.includes('Weak')&&!nodes.levelRows.innerHTML.includes('TooStrong'),'Strength list filter failed');
+assert(nodes.levelScoutSummary.textContent.includes('150'),'300-stat account cap missing');
+nodes.levelStatRatio.value='25';context.renderLeveling(scoutingData);assert.equal(nodes.levelStatRatio.value,'25','Status erased scouting draft');
+context.renderLeveling({profileId:'C',session:{targets:[]}});assert.equal(nodes.levelScoutView.value,'all');assert.equal(nodes.levelScoutKey.value,'');assert(!nodes.levelRows.innerHTML.includes('Weak'),'Scouting target leaked across accounts');
+console.log('SCOUTING UI PASSED: account-specific filters, 300-stat cap, strength view, credential clearing and draft preservation.');

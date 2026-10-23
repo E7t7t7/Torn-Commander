@@ -33,7 +33,9 @@ public sealed partial class MainForm {
    if(cfg.OpenedUtc!=null)throw new InvalidOperationException("Check or skip the pending manual fight first.");
    if(cfg.WeaponSlot is not ("weapon_primary" or "weapon_secondary" or "weapon_melee"))throw new InvalidDataException("Invalid fighting weapon slot.");
    bool slotA=_lossWorkerA?.IsArmed!=true;if(!slotA&&_lossWorkerB?.IsArmed==true)throw new InvalidOperationException("Stop a worker to free a fight window first.");
-   var account=await ReadLevelingAccountAsync(profile);var worker=await InitializeLossWorkerAsync(slotA,profile);var run=new LevelingRun{Player=account.Player};
+   var account=await ReadLevelingAccountAsync(profile);await RefreshLevelingStrengthAsync(profile);
+   if(!cfg.Targets.Any(t=>!t.Finished&&LevelingScouting.StrengthEligible(t,cfg,DateTime.UtcNow)))throw new InvalidDataException("No targets have usable strength estimates within your limit. Scan the list or find FFScouter targets first.");
+   var worker=await InitializeLossWorkerAsync(slotA,profile);var run=new LevelingRun{Player=account.Player};
    _levelingRuns[worker]=run;_medicalSessions[worker]=new MedicalSession{Order=run.Id,Player=account.Player,Leveling=true};
    await worker.StartAsync(new{mode="level",profileId=profile,slot=worker.Slot,orderId=run.Id,targetId=cfg.Targets.First(x=>!x.Finished).Id.ToString(),selfName=account.Name,playerId=account.Player,smartMedical=true,medicalSession=_medicalSessions[worker].Id,weaponSlot=cfg.WeaponSlot,attackDelayMs=cfg.AttackDelayMs,maxKits=8});
    cfg.Note="Automatic leveling started. The worker verifies its own weapon, finishes wins with Leave, and verifies official receipts before advancing.";SaveLeveling(profile);UpdateModernDashboard();
@@ -63,21 +65,27 @@ public sealed partial class MainForm {
     if(energy-session.EnergyReserve<25||session.AttackLimit>0&&session.Wins+session.OtherResults>=session.AttackLimit){await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message="Complete: energy reserve or attack limit reached."});return;}
     if(state=="Hospital"||state=="Okay"&&life<(int)Math.Ceiling(maximum*session.LifePercent/100d)){await worker.ReplyLevelingAsync(new{kind="heal",requestId=rid});return;}
     if(state!="Okay")throw new InvalidDataException("Cannot level while account is "+state+".");
+    await RefreshLevelingStrengthAsync(worker.ProfileId);
     int checks=0;
     foreach(var target in session.Targets.Where(x=>!x.Finished).ToList()){
+     if(checks>=10)break;
      if(target.Id==run.Player){target.Finished=true;target.Status="Own account excluded";continue;}
+     target.Suitability=LevelingScouting.Suitability(target,session,DateTime.UtcNow);if(!LevelingScouting.StrengthEligible(target,session,DateTime.UtcNow))continue;
+     checks++;
      using var doc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/"+target.Id+"/profile",key));var t=doc.RootElement.GetProperty("profile");
      if(t.GetProperty("id").GetInt32()!=target.Id)throw new InvalidDataException("Target identity mismatch.");
      target.Status=t.GetProperty("status").GetProperty("state").GetString()??"Unknown";target.Name=t.GetProperty("name").GetString()??"";target.Level=t.GetProperty("level").GetInt32();target.CheckedUtc=DateTime.UtcNow;
+     target.LastActionUtc=LevelingScouting.Time(t.GetProperty("last_action"),"timestamp");target.Suitability=LevelingScouting.Suitability(target,session,DateTime.UtcNow);
      if(!LevelingRunContext(worker,run,request))return;
+     if(!LevelingScouting.Eligible(target,session,DateTime.UtcNow))continue;
      if(target.Status=="Okay"){
       run.Target=target.Id;run.Claim=Guid.NewGuid().ToString("N");run.Opened=DateTime.UtcNow;session.PendingTarget=target.Id;session.OpenedUtc=run.Opened;SaveLeveling(worker.ProfileId);
       await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=true,claimId=run.Claim,targetId=run.Target,message="Leveling target verified. Opening fight."});return;
      }
      target.Finished=true;target.Status="Skipped: "+target.Status;
-     if(++checks>=10)break;
+     if(checks>=10)break;
     }
-    SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message=session.Targets.Any(x=>!x.Finished)?"Checking the next batch of targets.":"Complete: no available targets remain in this pass."});
+    SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message=session.Targets.Any(x=>!x.Finished)?"No eligible target in this pass. Scan estimates or adjust strength/activity filters before restarting.":"Complete: no available targets remain in this pass."});
    }else if(type=="tc-level-commit"){
     if(claim==run.LastCommitted&&claim!=""){await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});return;}
     if(claim==""||claim!=run.Claim)throw new InvalidDataException("No matching leveling fight reservation.");

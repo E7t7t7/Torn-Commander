@@ -3,11 +3,13 @@ using System.Text.RegularExpressions;
 namespace TornCommander;
 public sealed class LevelingTarget {
  public int Id {get;set;} public string Name {get;set;}=""; public int Level {get;set;}
+ public double? EstimatedStats {get;set;} public DateTime? EstimateUtc {get;set;} public DateTime? ScannedUtc {get;set;} public DateTime? LastActionUtc {get;set;} public string EstimateSource {get;set;}=""; public string Suitability {get;set;}="Scan required";
  public string Source {get;set;}=""; public long? ListedBattleStats {get;set;}
  public double? FairFight {get;set;} public string Status {get;set;}="Not checked";
  public DateTime? CheckedUtc {get;set;} public bool Finished {get;set;}
 }
 public sealed class LevelingSession {
+ public double OwnStats {get;set;} public DateTime? OwnStatsUtc {get;set;} public double MaxStatRatio {get;set;}=0.5; public int MaxEstimateDays {get;set;}=30; public double MaxFairFight {get;set;}=2; public bool InactiveOnly {get;set;}=true;
  public string BaldrSource {get;set;}=""; public DateTime? BaldrLoadedUtc {get;set;} public List<string> BaldrGroups {get;set;}=new();
  public List<LevelingTarget> Targets {get;set;}=new(); public int EnergyReserve {get;set;}
  public bool AutoHeal {get;set;} public string WeaponSlot {get;set;}="weapon_primary"; public int AttackDelayMs {get;set;}=1000;
