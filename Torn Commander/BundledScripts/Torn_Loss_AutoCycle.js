@@ -218,8 +218,11 @@
       const id=idOf(link);if(!Number.isSafeInteger(id)||id<=0)continue;sidebar.add(id);
       const text=clean(link.textContent).toLowerCase();if(self&&(text===self||text==='name: '+self))named.add(id);
     }
-    const owner=labeled.size===1?[...labeled][0]:labeled.size>1?null:named.size===1?[...named][0]:null;
-    return{owner,strategy:labeled.size?'name-field':named.size?'sidebar-name':'unavailable',labeledIds:[...labeled],sidebarIds:[...sidebar]};
+    // A single sidebar profile identity is usable even when Torn decorates or hides its name text.
+    // Never select the expected ID from multiple candidates or override explicit Name fields.
+    const uniqueSidebar=!labeled.size&&!named.size&&sidebar.size===1;
+    const owner=labeled.size===1?[...labeled][0]:labeled.size>1?null:named.size===1?[...named][0]:uniqueSidebar?[...sidebar][0]:null;
+    return{owner,strategy:labeled.size?'name-field':named.size?'sidebar-name':uniqueSidebar?'sidebar-unique':'unavailable',labeledIds:[...labeled],sidebarIds:[...sidebar]};
   }
   function medicalOwnId(){return medicalIdentity().owner;}
   function medicalRow(id){

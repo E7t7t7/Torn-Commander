@@ -1,3 +1,8 @@
+v0.6.66 (2026-10-23) — Medical identity fallback for decorated account links
+- Fix the reported second-account medical wait: accept a single unique sidebar profile ID when no explicit Name field or exact-name identity is available. Decorated/hidden account names no longer block otherwise identifiable accounts.
+- Preserve explicit Name-field precedence, native API/profile/session matching, wrong-account rejection and ambiguous-sidebar refusal. Never choose an expected ID out of multiple unrelated candidates.
+- Add loss and leveling fixtures with decorated account names, plus missing, conflicting and wrong sidebar identity checks. No live medicine or attacks used for development testing.
+
 v0.6.65 (2026-10-23) — Medical account identity recognition
 - Read Torn's explicit Name/Username profile field before considering responsive sidebar wrappers, including a collapsed sidebar on narrow worker views. Unrelated spouse/chat/profile links no longer make a valid account ambiguous; sidebar fallback must match the configured player name.
 - Keep native API/account/session ID verification unchanged. Conflicting name fields or an actual different account still block consumption. Accept only positive numeric profile IDs on HTTPS Torn links.

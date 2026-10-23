@@ -81,7 +81,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  }
  let lastKey='',cached;
  function body(){const key=scene+stock+expanded+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
- const owner=node('a','Seller',{href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
+ const owner=node('a',options.decoratedOwner?'2BDecided [wife]':'Seller',{href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
  const ownerLabel=node('span','Name:');const ownerRow=node('div','',{},[ownerLabel,owner]);if(options.medicalOwnerHidden){ownerLabel.getClientRects=()=>[];owner.getClientRects=()=>[];}const stranger=node('a','Unrelated chat user',{href:'/profiles.php?XID=777'});
  const document={title:'Torn',get body(){return body()},querySelectorAll:s=>{
   if(s.startsWith('[id="sidebar"] a'))return options.missingMedicalAccount||options.noSidebarWrapper||clock-1700000000000<(options.identityDelayMs||0)?[]:options.sidebarOtherIds?[owner,stranger]:[owner];
@@ -221,10 +221,17 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   assert.equal(one.counts.medicine,mode.failMedicalVerification?1:0,'Unsafe medical consumption '+JSON.stringify(mode));
   assert(one.messages.filter(m=>m.type==='tc-medical-authorize').length<=1,'Repeated failed authorization');assert.equal(one.counts.wrong,0);
  }
- for(const identity of [{labeledMedicalOwner:true,sidebarOtherIds:true},{labeledMedicalOwner:true,noSidebarWrapper:true,medicalOwnerHidden:true},{labeledMedicalOwner:true,noSidebarWrapper:true},{labeledMedicalOwner:true,noSidebarWrapper:true,identityDelayMs:7000}]){
+ for(const identity of [{decoratedOwner:true},{decoratedOwner:true,leveling:true},{labeledMedicalOwner:true,sidebarOtherIds:true},{labeledMedicalOwner:true,noSidebarWrapper:true,medicalOwnerHidden:true},{labeledMedicalOwner:true,noSidebarWrapper:true},{labeledMedicalOwner:true,noSidebarWrapper:true,identityDelayMs:7000}]){
   const identified=fixture(false,false,false,{smartMedical:true,initialHospital:true,collapsed:true,headerOnly:true,...identity});
   for(let i=0;i<1400&&identified.h.getState().stage!=='complete';i++)await identified.step(250);
   assert.equal(identified.h.getState().stage,'complete',identified.h.getState().status);assert.equal(identified.counts.medicine,3);assert.equal(identified.counts.wrong,0);
+ }
+ for(const extra of [{decoratedOwner:true,sidebarOtherIds:true},{decoratedOwner:true,wrongMedicalAccount:true},{decoratedOwner:true,missingMedicalAccount:true}]){
+  const blocked=fixture(false,false,false,{smartMedical:true,initialHospital:true,...extra});
+  for(let i=0;i<200&&blocked.h.getState().stage!=='paused';i++)await blocked.step(250);
+  assert.equal(blocked.counts.medicine,0,'Unverified sidebar identity consumed medicine');
+  assert.equal(blocked.h.getState().stage,'paused');
+  assert.equal(blocked.messages.filter(m=>m.type==='tc-medical-authorize').length,0);
  }
  const wrongLabeled=fixture(false,false,false,{smartMedical:true,initialHospital:true,labeledMedicalOwner:true,noSidebarWrapper:true,wrongMedicalAccount:true});
  for(let i=0;i<100&&wrongLabeled.h.getState().stage!=='paused';i++)await wrongLabeled.step(250);
