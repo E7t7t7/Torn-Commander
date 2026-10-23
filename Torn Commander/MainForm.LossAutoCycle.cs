@@ -150,6 +150,8 @@ public sealed partial class MainForm
         if (existing is not null)
         {
             ReleaseClaimsForWorker(existing);
+            if(_levelingRuns.TryGetValue(existing,out var oldLevelRun))oldLevelRun.Active=false;
+            _medicalSessions.Remove(existing);
             existing.Dispose();
         }
 
@@ -324,6 +326,7 @@ public sealed partial class MainForm
         if (worker is null) return;
         await worker.StopAsync();
         ReleaseClaimsForWorker(worker);
+        if(_levelingRuns.TryGetValue(worker,out var levelRun))levelRun.Active=false;
         FlashStatus($"Loss auto-cycle {(accountA ? "A" : "B")} stopped.");
     }
 
@@ -353,6 +356,7 @@ public sealed partial class MainForm
         if (tasks.Count > 0) await Task.WhenAll(tasks);
         if (_lossWorkerA is not null) ReleaseClaimsForWorker(_lossWorkerA);
         if (_lossWorkerB is not null) ReleaseClaimsForWorker(_lossWorkerB);
+        foreach(var run in _levelingRuns.Values)run.Active=false;
         FlashStatus("Both loss auto-cycle workers stopped.");
     }
 
@@ -361,6 +365,7 @@ public sealed partial class MainForm
         var type = ReadWorkerString(root, "type");
         if (string.IsNullOrWhiteSpace(type)) return;
 
+        if(type.StartsWith("tc-level-",StringComparison.Ordinal)){await HandleLevelingWorkerAsync(worker,root);return;}
         if(type.StartsWith("tc-medical-",StringComparison.Ordinal)){await HandleMedicalMessageAsync(worker,root);return;}
         if (type == "tc-loss-status")
         {
@@ -422,6 +427,7 @@ public sealed partial class MainForm
         var order=SelectedLossOrder();
         var data=new{
             medical=MedicalDashboard(),
+            leveling=LevelingDashboard(),
             lossAttackDelayMs = Math.Clamp(_settings.LossAttackDelayMs, 500, 5000),
             workers=new{a=_lossWorkerA?.LastStatus??"Not initialized",b=_lossWorkerB?.LastStatus??"Not initialized"},
             loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,status=order.Status}

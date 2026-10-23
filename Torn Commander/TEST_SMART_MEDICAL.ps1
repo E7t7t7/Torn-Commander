@@ -55,6 +55,10 @@ Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{CooldownSeconds=15
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{HospitalUntilUtc=now},67,now.AddSeconds(5)),"changed hospital treated as unused");
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused,67,now.AddMinutes(2)),"stale pending authorization reused");
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused,206,now.AddSeconds(5)),"drug unused authorization");
+var levelingBefore=before with{HospitalUntilUtc=now,Life=10,MaximumLife=100};
+var levelingAfter=after with{HospitalUntilUtc=now,Life=20,MaximumLife=100};
+Assert(SmartMedicalOptimizer.VerifyUse(levelingBefore,levelingAfter,67,now.AddSeconds(5)),"leveling life gain verification");
+Assert(!SmartMedicalOptimizer.VerifyUse(levelingBefore,levelingAfter with{Life=10},67,now.AddSeconds(5)),"unchanged life accepted after full-heal medicine");
 var random=new Random(901);settings=new SmartMedicalSettings();
 for(int trial=0;trial<120;trial++){
  int a=random.Next(5),b=random.Next(5),c=random.Next(5),hospital=random.Next(1,160),cd=random.Next(19000,21700);var o=Obs(hospital,cd,inventory:new(){{68,a},{67,b},{66,c}});var actual=SmartMedicalOptimizer.Plan(o,settings,now);int expected=int.MaxValue;

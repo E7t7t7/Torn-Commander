@@ -194,3 +194,10 @@ context.renderLeveling({profileId:'B',stale:true,session:{energyReserve:0,lifePe
 assert.equal(nodes.levelReserve.value,0);assert.equal(nodes.levelLife.value,50);assert(!nodes.levelRows.innerHTML.includes('Fixture'),'Targets leaked across accounts');
 context.S={profileId:'B'};nodes.levelTargets.value='123';nodes.levelLimit.value=0;context.saveLeveling();assert.equal(levelingMessage.cmd,'levelSave');assert.equal(levelingMessage.data.profileId,'B');assert.equal(levelingMessage.data.targets,'123');
 console.log('LEVELING UI PASSED: full-life option, stale gating, draft retention, profile isolation and save payload.');
+
+assert(ids.has('levelAutoHeal')&&ids.has('levelWeapon')&&ids.has('levelDelay'),'Automatic leveling controls missing');
+nodes.levelAutoHeal.checked=true;nodes.levelWeapon.value='weapon_primary';nodes.levelDelay.value='1000';context.saveLeveling();assert(levelingMessage.data.autoHeal&&levelingMessage.data.weapon==='weapon_primary'&&levelingMessage.data.delay===1000,'Automatic permissions/weapon not saved');
+nodes.levelBaldrGroup.value="Baldr's List 1";context.loadBaldrList();assert.equal(levelingMessage.cmd,'levelLoadBaldr');assert.equal(levelingMessage.data.group,"Baldr's List 1");assert.equal(levelingMessage.data.profileId,'B');
+context.renderLeveling({profileId:'B',stale:true,session:{baldrLoadedUtc:'2026-10-23T12:00:00Z',targets:[{id:1,name:'Fixture',source:"Baldr's List 1",listedBattleStats:640}]}});
+assert(nodes.levelBaldrSource.textContent.includes('OranWeb')&&nodes.levelRows.innerHTML.includes('historical'),'Baldr source or stats labeling missing');
+console.log('AUTOMATIC LEVELING / BALDR UI PASSED: medical permission, equipped weapon, timing, direct list load, source and historical stats.');

@@ -21,7 +21,7 @@ public sealed class SmartMedicalSettings
     }
 }
 internal sealed record MedicalItem(int Id,string Name,int HospitalSeconds,int CooldownSeconds,long BasePrice);
-internal sealed record MedicalObservation(string ProfileId,int PlayerId,DateTime ObservedUtc,DateTime HospitalUntilUtc,int CooldownSeconds,int MaximumSeconds,double BonusPercent,bool IvVerified,string Verification,Dictionary<int,int> Inventory);
+internal sealed record MedicalObservation(string ProfileId,int PlayerId,DateTime ObservedUtc,DateTime HospitalUntilUtc,int CooldownSeconds,int MaximumSeconds,double BonusPercent,bool IvVerified,string Verification,Dictionary<int,int> Inventory,int Life=0,int MaximumLife=0);
 internal sealed record MedicalPlan(string State,string Reason,int[] Items,int CooldownSeconds,int HospitalSeconds,int FakBaselineSeconds,DateTime? AvailableUtc=null);
 internal static class SmartMedicalOptimizer
 {
@@ -94,7 +94,9 @@ internal static class SmartMedicalOptimizer
         double elapsed=(after.ObservedUtc-before.ObservedUtc).TotalSeconds;
         double delta=after.CooldownSeconds-Math.Max(0,before.CooldownSeconds-elapsed);
         bool reduced=after.HospitalUntilUtc<=now||before.HospitalUntilUtc-after.HospitalUntilUtc>=TimeSpan.FromSeconds(item.HospitalSeconds*(1+before.BonusPercent/100)-5);
-        return Math.Abs(delta-item.CooldownSeconds)<=45&&reduced;
+        bool restored=true;
+        if(before.MaximumLife>0){double percent=itemId==68?.05:itemId==67?.10:itemId==66?.15:.30;int expected=Math.Min(before.MaximumLife,before.Life+(int)Math.Floor(before.MaximumLife*percent*(1+before.BonusPercent/100)));restored=after.MaximumLife==before.MaximumLife&&after.Life>=expected-1;}
+        return Math.Abs(delta-item.CooldownSeconds)<=45&&reduced&&restored;
     }
     internal static (double Bonus,int Maximum,bool Iv,string Status) Modifiers(string json,SmartMedicalSettings settings){
         if(!settings.AutoDetect)return(settings.ManualBonusPercent,settings.ManualMaximumMinutes*60,false,"Manual override — user supplied, not API verified; blood eligibility still requires API verification.");

@@ -25,7 +25,7 @@
   };
   const labelOf = el => clean(el?.innerText || el?.value || el?.getAttribute?.('aria-label') || el?.getAttribute?.('title') || '').toLowerCase();
   const post = payload => {
-    try { window.chrome?.webview?.postMessage(JSON.stringify(payload)); } catch {}
+    try { if(load()?.mode==='level'&&payload.type?.startsWith('tc-loss-'))payload.type=payload.type.replace('tc-loss-','tc-level-');window.chrome?.webview?.postMessage(JSON.stringify(payload)); } catch {}
   };
 
   function load() {
@@ -161,6 +161,26 @@
     return roots.length===1&&enabledControl(roots[0],area)?roots[0]:null;
   }
 
+  function levelingWeapon(state){
+    const id=state.weaponSlot;if(!['weapon_primary','weapon_secondary','weapon_melee'].includes(id))return null;
+    const slots=outerRoots(Array.from(document.querySelectorAll('[id="'+id+'"]')).filter(visible));
+    const candidates=slots.filter(slot=>{
+      if(!enabledControl(slot,slot.parentElement))return false;
+      const names=[slot.getAttribute?.('aria-label'),slot.getAttribute?.('title'),...Array.from(slot.querySelectorAll('[aria-label],[title],span')).map(x=>x.getAttribute?.('aria-label')||x.getAttribute?.('title')||x.textContent)].map(clean);
+      return names.some(x=>/^attack with (?!pillow\b).+/i.test(x))&&!names.some(x=>/this weapon is not available/i.test(x));
+    });return candidates.length===1?candidates[0]:null;
+  }
+  function levelingLeaveControl(requireChoices=false){
+    const controls=Array.from(document.querySelectorAll('button,a,[role="button"],input[type="button"]')).filter(el=>visible(el)&&enabledControl(el,el.parentElement));
+    const leave=controls.filter(el=>/^leave(?:\s+(?:them|him|her|target|on the street).*)?$/i.test(labelOf(el)));
+    if(requireChoices&&!controls.some(el=>/^(?:mug|hospitalize|hospitalise)$/i.test(labelOf(el))))return null;
+    return leave.length===1?leave[0]:null;
+  }
+  function finishLevelingMedical(state){
+    if(state.finishAfterRecovery){state.running=false;state.stage='complete';state.status=state.levelStopMessage||'Leveling pass complete; recovery verified.';save(state);post({type:'tc-loss-finished',profileId:state.profileId,orderId:state.orderId});}
+    else{state.stage=state.claimId?'attack-open':'claim';state.status='Recovery verified. Checking the next leveling target.';state.navigationUrl='';save(state);}
+  }
+  function levelCommit(state){state.stage='commit-wait';state.commitAttempts=1;state.replyWaitAt=now();state.status='Verifying the completed leveling fight with Torn.';save(state);post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId});}
   function detectFightResult(state) {
     const text = bodyText();
     const self = clean(state.selfName || '');
@@ -273,6 +293,9 @@
       const use=medicalUse(op.itemId);if(!use){pauseState(state,'Authorized Use control disappeared. No retry.',true);return;}
       state.medicalDispatched=true;state.medicalUseAt=now();state.medicalConfirmed=false;state.stage='smart-medical-wait';save(state);
       if(!click(use))pauseState(state,'Medical click could not be dispatched; review before restarting.',true);return;
+    }
+    if(state.stage==='smart-medical-receipt-wait'){
+      if(now()<state.medicalVerifyAt)return;requestMedical(state,'tc-medical-verify',{token:op.token});return;
     }
     if(state.stage==='smart-medical-wait'){
       let count=medicalCount(op.itemId);
@@ -481,9 +504,19 @@
         return;
       }
 
+      if(state.mode==='level'&&state.stage==='level-finish'){
+        const leave=levelingLeaveControl();
+        if(leave){state.levelLeaveClicked=true;save(state);if(click(leave))levelCommit(state);else pauseState(state,'Leave control changed before dispatch. Review the fight.',false);return;}
+        if(now()-state.levelFinishAt>20000)pauseState(state,'A single verified Leave control did not appear. Finish the fight manually, then Resume to verify its receipt.',false);return;
+      }
+      if(state.mode==='level'&&state.stage==='level-verify'){
+        if(now()<state.levelVerifyAt)return;
+        if(Number(state.commitAttempts||1)>=8){pauseState(state,'Official attack log did not update after eight checks. Resume verifies this same fight; no new attack will start.',false);return;}
+        state.commitAttempts=Number(state.commitAttempts||1)+1;state.stage='commit-wait';state.replyWaitAt=now();save(state);post({type:'tc-loss-commit',profileId:state.profileId,orderId:state.orderId,claimId:state.claimId});return;
+      }
       if (state.stage === 'claim-wait' || state.stage === 'commit-wait') {
         if (!state.replyWaitAt) { state.replyWaitAt=now(); save(state); return; }
-        if (now()-state.replyWaitAt < 10000) return;
+        if (now()-state.replyWaitAt < (state.mode==='level'?60000:10000)) return;
         if (state.stage === 'claim-wait') {
           state.pendingClaimRequest='';
           if (Number(state.claimAttempts || 0) >= 3) {
@@ -519,6 +552,9 @@
           openPage(state,ITEMS_URL,'Items / Medical');
           return;
         }
+        if(state.mode==='level'&&/(?:this player|this person|your target|the target) (?:is |is currently |has been )?(?:in (?:the )?hospital|in jail|traveling|travelling|abroad|unavailable|already in a fight)/i.test(bodyText())){
+          const claimId=state.claimId;state.claimId='';state.stage='claim';state.pendingClaimRequest='';state.status='Target became unavailable. Skipping to the next account.';save(state);post({type:'tc-loss-skip',profileId:state.profileId,orderId:state.orderId,claimId});return;
+        }
         if (insufficientEnergy()) { pauseForEnergy(state); return; }
         const join = joinFightButton();
         if (!join) {
@@ -544,6 +580,7 @@
           pauseState(state, 'Attack page changed during the fight. Paused rather than guessing the result.', false);
           return;
         }
+        if(state.mode==='level'&&levelingLeaveControl(true)){state.stage='level-finish';state.levelFinishAt=now();state.status='Finishing choices are visible. Preparing Leave.';save(state);return;}
         const outcome = detectFightResult(state);
         if (outcome === 'loss') {
           state.stage = 'commit-wait';
@@ -554,6 +591,7 @@
           post({ type: 'tc-loss-commit', profileId: state.profileId, slot: state.slot, orderId: state.orderId, claimId: state.claimId });
           return;
         }
+        if (outcome === 'win'&&state.mode==='level'){state.stage='level-finish';state.levelFinishAt=now();state.status='Fight won. Looking for a single Leave control.';save(state);return;}
         if (outcome === 'win') {
           pauseState(state, 'Fight result was NOT a loss. Nothing was counted; review the order.', true);
           return;
@@ -568,12 +606,12 @@
           return;
         }
         if (now() - Number(state.lastPillowAt || 0) < attackDelay(state.attackDelayMs ?? 1900)) return;
-        const pillow = pillowControl();
+        const pillow = state.mode==='level'?levelingWeapon(state):pillowControl();
         if (!pillow) {
           state.pillowMissingSince = state.pillowMissingSince || now();
-          state.status = 'Pillow control not found or not ready yet. Waiting for Torn combat UI to settle.';
+          state.status = state.mode==='level'?'Selected fighting weapon is unavailable, empty, or ambiguous. Waiting for its verified attack control.':'Pillow control not found or not ready yet. Waiting for Torn combat UI to settle.';
           save(state);
-          if (now() - state.pillowMissingSince > 45000) pauseState(state, 'Pillow control could not be identified for 45 seconds. Auto-cycle paused.', false);
+          if (now() - state.pillowMissingSince > 45000) pauseState(state, state.mode==='level'?'Selected fighting weapon could not be verified for 45 seconds. Check equipment/ammo; no alternative weapon was clicked.':'Pillow control could not be identified for 45 seconds. Auto-cycle paused.', false);
           return;
         }
         if (!click(pillow)) {
@@ -584,7 +622,7 @@
         state.pillowMissingSince = 0;
         state.pillowTurns = Number(state.pillowTurns || 0) + 1;
         state.lastPillowAt = now();
-        state.status = `Pillow turn ${state.pillowTurns}; watching for the visible loss result.`;
+        state.status = state.mode==='level'?`Leveling turn ${state.pillowTurns}; watching for the fight result.`:`Pillow turn ${state.pillowTurns}; watching for the visible loss result.`;
         save(state);
         return;
       }
@@ -764,6 +802,7 @@
       const token = 'sess_' + now() + '_' + Math.random().toString(36).slice(2);
       sessionStorage.setItem(SESSION_KEY, token);
       const state = {
+        mode:config.mode==='level'?'level':'loss',weaponSlot:String(config.weaponSlot||'weapon_primary'),
         profileId: String(config.profileId || ''),
         slot: String(config.slot || ''),
         orderId: String(config.orderId || ''),
@@ -803,7 +842,7 @@
       sessionStorage.setItem(SESSION_KEY, token);
       state.sessionToken = token;
       state.running = true;
-      const reconcile = state.previousStage === 'commit-wait' && !!state.claimId;
+      const reconcile = (state.previousStage === 'commit-wait'||state.mode==='level'&&['level-verify','level-finish'].includes(state.previousStage)) && !!state.claimId;
       const resumeFight = state.claimId && state.previousStage === 'fight' && isAttackPage(state.targetId);
       // Resume the pending medical operation before requesting another attack.
       // A dispatched item is observed/verified only; it must never be clicked again.
@@ -850,7 +889,7 @@
           state.running = false;
           state.stage = 'complete';
           state.status = message || 'No losses remain.';
-          save(state);
+          save(state);if(state.mode==='level')post({type:'tc-loss-finished',profileId:state.profileId,orderId:state.orderId});
           return true;
         }
         if (/paused|no longer exists|assigned to/i.test(String(message || ''))) {
@@ -884,7 +923,7 @@
       state.commitAttempts = 0;
       state.replyWaitAt = 0;
       state.finishAfterRecovery = Number(remaining || 0) <= 0;
-      state.stage = state.finishAfterRecovery ? 'final-recovery' : 'heal-open';
+      state.stage = state.mode==='level'?'heal-open':state.finishAfterRecovery ? 'final-recovery' : 'heal-open';
       state.probeStartedAt = now();
       state.healEnteredAt = 0; state.aidExpandedAt = 0;
       state.medicalClickedAt = 0;
@@ -894,9 +933,23 @@
         ? 'Final loss committed. Verifying recovery before completing the order.'
         : `Loss committed. ${remaining} remaining; opening Items to recover.`;
       save(state);
-      if (state.finishAfterRecovery) openPage(state,ATTACK_URL(state.targetId),'attack recovery page');
+      if (state.finishAfterRecovery&&state.mode!=='level') openPage(state,ATTACK_URL(state.targetId),'attack recovery page');
       else openPage(state,ITEMS_URL,'Items / Medical');
       return true;
+    },
+    onLevelReply(reply){
+      const state=load();if(!state?.running||state.mode!=='level')return false;
+      if(reply.kind==='paused'){pauseState(state,reply.message||'Leveling verification failed.',false);return true;}
+      if(reply.kind==='claim'||reply.kind==='heal'){
+        if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;
+        if(reply.kind==='heal'){state.stage='heal-open';state.medicalInventorySignature='';state.pendingClaimRequest='';save(state);openPage(state,ITEMS_URL,'Items / Medical');return true;}
+        if(reply.ok){if(!Number.isSafeInteger(Number(reply.targetId))||Number(reply.targetId)<=0||Number(reply.targetId)===state.playerId){pauseState(state,'Invalid leveling target grant.',false);return false;}state.targetId=String(reply.targetId);save(state);}
+        return window.TornCommanderLossCycle.onClaim(reply.requestId,!!reply.ok,reply.claimId||'',reply.message||'');
+      }
+      if(state.claimId!==reply.claimId||!['commit-wait','level-verify'].includes(state.stage))return false;
+      if(reply.kind==='pending'){state.stage='level-verify';state.levelVerifyAt=now()+12000;state.status=reply.message;save(state);return true;}
+      if(reply.kind==='commit'){state.stage='commit-wait';if(reply.stop)state.levelStopMessage=reply.message;save(state);return window.TornCommanderLossCycle.onCommit(reply.claimId,true,reply.remaining,reply.message);}
+      return false;
     },
     onMedical(requestId,reply){
       const state=load();if(!medicalPage()||!state?.running||!state.smartMedical||state.stage!=='smart-medical-await'||state.medicalRequest!==requestId)return false;
@@ -907,8 +960,11 @@
         state.stage='smart-medical-ready';state.status='Plan: '+reply.name+'. Verifying personal inventory and account.';save(state);return true;
       }
       if(reply.state==='Authorized'&&state.medicalOp?.token===reply.token&&state.medicalOp.itemId===reply.itemId){state.medicalOp.expires=reply.expires;state.stage='smart-medical-execute';save(state);return true;}
+      if(reply.state==='PendingVerification'&&state.mode==='level'&&state.medicalDispatched&&state.medicalOp?.token===reply.token){state.stage='smart-medical-receipt-wait';state.medicalVerifyAt=now()+5000;state.status=reply.reason;save(state);return true;}
+      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token&&state.mode==='level'){state.medicalOp=null;state.medicalDispatched=false;state.medicalInventorySignature='';state.medicalReplans=0;state.stage='heal-open';save(state);return true;}
       if(reply.state==='Verified'&&state.medicalOp?.token===reply.token){state.medicalOp=null;state.medicalDispatched=false;state.medicalReplans=0;state.stage='recovery-probe';state.probeStartedAt=now();state.status='Medical quantity, cooldown and hospital changes verified. Rechecking recovery.';save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
       if(reply.state==='Replan'){replanMedical(state,reply.reason||'Recalculating medical plan before dispatch.');return true;}
+      if(reply.state==='Recovered'&&state.mode==='level'){finishLevelingMedical(state);return true;}
       if(reply.state==='Recovered'){state.stage='recovery-probe';state.probeStartedAt=now();save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
       if(reply.state==='Cooldown'&&reply.autoResume&&Number.isFinite(Date.parse(reply.waitUntil))){
         if(state.claimId){post({type:'tc-loss-abandon',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,reason:'Medical cooldown waiting'});state.claimId='';}
@@ -918,7 +974,7 @@
     },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {medicalSession:load()?.medicalSession,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },

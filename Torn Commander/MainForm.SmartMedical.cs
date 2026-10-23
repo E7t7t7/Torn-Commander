@@ -5,13 +5,13 @@ public sealed partial class MainForm
     private sealed class MedicalSession
     {
         public string Id=Guid.NewGuid().ToString("N"),Order="",Note="Waiting for a hospital observation",ModifierNote="Not scanned",Pending="";
-        public int Player,LossesAtStart,ItemsUsed,CooldownUsed,Saved,EpisodeBaseline,EpisodeCost,LastHospitalSeconds,LastHealCost;
+        public int Player,LossesAtStart,ItemsUsed,CooldownUsed,Saved,EpisodeBaseline,EpisodeCost,LastHospitalSeconds,LastHealCost,VerifyAttempts;
         public DateTime PendingUntil,LastRequest,PerksAt;
         public string Perks="";
         public MedicalObservation? Observation;
         public MedicalPlan? Plan;
         public MedicalItem? Item;
-        public bool Busy,Issued,Verified;
+        public bool Busy,Issued,Verified,Leveling;
         public Dictionary<int,int> Before=new();
     }
     private readonly Dictionary<LossAutoCycleWorker,MedicalSession> _medicalSessions=new();
@@ -44,9 +44,11 @@ public sealed partial class MainForm
         }
         var mods=SmartMedicalOptimizer.Modifiers(session.Perks,settings);session.ModifierNote=mods.Status;
         // Manual mode still cannot assert blood eligibility; auto detection must prove it.
-        return new(worker.ProfileId,session.Player,DateTime.UtcNow,until,seconds,mods.Maximum,mods.Bonus,mods.Iv,mods.Status,inventory);
+        var observed=new MedicalObservation(worker.ProfileId,session.Player,DateTime.UtcNow,until,seconds,mods.Maximum,mods.Bonus,mods.Iv,mods.Status,inventory,session.Leveling?p.GetProperty("life").GetProperty("current").GetInt32():0,session.Leveling?p.GetProperty("life").GetProperty("maximum").GetInt32():0);
+        if(session.Leveling&&_levelingAccounts.TryGetValue(worker.ProfileId,out var account))_levelingAccounts[worker.ProfileId]=account with{Life=observed.Life,Maximum=observed.MaximumLife,Status=state??"Unknown",Medical=observed,Recovery=LevelingPlanner.Recovery(observed,settings,observed.Life,observed.MaximumLife,LevelingFor(worker.ProfileId).LifePercent,DateTime.UtcNow),At=DateTime.UtcNow};
+        return observed;
     }
-    private bool MedicalContext(LossAutoCycleWorker worker,MedicalSession s,JsonElement request)=>worker.IsArmed&&ReferenceEquals(worker,worker.Slot=="A"?_lossWorkerA:_lossWorkerB)&&_lossOrders.Any(o=>o.Id==s.Order&&o.Status!="Paused"&&(worker.Slot=="A"?o.ProfileAId:o.ProfileBId)==worker.ProfileId)&&ReadWorkerString(request,"medicalSession")==s.Id&&ReadWorkerString(request,"profileId")==worker.ProfileId&&ReadWorkerString(request,"orderId")==s.Order&&request.TryGetProperty("browserPlayerId",out var p)&&p.TryGetInt32(out int id)&&id==s.Player;
+    private bool MedicalContext(LossAutoCycleWorker worker,MedicalSession s,JsonElement request)=>worker.IsArmed&&ReferenceEquals(worker,worker.Slot=="A"?_lossWorkerA:_lossWorkerB)&&(s.Leveling?(_levelingRuns.TryGetValue(worker,out var run)&&run.Active&&run.Id==s.Order):_lossOrders.Any(o=>o.Id==s.Order&&o.Status!="Paused"&&(worker.Slot=="A"?o.ProfileAId:o.ProfileBId)==worker.ProfileId))&&ReadWorkerString(request,"medicalSession")==s.Id&&ReadWorkerString(request,"profileId")==worker.ProfileId&&ReadWorkerString(request,"orderId")==s.Order&&request.TryGetProperty("browserPlayerId",out var p)&&p.TryGetInt32(out int id)&&id==s.Player;
     private static Dictionary<int,int> ReadMedicalInventory(JsonElement r){
         var result=new Dictionary<int,int>();foreach(var row in r.GetProperty("inventory").EnumerateArray()){
             int id=row.GetProperty("id").GetInt32(),q=row.GetProperty("quantity").GetInt32();
@@ -71,18 +73,18 @@ public sealed partial class MainForm
                 var observation=await ReadMedicalObservationAsync(worker,s,inventory);
                 if(!MedicalContext(worker,s,request))return;
                 if(unresolved&&!SmartMedicalOptimizer.VerifyUnused(s.Observation!,observation,s.Item!.Id,DateTime.UtcNow))throw new InvalidDataException("Could not prove the previous healing permission was unused. No second item authorized; stop and review the item count and cooldown.");
-                s.Observation=observation;s.Plan=SmartMedicalOptimizer.Plan(observation,settings,DateTime.UtcNow);s.Note=s.Plan.Reason;
+                s.Observation=observation;s.Plan=WorkerMedicalPlan(worker,s,observation,settings);s.Note=s.Plan.Reason;
                 if(s.EpisodeBaseline==0&&s.Plan.State=="Ready"){s.EpisodeBaseline=s.Plan.FakBaselineSeconds;s.LastHospitalSeconds=s.Plan.HospitalSeconds;}
-                s.Pending="";s.Issued=false;s.Verified=false;
+                s.Pending="";s.Issued=false;s.Verified=false;s.VerifyAttempts=0;
                 if(!settings.Enabled&&s.Plan.State!="Recovered")throw new InvalidDataException("Smart Medical Management is disabled. Heal manually; no automatic fallback is permitted.");
                 if(s.Plan.State!="Ready"){
                     s.Item=null;if(s.Plan.State=="Recovered"){s.EpisodeBaseline=0;s.EpisodeCost=0;}
-                    await worker.ReplyMedicalAsync(rid,new{state=s.Plan.State,reason=s.Plan.Reason,waitUntil=s.Plan.AvailableUtc,autoResume=settings.Enabled&&settings.Automatic&&settings.AutoResume});return;
+                    await worker.ReplyMedicalAsync(rid,new{state=s.Plan.State,reason=s.Plan.Reason,waitUntil=s.Plan.AvailableUtc,autoResume=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings)&&settings.AutoResume});return;
                 }
                 s.Item=SmartMedicalOptimizer.Item(s.Plan.Items[0]);s.Before=inventory;s.Pending=Guid.NewGuid().ToString("N");s.PendingUntil=DateTime.UtcNow.AddSeconds(40);
-                await worker.ReplyMedicalAsync(rid,new{state="Ready",reason=s.Plan.Reason,token=s.Pending,itemId=s.Item.Id,name=s.Item.Name,quantity=inventory.GetValueOrDefault(s.Item.Id),expires=s.PendingUntil,automatic=settings.Enabled&&settings.Automatic,medicalSession=s.Id});
+                await worker.ReplyMedicalAsync(rid,new{state="Ready",reason=s.Plan.Reason,token=s.Pending,itemId=s.Item.Id,name=s.Item.Name,quantity=inventory.GetValueOrDefault(s.Item.Id),expires=s.PendingUntil,automatic=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings),medicalSession=s.Id});
             }else if(type=="tc-medical-authorize"){
-                if(!settings.Enabled||!settings.Automatic)throw new InvalidDataException("Automatic healing is disabled for this account. Save Automatic mode in its medical settings.");
+                if(!settings.Enabled||!WorkerAutomaticMedical(worker,s,settings))throw new InvalidDataException("Automatic healing is disabled for this account. Save Automatic mode in its medical settings.");
                 if(s.Item is null||s.Observation is null||ReadWorkerString(request,"token")!=s.Pending)throw new InvalidDataException("Healing request does not match this account's pending operation; no item authorized.");
                 if(s.Issued)throw new InvalidDataException("This healing operation was already authorized. Verify its outcome before requesting another use; your saved permissions are enabled.");
                 if(DateTime.UtcNow>s.PendingUntil){s.Pending="";await worker.ReplyMedicalAsync(rid,new{state="Replan",reason="The unused healing plan expired; refreshing hospital and cooldown."});return;}
@@ -94,7 +96,7 @@ public sealed partial class MainForm
                 var fresh=DateTime.UtcNow-s.Observation.ObservedUtc<=TimeSpan.FromSeconds(10)
                     ?s.Observation with{Inventory=inventory}
                     :await ReadMedicalObservationAsync(worker,s,inventory);
-                var plan=SmartMedicalOptimizer.Plan(fresh,settings,DateTime.UtcNow);
+                var plan=WorkerMedicalPlan(worker,s,fresh,settings);
                 if(!MedicalContext(worker,s,request))return;
                 if(plan.State!="Ready"||plan.Items.FirstOrDefault()!=s.Item.Id){s.Pending="";await worker.ReplyMedicalAsync(rid,new{state="Replan",reason="Hospital/cooldown changed before dispatch; recalculating."});return;}
                 s.Observation=fresh;s.Issued=true;s.PendingUntil=DateTime.UtcNow.AddSeconds(30);
@@ -105,7 +107,10 @@ public sealed partial class MainForm
                 if(inventory.GetValueOrDefault(s.Item.Id)!=s.Before.GetValueOrDefault(s.Item.Id)-1)throw new InvalidDataException("Medical quantity did not decrease by exactly one; consumption remains unverified.");
                 if(!inventory.ContainsKey(s.Item.Id))inventory[s.Item.Id]=0;
                 var after=await ReadMedicalObservationAsync(worker,s,inventory);if(!MedicalContext(worker,s,request))return;
-                if(!SmartMedicalOptimizer.VerifyUse(s.Observation,after,s.Item.Id,DateTime.UtcNow))throw new InvalidDataException("Item/cooldown/hospital changes disagree (or API is stale). Paused; never repeat the item blindly.");
+                if(!SmartMedicalOptimizer.VerifyUse(s.Observation,after,s.Item.Id,DateTime.UtcNow)){
+                    if(s.Leveling&&++s.VerifyAttempts<=4){await worker.ReplyMedicalAsync(rid,new{state="PendingVerification",token=s.Pending,reason="The item count changed; waiting for Torn's life/cooldown snapshot to catch up. No item will be repeated."});return;}
+                    throw new InvalidDataException("Item/cooldown/hospital/life changes disagree (or API is stale). Paused; never repeat the item blindly.");
+                }
                 s.Verified=true;s.ItemsUsed++;s.CooldownUsed+=s.Item.CooldownSeconds;s.EpisodeCost+=s.Item.CooldownSeconds;s.Observation=after;
                 if(after.HospitalUntilUtc<=DateTime.UtcNow){s.Saved+=s.EpisodeBaseline-s.EpisodeCost;s.LastHealCost=s.EpisodeCost;s.EpisodeBaseline=0;s.EpisodeCost=0;}
                 s.Note="Verified "+s.Item.Name+"; replanning from observed state.";
@@ -117,7 +122,7 @@ public sealed partial class MainForm
     }
     private object MedicalDashboard()=>new{
         profiles=_settings.Profiles.Select(p=>new{id=p.Id,name=p.Name,settings=MedicalSettings(p.Id)}).ToList(),
-        sessions=_medicalSessions.Where(x=>x.Key.IsArmed).Select(pair=>{var w=pair.Key;var s=pair.Value;var o=s.Observation;var order=_lossOrders.FirstOrDefault(x=>x.Id==s.Order);int losses=order==null?0:Math.Max(0,(w.Slot=="A"?order.CompletedA:order.CompletedB)-s.LossesAtStart);int hospital=o==null?0:Math.Max(0,(int)(o.HospitalUntilUtc-DateTime.UtcNow).TotalSeconds);int cd=o==null?0:Math.Max(0,o.CooldownSeconds-(int)(DateTime.UtcNow-o.ObservedUtc).TotalSeconds);
+        sessions=_medicalSessions.Where(x=>x.Key.IsArmed&&!x.Value.Leveling).Select(pair=>{var w=pair.Key;var s=pair.Value;var o=s.Observation;var order=_lossOrders.FirstOrDefault(x=>x.Id==s.Order);int losses=order==null?0:Math.Max(0,(w.Slot=="A"?order.CompletedA:order.CompletedB)-s.LossesAtStart);int hospital=o==null?0:Math.Max(0,(int)(o.HospitalUntilUtc-DateTime.UtcNow).TotalSeconds);int cd=o==null?0:Math.Max(0,o.CooldownSeconds-(int)(DateTime.UtcNow-o.ObservedUtc).TotalSeconds);
             var cfg=MedicalSettings(w.ProfileId);
             var permitted=o?.Inventory.Where(x=>SmartMedicalOptimizer.AllowedId(x.Key)&&x.Value>cfg.Reserves.GetValueOrDefault(x.Key)&&cfg.Permissions.GetValueOrDefault(x.Key)&&(x.Key!=739||(cfg.BloodBags&&o.IvVerified))).ToList();
             double supplyHealing=permitted?.Sum(x=>Math.Max(0,x.Value-cfg.Reserves.GetValueOrDefault(x.Key))*SmartMedicalOptimizer.Item(x.Key).HospitalSeconds*(1+o!.BonusPercent/100))??0;

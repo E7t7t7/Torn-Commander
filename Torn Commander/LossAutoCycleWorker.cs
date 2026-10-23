@@ -112,6 +112,8 @@ internal sealed class LossAutoCycleWorker : IDisposable
         await EnsureReadyAsync();
         await _webView.CoreWebView2.ExecuteScriptAsync("window.TornCommanderLossCycle?.onMedical("+JsonSerializer.Serialize(requestId)+","+DashboardJson.Serialize(payload)+");");
     }
+    public void MarkFinished()=>IsArmed=false;
+    public async Task ReplyLevelingAsync(object payload){await EnsureReadyAsync();await _webView.CoreWebView2.ExecuteScriptAsync("window.TornCommanderLossCycle?.onLevelReply("+DashboardJson.Serialize(payload)+");");}
     public async Task SetAttackDelayAsync(int milliseconds) => await InvokeAsync("setAttackDelay", milliseconds);
 
     public async Task PauseAsync() => await InvokeNoArgAsync("pause");
@@ -156,7 +158,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
             if (string.IsNullOrWhiteSpace(text)) return;
             using var doc = JsonDocument.Parse(text);
             var root = doc.RootElement.Clone();
-            if (root.TryGetProperty("type", out var typeEl) && typeEl.GetString() == "tc-loss-status")
+            if (root.TryGetProperty("type", out var typeEl) && (typeEl.GetString() == "tc-loss-status"||typeEl.GetString()=="tc-level-status"))
             {
                 var stage = root.TryGetProperty("stage", out var stageEl) ? stageEl.GetString() ?? "" : "";
                 var status = root.TryGetProperty("status", out var statusEl) ? statusEl.GetString() ?? "" : "";

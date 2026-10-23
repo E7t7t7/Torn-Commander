@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderLeveling'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('LevelingQueue.cs','SmartMedicalOptimizer.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
+foreach($file in @('LevelingQueue.cs','SmartMedicalOptimizer.cs','BaldrListProvider.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
 $program=@'
 using TornCommander;
 static void Check(bool ok,string reason){if(!ok)throw new Exception(reason);}
@@ -9,6 +9,18 @@ var ids=LevelingPlanner.Import("https://www.torn.com/profiles.php?XID=123\n123\n
 Check(ids.Select(t=>t.Id).SequenceEqual(new[]{123,456}),"ordered import/dedup/self filter");
 Check(LevelingPlanner.Import("""{"targets":[{"player_id":45,"name":"Fixture","level":70,"fair_fight":1.8}]}""")[0].FairFight==1.8,"FFScouter response import");
 foreach(string invalid in new[]{"Level 99, stats 123456","https://example.com/profiles.php?XID=123"}){try{LevelingPlanner.Import(invalid);throw new Exception("invalid import");}catch(InvalidDataException){}}
+var baldr="""{"Baldr's List 1":[{"id":"123","name":"First","lvl":"35","total":"1,234"},{"id":"456","name":"Second","lvl":"31","total":"640"}],"Baldr's Extra List 1":[{"id":"123","name":"Duplicate","lvl":"35","total":"1234"},{"id":"789","name":"Third","lvl":"20","total":"unknown"}]}""";
+var listed=BaldrListProvider.Parse(baldr,"",0,DateTime.UtcNow);
+Check(listed.Targets.Select(t=>t.Id).SequenceEqual(new[]{123,456,789}),"Baldr order/dedup");
+Check(listed.Targets[0].ListedBattleStats==1234&&listed.Targets[2].ListedBattleStats==null,"Baldr historical stats parse");
+Check(listed.Targets[0].Source=="Baldr's List 1"&&listed.Groups.Count==2,"Baldr group attribution");
+Check(BaldrListProvider.Parse(baldr,"Baldr's Extra List 1",123,DateTime.UtcNow).Targets.Single().Id==789,"Baldr group/self filtering");
+foreach(var invalid in new[]{"[]","{}",baldr.Replace("\"123\"","\"invalid\"")}){
+ try{BaldrListProvider.Parse(invalid,"",0,DateTime.UtcNow);throw new Exception("invalid Baldr data accepted");}catch(Exception e)when(e is InvalidDataException or System.Text.Json.JsonException){}
+}
+try{BaldrListProvider.Parse(baldr,"Missing list",0,DateTime.UtcNow);throw new Exception("missing group accepted");}catch(InvalidDataException){}
+var actualFixture=Environment.GetEnvironmentVariable("BALDR_LIST_TEST_FIXTURE");
+if(!string.IsNullOrEmpty(actualFixture)){var actual=BaldrListProvider.Parse(File.ReadAllText(actualFixture),"",0,DateTime.UtcNow);Check(actual.Targets.Count==382&&actual.Groups.Count==7,"current public Baldr data fixture");Console.WriteLine("PUBLIC BALDR DATA PASSED: 382 unique targets across seven lists.");}
 var now=DateTime.UtcNow;
 var o=new MedicalObservation("A",1,now,now,0,21600,0,false,"fixture",new(){{68,200},{67,200},{66,200},{206,200}});
 var cfg=new SmartMedicalSettings();
