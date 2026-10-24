@@ -84,12 +84,17 @@
     return pauseState(state,'Not enough energy to attack. This account is paused and its slot released; the other running account can continue. Resume this account after restoring energy.',true);
   }
 
+  function joinFightCandidates() {
+    const action=/^(join fight|start fight|start attack|begin fight)$/i;
+    const buttons=Array.from(document.querySelectorAll('button,[role="button"],input[type="button"],a'))
+      .filter(el=>visible(el)&&enabledControl(el,document.body?.parentElement))
+      .filter(el=>[el.innerText,el.value,el.getAttribute?.('aria-label')].some(text=>action.test(clean(text))));
+    // A semantic wrapper and its nested real button describe one action, not two.
+    // Retain the innermost control; independent matching controls remain ambiguous.
+    return buttons.filter(el=>!buttons.some(other=>other!==el&&el.contains?.(other)));
+  }
   function joinFightButton() {
-    const buttons = Array.from(document.querySelectorAll('button,[role="button"],input[type="button"],a'))
-      .filter(visible)
-      .filter(el => !el.disabled && el.getAttribute?.('aria-disabled') !== 'true');
-    const exact = buttons.filter(el => /^(join fight|start fight|start attack|begin fight)$/i.test(clean(el.innerText || el.value || el.getAttribute?.('aria-label') || '')));
-    return exact.length === 1 ? exact[0] : null;
+    const buttons=joinFightCandidates();return buttons.length===1?buttons[0]:null;
   }
 
   const outerRoots = nodes => [...new Set(nodes)].filter(a=>!nodes.some(b=>b!==a&&b.contains?.(a)));
@@ -835,8 +840,9 @@
           save(state);
           return;
         }
-        if (now() - Number(state.probeStartedAt || now()) > 15000) {
-          pauseState(state, 'Recovery state could not be verified on the attack page. No extra item was used.', true);
+        state.recoveryProbe={elapsedMs:now()-Number(state.probeStartedAt||now()),readyState:document.readyState||'unknown',startControls:joinFightCandidates().length};
+        if (now() - Number(state.probeStartedAt || now()) > 60000) {
+          pauseState(state, 'Recovery page did not expose one verified Start Fight control within 60 seconds. No extra item was used. Copy worker diagnostic.', true);
         }
         return;
       }
@@ -1028,7 +1034,7 @@
     },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },

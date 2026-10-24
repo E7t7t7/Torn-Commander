@@ -3,7 +3,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
- let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0;
+ let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
  let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[]},local=new Map(),session=new Map();
  class Node{
@@ -62,7 +62,14 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   if(scene==='loss')return node('body','Seller lost to Target.');
   if(scene==='attack'&&missingJoin)return node('body','Waiting for combat controls');
   if(scene==='attack'&&!hospital&&energy<25)return node('body','YOU DO NOT HAVE ENOUGH ENERGY');
-  if(scene==='attack')return hospital?node('body','You cannot attack while in hospital.'):node('body','',{},[button('Join fight',()=>{counts.join++;energy-=25;fightHits=0;fightJoinAt=clock;counts.joinTimes.push(clock);scene='fight'})]);
+  if(scene==='attack'){
+   if(hospital)return node('body','You cannot attack while in hospital.');
+   if(clock-attackPageAt<(options.joinDelayMs||0))return node('body','Loading combatants...');
+   let join=button(options.startFightLabel||'Join fight',()=>{counts.join++;energy-=25;fightHits=0;fightJoinAt=clock;counts.joinTimes.push(clock);scene='fight'});
+   if(options.nestedJoin)join=node('div','',{role:'button'},[join]);
+   const controls=[join];if(options.ambiguousJoin)controls.push(button('Start fight',()=>counts.wrong++));
+   return node('body','',{},controls);
+  }
   const medical=node('a','Medical');medical.onclick=()=>scene='medical';
   if(scene==='items')return node('body','Your items',{},missingMedical?[]:[node('li','',{},[medical])]);
   if(scene==='medical'||scene==='confirm'){
@@ -89,7 +96,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   return node('body','Torn');
  }
  let lastKey='',cached;
- function body(){const key=scene+stock+expanded+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
+ function body(){const key=scene+stock+expanded+(options.joinDelayMs?':'+clock:'')+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
  const owner=node('a',options.decoratedOwner?'2BDecided [wife]':'Seller',{...(options.ariaMedicalOwner?{'aria-label':'Name: Seller'}:{}),href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
  const ownerLabel=node('span','Name:');const ownerRow=node('div','',{},[ownerLabel,owner]);if(options.medicalOwnerHidden){ownerLabel.getClientRects=()=>[];owner.getClientRects=()=>[];}const stranger=node('a','Unrelated chat user',{href:'/profiles.php?XID=777'});
  const secondStranger=node('a','Other chat avatar',{href:'/profiles.php?XID=888'});
@@ -99,7 +106,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   if(s==='a[href*="profiles.php"]')return options.missingMedicalAccount?[]:options.chatSidebar?[stranger,secondStranger,owner]:[owner];
   const found=body().querySelectorAll(s);if(s.startsWith('span,strong,b,div,dt,td')&&options.labeledMedicalOwner&&clock-1700000000000>=(options.identityDelayMs||0))found.push(ownerLabel);return found;
  }};
- const location={href:'https://www.torn.com/index.php',pathname:'/index.php',assign(url){const u=new URL(url);this.href=url;this.pathname=u.pathname;scene=u.pathname==='/item.php'?'items':'attack';expanded=false}};
+ const location={href:'https://www.torn.com/index.php',pathname:'/index.php',assign(url){const u=new URL(url);this.href=url;this.pathname=u.pathname;scene=u.pathname==='/item.php'?'items':'attack';attackPageAt=clock;expanded=false}};
  class Clock extends Date{static now(){return clock}}
  const store=m=>({getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)});
  const window={chrome:{webview:{postMessage:raw=>{
@@ -162,6 +169,15 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const exhaustedA=fixture(false,false,false,{coordinator,slot:'A',energy:0}),exhaustedB=fixture(false,false,false,{coordinator,slot:'B',energy:0});
  for(let i=0;i<50;i++){await exhaustedA.step(250);await exhaustedB.step(250);}
  assert.equal(exhaustedA.h.getState().stage,'paused');assert.equal(exhaustedB.h.getState().stage,'paused');assert.equal(coordinator.remaining,4);assert.equal(coordinator.commits,0);assert.equal(coordinator.owner,'');
+ for(const layout of [{joinDelayMs:24000,startFightLabel:'Start fight'},{joinDelayMs:24000,startFightLabel:'START FIGHT',nestedJoin:true}]){
+  const recovered=fixture(false,false,false,{smartMedical:true,initialHospital:true,collapsed:true,headerOnly:true,...layout});
+  for(let i=0;i<2400&&recovered.h.getState().stage!=='complete';i++)await recovered.step(250);
+  assert.equal(recovered.h.getState().stage,'complete',recovered.h.getState().status);
+  assert.equal(recovered.counts.join,2);assert.equal(recovered.counts.wrong,0);assert.equal(recovered.counts.medicine,3);
+ }
+ const ambiguousStart=fixture(false,false,false,{ambiguousJoin:true});
+ for(let i=0;i<400&&ambiguousStart.h.getState().stage!=='paused';i++)await ambiguousStart.step(250);
+ assert.equal(ambiguousStart.counts.join,0);assert.equal(ambiguousStart.counts.wrong,0);assert.equal(ambiguousStart.h.getState().stage,'paused');
  const duplicates=fixture(false,false,false,{nestedMelee:true,sharedPlayerClass:true,duplicateMelee:true});
  for(let i=0;i<250&&duplicates.h.getState().stage!=='paused';i++)await duplicates.step(250);
  assert.equal(duplicates.h.getState().stage,'paused');assert.equal(duplicates.counts.pillow,0);assert.equal(duplicates.counts.wrong,0);

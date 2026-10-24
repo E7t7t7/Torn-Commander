@@ -1,3 +1,10 @@
+v0.6.70 (2026-10-24) - Recovery readiness and medical cooldown decay
+- Correct medical receipt math when prior cooldown is zero or expires during observation: the newly added item cooldown also counts down before verification. Validate the feasible cooldown interval across the observation period, while retaining exactly-one quantity decrement, hospital/life, account identity and bounded freshness checks. Reproduce the observed FAK receipt: prior cooldown 0, elapsed 70.5 seconds, resulting cooldown 851 seconds.
+- Wait up to 60 seconds for the post-heal attack page to expose a verified Start Fight control, matching the existing normal attack wait instead of pausing at 15 seconds. Never infer recovery from Pillow artwork alone.
+- Treat a matching semantic wrapper and nested real fight-start button as one action; still reject independent ambiguous controls. Recognize exact visible/value/ARIA action labels and check disabled ancestors.
+- Add recovery timing/control-count diagnostics and expected cooldown bounds to medical receipt diagnostics.
+- Tests cover 24-second delayed recovery, nested Start Fight wrappers, independent ambiguity, zero/expired prior cooldown, and rejection of missing/excess cooldown or unchanged inventory. Live testing uses the authorized ltcabal contract [2897639]; final outcome is reported with delivery.
+
 v0.6.69 (2026-10-23) - Final medical item and delayed receipt verification
 - Treat an exhausted medical row as zero only when Torn marks it remove-act, its visible quantity is absent and its own successful-use text identifies the allowlisted item. Do not trust its stale data quantity. Verify the one-item decrement and native cooldown/hospital evidence before continuing.
 - Keep post-use verification bounded: up to six pending refreshes, ten seconds apart, and a maximum three-minute receipt window. This extends reconciliation only; unused authorization timing and all no-repeat-consumption protections remain unchanged.

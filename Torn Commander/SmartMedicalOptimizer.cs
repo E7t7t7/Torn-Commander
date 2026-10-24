@@ -92,11 +92,14 @@ internal static class SmartMedicalOptimizer
         if(!AllowedId(itemId)||before.ProfileId!=after.ProfileId||before.PlayerId!=after.PlayerId||after.ObservedUtc<before.ObservedUtc||now-after.ObservedUtc>TimeSpan.FromSeconds(45)||after.ObservedUtc>now.AddSeconds(2)||now-before.ObservedUtc>TimeSpan.FromSeconds(180))return false;
         var item=Item(itemId);if(after.Inventory.GetValueOrDefault(itemId)!=before.Inventory.GetValueOrDefault(itemId)-1)return false;
         double elapsed=(after.ObservedUtc-before.ObservedUtc).TotalSeconds;
-        double delta=after.CooldownSeconds-Math.Max(0,before.CooldownSeconds-elapsed);
+        // The item may be used any time between these two observations. When the
+        // previous cooldown is zero (or runs out), the NEW item cooldown also decays.
+        double minimumCooldown=Math.Max(0,before.CooldownSeconds+item.CooldownSeconds-elapsed);
+        double maximumCooldown=Math.Max(0,before.CooldownSeconds-elapsed)+item.CooldownSeconds;
         bool reduced=after.HospitalUntilUtc<=now||before.HospitalUntilUtc-after.HospitalUntilUtc>=TimeSpan.FromSeconds(item.HospitalSeconds*(1+before.BonusPercent/100)-5);
         bool restored=true;
         if(before.MaximumLife>0){double percent=itemId==68?.05:itemId==67?.10:itemId==66?.15:.30;int expected=Math.Min(before.MaximumLife,before.Life+(int)Math.Floor(before.MaximumLife*percent*(1+before.BonusPercent/100)));restored=after.MaximumLife==before.MaximumLife&&after.Life>=expected-1;}
-        return Math.Abs(delta-item.CooldownSeconds)<=45&&reduced&&restored;
+        return after.CooldownSeconds>=minimumCooldown-45&&after.CooldownSeconds<=maximumCooldown+45&&reduced&&restored;
     }
     internal static (double Bonus,int Maximum,bool Iv,string Status) Modifiers(string json,SmartMedicalSettings settings){
         if(!settings.AutoDetect)return(settings.ManualBonusPercent,settings.ManualMaximumMinutes*60,false,"Manual override — user supplied, not API verified; blood eligibility still requires API verification.");

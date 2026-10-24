@@ -47,6 +47,13 @@ Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{ProfileId="B"},67,now.
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{CooldownSeconds=1000},67,now.AddSeconds(5)),"unverified cooldown");
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{HospitalUntilUtc=before.HospitalUntilUtc},67,now.AddSeconds(5)),"unverified hospital reduction");
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after,206,now.AddSeconds(5)),"drug verification accepted");
+var zeroBefore=before with{CooldownSeconds=0};
+Assert(SmartMedicalOptimizer.VerifyUse(zeroBefore,after with{ObservedUtc=now.AddSeconds(70.5),CooldownSeconds=851},67,now.AddSeconds(70.5)),"live zero-cooldown FAK receipt: 851 seconds after delayed verification");
+Assert(SmartMedicalOptimizer.VerifyUse(zeroBefore with{CooldownSeconds=10},after with{ObservedUtc=now.AddSeconds(70),CooldownSeconds=850},67,now.AddSeconds(70)),"old cooldown expiring before item use");
+Assert(!SmartMedicalOptimizer.VerifyUse(zeroBefore,after with{ObservedUtc=now.AddSeconds(70),CooldownSeconds=0},67,now.AddSeconds(70)),"missing new cooldown accepted");
+Assert(!SmartMedicalOptimizer.VerifyUse(zeroBefore,after with{ObservedUtc=now.AddSeconds(70),CooldownSeconds=1500},67,now.AddSeconds(70)),"excess cooldown accepted");
+Assert(!SmartMedicalOptimizer.VerifyUse(zeroBefore,after with{ObservedUtc=now.AddSeconds(70),CooldownSeconds=851,Inventory=new(){{67,2}}},67,now.AddSeconds(70)),"decay fix accepted unconsumed item");
+
 Assert(SmartMedicalOptimizer.VerifyUse(before,after with{ObservedUtc=now.AddSeconds(110),CooldownSeconds=1790},67,now.AddSeconds(110)),"delayed receipt should verify without authorizing another item");
 Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{ObservedUtc=now.AddSeconds(181),CooldownSeconds=1719},67,now.AddSeconds(181)),"unbounded old receipt accepted");
 
