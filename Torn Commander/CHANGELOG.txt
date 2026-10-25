@@ -1,3 +1,9 @@
+v0.6.77 (2026-10-25) - Reduce leveling target-search overhead
+- Check candidates before requesting additional recovery: do not spend medical items if no available target has been found. Still verify the correct account, current energy, life and status immediately before granting a fight.
+- Reuse verified own battle stats for up to ten minutes during a run instead of fetching them every ten targets. Keep the existing strength freshness checks.
+- Store official target hospital-until timestamps and skip those known-unavailable targets on subsequent passes until the timestamp expires. Do not invent a bulk Torn endpoint or increase API request rates.
+- Send per-target progress receipts, including the target name/status, without resetting or duplicating a reservation. Replace the misleading loss-slot message in leveling mode.
+
 v0.6.76 (2026-10-25) - Load, scan and filter complete Baldr queues
 - Provide Load all Baldr lists & scan as one action; preserve partial scan results, show scan progress and zero-match explanations, and permit scanning an existing idle queue while keeping unresolved fight receipts.
 - Default to All lists. Disable scan/load buttons while an operation runs. Read only identity and battle stats for scouting instead of unrelated medical/bars state.

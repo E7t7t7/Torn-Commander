@@ -28,6 +28,7 @@ var scoutSession=new LevelingSession{OwnStats=300,OwnStatsUtc=scoutNow,MaxStatRa
 LevelingTarget weak=new(){Id=123,EstimatedStats=100,EstimateUtc=scoutNow,ScannedUtc=scoutNow,LastActionUtc=scoutNow.AddDays(-30)};
 Check(LevelingScouting.Eligible(weak,scoutSession,scoutNow),"100-stat inactive target accepted for 300-stat account");
 weak.Name="Test Dummy #2";Check(!LevelingScouting.StrengthEligible(weak,scoutSession,scoutNow),"mission NPC blocked");weak.Name="Player";
+weak.UnavailableUntilUtc=scoutNow.AddMinutes(5);Check(!LevelingScouting.CanProbe(weak,scoutNow),"known hospitalized target skipped");Check(LevelingScouting.CanProbe(weak,scoutNow.AddMinutes(5)),"expired hospital timer rechecked");weak.UnavailableUntilUtc=null;Check(LevelingScouting.CanProbe(weak,scoutNow),"unknown availability checked");weak.Finished=true;Check(!LevelingScouting.CanProbe(weak,scoutNow),"finished target not repeated");weak.Finished=false;
 weak.EstimatedStats=1000;Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"1000-stat target blocked");
 weak.EstimatedStats=null;Check(!LevelingScouting.Eligible(weak,scoutSession,scoutNow),"unknown stats blocked");
 weak.EstimatedStats=150;Check(LevelingScouting.Eligible(weak,scoutSession,scoutNow),"inclusive strength cap");

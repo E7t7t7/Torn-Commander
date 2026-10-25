@@ -6,6 +6,7 @@ public sealed class LevelingTarget {
  public double? EstimatedStats {get;set;} public DateTime? EstimateUtc {get;set;} public DateTime? ScannedUtc {get;set;} public DateTime? LastActionUtc {get;set;} public string EstimateSource {get;set;}=""; public string Suitability {get;set;}="Scan required";
  public string Source {get;set;}=""; public long? ListedBattleStats {get;set;}
  public double? FairFight {get;set;} public string Status {get;set;}="Not checked";
+ public DateTime? UnavailableUntilUtc {get;set;}
  public DateTime? CheckedUtc {get;set;} public bool Finished {get;set;}
 }
 public sealed class LevelingSession {

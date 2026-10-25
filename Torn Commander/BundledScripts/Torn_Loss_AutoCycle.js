@@ -573,7 +573,7 @@
         state.replyWaitAt = now();
         state.pendingClaimRequest = requestId;
         state.stage = 'claim-wait';
-        state.status = 'Requesting the next loss slot from Commander.';
+        state.status = state.mode==='level'?'Checking target availability with Commander.':'Requesting the next loss slot from Commander.';
         save(state);
         post({ type: 'tc-loss-claim', requestId, profileId: state.profileId, slot: state.slot, orderId: state.orderId, targetId: state.targetId });
         return;
@@ -1017,6 +1017,7 @@
     onLevelReply(reply){
       const state=load();if(!state?.running||state.mode!=='level')return false;
       if(reply.kind==='paused'){pauseState(state,reply.message||'Leveling verification failed.',false);return true;}
+      if(reply.kind==='scan'){if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;state.replyWaitAt=now();state.status=reply.message;save(state);return true;}
       if(reply.kind==='claim'||reply.kind==='heal'){
         if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;
         if(reply.kind==='heal'){state.stage='heal-open';state.medicalInventorySignature='';state.pendingClaimRequest='';save(state);openPage(state,ITEMS_URL,'Items / Medical');return true;}

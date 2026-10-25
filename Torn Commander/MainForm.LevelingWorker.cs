@@ -56,6 +56,22 @@ public sealed partial class MainForm {
    var session=LevelingFor(worker.ProfileId);string key=CredentialManager.LoadApiKey(worker.ProfileId)??throw new InvalidDataException("Missing API key.");
    if(type=="tc-level-claim"){
     if(run.Claim!=""){await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=true,claimId=run.Claim,targetId=run.Target,message="Continuing the same leveling fight."});return;}
+    if(session.OwnStatsUtc==null||DateTime.UtcNow-session.OwnStatsUtc>TimeSpan.FromMinutes(10))await RefreshLevelingStrengthAsync(worker.ProfileId);
+    int checks=0;
+    foreach(var target in session.Targets.Where(x=>!x.Finished).ToList()){
+     if(checks>=10)break;
+     if(!LevelingScouting.CanProbe(target,DateTime.UtcNow))continue;
+     if(target.Id==run.Player){target.Finished=true;target.Status="Own account excluded";continue;}
+     target.Suitability=LevelingScouting.Suitability(target,session,DateTime.UtcNow);if(!LevelingScouting.StrengthEligible(target,session,DateTime.UtcNow))continue;
+     checks++;
+     using var doc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/"+target.Id+"/profile",key));var t=doc.RootElement.GetProperty("profile");
+     if(t.GetProperty("id").GetInt32()!=target.Id)throw new InvalidDataException("Target identity mismatch.");
+     target.Status=t.GetProperty("status").GetProperty("state").GetString()??"Unknown";target.UnavailableUntilUtc=LevelingScouting.Time(t.GetProperty("status"),"until");target.Name=t.GetProperty("name").GetString()??"";target.Level=t.GetProperty("level").GetInt32();target.CheckedUtc=DateTime.UtcNow;
+     target.LastActionUtc=LevelingScouting.Time(t.GetProperty("last_action"),"timestamp");target.Suitability=LevelingScouting.Suitability(target,session,DateTime.UtcNow);
+     if(!LevelingRunContext(worker,run,request))return;
+     await worker.ReplyLevelingAsync(new{kind="scan",requestId=rid,message="Checked "+session.Targets.Count(x=>x.Finished)+"/"+session.Targets.Count+" targets. "+target.Name+": "+target.Status+". Looking for an available target."});
+     if(!LevelingScouting.Eligible(target,session,DateTime.UtcNow)){target.Finished=true;target.Status="Skipped: "+target.Suitability;continue;}
+     if(target.Status=="Okay"){
     using var self=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key));var p=self.RootElement.GetProperty("profile");
     if(p.GetProperty("id").GetInt32()!=run.Player)throw new InvalidDataException("API account changed; leveling paused.");
     var state=p.GetProperty("status").GetProperty("state").GetString();int life=p.GetProperty("life").GetProperty("current").GetInt32(),maximum=p.GetProperty("life").GetProperty("maximum").GetInt32();
@@ -65,27 +81,13 @@ public sealed partial class MainForm {
     if(energy-session.EnergyReserve<25||session.AttackLimit>0&&session.Wins+session.OtherResults>=session.AttackLimit){await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message="Complete: energy reserve or attack limit reached."});return;}
     if(state=="Hospital"||state=="Okay"&&life<(int)Math.Ceiling(maximum*session.LifePercent/100d)){await worker.ReplyLevelingAsync(new{kind="heal",requestId=rid});return;}
     if(state!="Okay")throw new InvalidDataException("Cannot level while account is "+state+".");
-    await RefreshLevelingStrengthAsync(worker.ProfileId);
-    int checks=0;
-    foreach(var target in session.Targets.Where(x=>!x.Finished).ToList()){
-     if(checks>=10)break;
-     if(target.Id==run.Player){target.Finished=true;target.Status="Own account excluded";continue;}
-     target.Suitability=LevelingScouting.Suitability(target,session,DateTime.UtcNow);if(!LevelingScouting.StrengthEligible(target,session,DateTime.UtcNow))continue;
-     checks++;
-     using var doc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/"+target.Id+"/profile",key));var t=doc.RootElement.GetProperty("profile");
-     if(t.GetProperty("id").GetInt32()!=target.Id)throw new InvalidDataException("Target identity mismatch.");
-     target.Status=t.GetProperty("status").GetProperty("state").GetString()??"Unknown";target.Name=t.GetProperty("name").GetString()??"";target.Level=t.GetProperty("level").GetInt32();target.CheckedUtc=DateTime.UtcNow;
-     target.LastActionUtc=LevelingScouting.Time(t.GetProperty("last_action"),"timestamp");target.Suitability=LevelingScouting.Suitability(target,session,DateTime.UtcNow);
-     if(!LevelingRunContext(worker,run,request))return;
-     if(!LevelingScouting.Eligible(target,session,DateTime.UtcNow)){target.Finished=true;target.Status="Skipped: "+target.Suitability;continue;}
-     if(target.Status=="Okay"){
       run.Target=target.Id;run.Claim=Guid.NewGuid().ToString("N");run.Opened=DateTime.UtcNow;session.PendingTarget=target.Id;session.OpenedUtc=run.Opened;SaveLeveling(worker.ProfileId);
       await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=true,claimId=run.Claim,targetId=run.Target,message="Leveling target verified. Opening fight."});return;
      }
      target.Finished=true;target.Status="Skipped: "+target.Status;
      if(checks>=10)break;
     }
-    SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message=checks>=10&&session.Targets.Any(x=>!x.Finished&&LevelingScouting.StrengthEligible(x,session,DateTime.UtcNow))?"Checking the next batch of eligible targets.":"Complete: no eligible targets remain in this pass. Review estimates or filters before starting another pass."});
+    SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message=checks>=10&&session.Targets.Any(x=>LevelingScouting.CanProbe(x,DateTime.UtcNow)&&LevelingScouting.StrengthEligible(x,session,DateTime.UtcNow))?"Checking the next batch of eligible targets.":"Complete: no eligible targets remain in this pass. Review estimates or filters before starting another pass."});
    }else if(type=="tc-level-commit"){
     if(claim==run.LastCommitted&&claim!=""){await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});return;}
     if(claim==""||claim!=run.Claim)throw new InvalidDataException("No matching leveling fight reservation.");

@@ -116,6 +116,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   const m=JSON.parse(raw);messages.push(m);
   if(m.type==='tc-level-skip'){assert.equal(m.claimId,activeLease);activeLease='';remaining--;return;}
   if(m.type==='tc-level-claim'){
+   if(options.levelProgress)replies.push(()=>{assert.equal(h.onLevelReply({kind:'scan',requestId:'wrong',message:'wrong'}),false);assert.equal(h.onLevelReply({kind:'scan',requestId:m.requestId,message:'Checked target: Hospital'}),true);assert.equal(h.getState().stage,'claim-wait');});
    if(!remaining){replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:false,message:'Complete: no targets remain.'}));return;}
    activeLease='level-'+remaining;replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:true,claimId:activeLease,targetId:remaining===2?123:456,message:'Verified leveling target'}));return;
   }
@@ -304,7 +305,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  assert.equal(medA.h.getState().stage,'complete',medA.h.getState().status);assert.equal(medB.h.getState().stage,'complete',medB.h.getState().status);assert.equal(coordinator.commits,4);assert.equal(medA.counts.medicine+medB.counts.medicine,4);
  console.log('SMART MEDICAL WORKER PASSED: explicit consent, preflight, one-use dispatch, failed use/verification, account mismatch, drug rejection, cooldown/resume and simultaneous sessions.');
  for(const pending of [false,true]){
-  const fighter=fixture(false,false,false,{leveling:true,smartMedical:true,pillowHits:3,collapsed:true,headerOnly:true,levelPendingOnce:pending,levelMedicalPending:pending,noVictoryText:pending});
+  const fighter=fixture(false,false,false,{leveling:true,smartMedical:true,pillowHits:3,collapsed:true,headerOnly:true,levelProgress:true,levelPendingOnce:pending,levelMedicalPending:pending,noVictoryText:pending});
   let resumed=false;
   for(let i=0;i<1600&&fighter.h.getState().stage!=='complete';i++){
    await fighter.step(250);
