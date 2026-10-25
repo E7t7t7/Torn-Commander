@@ -1,3 +1,8 @@
+v0.6.78 (2026-10-25) - Revisit leveling targets after hospital release
+- Keep hospitalized targets eligible for another check in the same run after their official release timestamp. Back off at least 30 seconds after each hospital observation to avoid cached-response retry loops; completed fights remain finished.
+- If every matching candidate is hospitalized, wait for the earliest known release time rather than declaring the pass exhausted. Recheck availability before any attack; no medicine or energy is spent during this wait. Stop/Pause remain available.
+- Includes v0.6.77 target-search overhead and live progress fixes. Add hospital retry/expiry/completed-fight regression coverage.
+
 v0.6.77 (2026-10-25) - Reduce leveling target-search overhead
 - Check candidates before requesting additional recovery: do not spend medical items if no available target has been found. Still verify the correct account, current energy, life and status immediately before granting a fight.
 - Reuse verified own battle stats for up to ten minutes during a run instead of fetching them every ten targets. Keep the existing strength freshness checks.

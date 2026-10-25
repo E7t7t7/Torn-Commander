@@ -566,6 +566,7 @@
         return;
       }
 
+      if(state.mode==='level'&&state.stage==='level-target-wait'){if(now()<state.levelTargetWakeAt)return;state.stage='claim';state.status='A hospitalized target is due out. Rechecking availability.';save(state);return;}
       if (state.stage === 'claim') {
         if (now() < Number(state.retryAt || 0)) return;
         const requestId = 'claim_' + now() + '_' + Math.random().toString(36).slice(2);
@@ -1017,6 +1018,7 @@
     onLevelReply(reply){
       const state=load();if(!state?.running||state.mode!=='level')return false;
       if(reply.kind==='paused'){pauseState(state,reply.message||'Leveling verification failed.',false);return true;}
+      if(reply.kind==='wait'){if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;const at=Date.parse(reply.waitUntil);if(!Number.isFinite(at)){pauseState(state,'Invalid target availability time.',false);return false;}state.stage='level-target-wait';state.levelTargetWakeAt=Math.max(now()+1000,at);state.status=reply.message;save(state);return true;}
       if(reply.kind==='scan'){if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;state.replyWaitAt=now();state.status=reply.message;save(state);return true;}
       if(reply.kind==='claim'||reply.kind==='heal'){
         if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;

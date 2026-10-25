@@ -13,7 +13,8 @@ internal static class LevelingScouting {
   if(checkActivity&&s.InactiveOnly&&(t.LastActionUtc==null||t.LastActionUtc>now||now-t.LastActionUtc<TimeSpan.FromDays(14)))return "Active or activity unknown — excluded";
   return "Within strength limit (estimate)";
  }
- public static bool CanProbe(LevelingTarget t,DateTime now)=>!t.Finished&&t.UnavailableUntilUtc.GetValueOrDefault(DateTime.MinValue)<=now;
+ public static DateTime? HospitalRetryAt(LevelingTarget t)=>t.Status=="Skipped: Hospital"&&t.UnavailableUntilUtc is DateTime until?new DateTime(Math.Max(until.Ticks,(t.CheckedUtc??DateTime.MinValue).AddSeconds(30).Ticks),DateTimeKind.Utc):null;
+ public static bool CanProbe(LevelingTarget t,DateTime now)=>HospitalRetryAt(t) is DateTime retry?retry<=now:!t.Finished&&t.UnavailableUntilUtc.GetValueOrDefault(DateTime.MinValue)<=now;
  public static bool StrengthEligible(LevelingTarget t,LevelingSession s,DateTime now)=>Suitability(t,s,now,false)=="Within strength limit (estimate)";
  public static bool Eligible(LevelingTarget t,LevelingSession s,DateTime now)=>Suitability(t,s,now)=="Within strength limit (estimate)";
  public static double? Number(JsonElement x,string key)=>x.TryGetProperty(key,out var v)&&v.ValueKind==JsonValueKind.Number&&v.TryGetDouble(out var n)&&double.IsFinite(n)?n:null;

@@ -4,7 +4,7 @@ const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
- let serverRecovered=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
+ let serverRecovered=false;let targetWaits=0;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
@@ -116,6 +116,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   const m=JSON.parse(raw);messages.push(m);
   if(m.type==='tc-level-skip'){assert.equal(m.claimId,activeLease);activeLease='';remaining--;return;}
   if(m.type==='tc-level-claim'){
+   if(options.levelWaitOnce&&targetWaits++===0){replies.push(()=>h.onLevelReply({kind:'wait',requestId:m.requestId,waitUntil:new Clock(clock+5000).toISOString(),message:'Waiting for hospital release'}));return;}
    if(options.levelProgress)replies.push(()=>{assert.equal(h.onLevelReply({kind:'scan',requestId:'wrong',message:'wrong'}),false);assert.equal(h.onLevelReply({kind:'scan',requestId:m.requestId,message:'Checked target: Hospital'}),true);assert.equal(h.getState().stage,'claim-wait');});
    if(!remaining){replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:false,message:'Complete: no targets remain.'}));return;}
    activeLease='level-'+remaining;replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:true,claimId:activeLease,targetId:remaining===2?123:456,message:'Verified leveling target'}));return;
@@ -325,6 +326,9 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const mission=fixture(false,false,false,{leveling:true,smartMedical:true,missionOnly:true});
  for(let i=0;i<600&&mission.h.getState().stage!=='complete';i++)await mission.step(250);
  assert.equal(mission.h.getState().stage,'complete',mission.h.getState().status);assert.equal(mission.counts.join,0);assert.equal(mission.counts.pillow,0);assert.equal(mission.counts.levelCommits,0);assert.equal(mission.messages.filter(m=>m.type==='tc-level-skip').length,2);
+ const waiting=fixture(false,false,false,{leveling:true,smartMedical:true,levelWaitOnce:true});
+ for(let i=0;i<1600&&waiting.h.getState().stage!=='complete';i++)await waiting.step(250);
+ assert.equal(waiting.h.getState().stage,'complete',waiting.h.getState().status);assert.equal(waiting.counts.levelCommits,2);assert.equal(waiting.messages.filter(m=>m.type==='tc-level-claim').length,3,'Hospital wait duplicated/lost a claim');
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');

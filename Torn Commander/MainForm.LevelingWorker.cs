@@ -58,7 +58,7 @@ public sealed partial class MainForm {
     if(run.Claim!=""){await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=true,claimId=run.Claim,targetId=run.Target,message="Continuing the same leveling fight."});return;}
     if(session.OwnStatsUtc==null||DateTime.UtcNow-session.OwnStatsUtc>TimeSpan.FromMinutes(10))await RefreshLevelingStrengthAsync(worker.ProfileId);
     int checks=0;
-    foreach(var target in session.Targets.Where(x=>!x.Finished).ToList()){
+    foreach(var target in session.Targets.Where(x=>LevelingScouting.CanProbe(x,DateTime.UtcNow)).ToList()){
      if(checks>=10)break;
      if(!LevelingScouting.CanProbe(target,DateTime.UtcNow))continue;
      if(target.Id==run.Player){target.Finished=true;target.Status="Own account excluded";continue;}
@@ -87,6 +87,8 @@ public sealed partial class MainForm {
      target.Finished=true;target.Status="Skipped: "+target.Status;
      if(checks>=10)break;
     }
+    var retryAt=session.Targets.Where(x=>LevelingScouting.StrengthEligible(x,session,DateTime.UtcNow)).Select(LevelingScouting.HospitalRetryAt).Where(x=>x.HasValue&&x.Value>DateTime.UtcNow).OrderBy(x=>x).FirstOrDefault();
+    if(!session.Targets.Any(x=>LevelingScouting.CanProbe(x,DateTime.UtcNow)&&LevelingScouting.StrengthEligible(x,session,DateTime.UtcNow))&&retryAt.HasValue){SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="wait",requestId=rid,waitUntil=retryAt.Value,message="Matching targets are hospitalized. Waiting until "+retryAt.Value.ToLocalTime().ToString("HH:mm:ss")+" to check the next release; no energy or medicine spent."});return;}
     SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message=checks>=10&&session.Targets.Any(x=>LevelingScouting.CanProbe(x,DateTime.UtcNow)&&LevelingScouting.StrengthEligible(x,session,DateTime.UtcNow))?"Checking the next batch of eligible targets.":"Complete: no eligible targets remain in this pass. Review estimates or filters before starting another pass."});
    }else if(type=="tc-level-commit"){
     if(claim==run.LastCommitted&&claim!=""){await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});return;}
