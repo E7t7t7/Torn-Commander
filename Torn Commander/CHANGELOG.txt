@@ -1,3 +1,27 @@
+v0.6.74 (2026-10-25) - Torn medical server-error recovery
+- Recognize the observed TORN 500 Error medical page instead of presenting its absent inventory as exhausted supplies. When no item was dispatched, wait then retry the page at most twice, with 15 seconds between attempts.
+- If an item was already dispatched, pause for reconciliation rather than refreshing into a repeat use. CAPTCHA/verification screens remain manual and take precedence.
+- Add transient and persistent server-error fixtures; no item clicks occur on the error page. Includes the cumulative leveling settings/provider/weapon fixes.
+
+v0.6.73 (2026-10-25) - Leveling provider and recovery edge cases
+- Treat FFScouter search HTTP 404/code 17 as a legitimate empty result, preserve the existing queue, and explain that the filters found no targets. Do not treat other failures as empty searches.
+- Wait up to 15 seconds for a temporarily missing identity during medical-page refresh, without clicking or weakening actual account-ID matching. Stop immediately for a different account or page. Clear old operation diagnostics when planning a new item.
+- Stop a leveling pass when no eligible candidates remain, and mark live activity exclusions visited, preventing repeated scans of the same rejected targets.
+- Includes the tested credential/filter persistence, draft preservation, pending-fight handling, pagination and current Torn weapon-ID fixes from v0.6.71/72.
+- Validation includes live saved-key readback, persisted 10%/FF 1.5 filters on the selected account, official target identity checks, and verified first medical use. Additional combat/healing test results are reported on delivery.
+
+v0.6.72 (2026-10-25) - Usable large leveling queues
+- Paginate the leveling target view into 50-row pages with Previous/Next controls and range totals. Retain the full queue for automated selection; filters apply before pagination.
+- Avoid rendering hundreds of target cards at once, improving dashboard responsiveness and accessibility of account settings.
+- Includes v0.6.71 key/filter persistence and current weapon-ID fixes.
+
+v0.6.71 (2026-10-25) - Leveling scouting settings and current weapon controls
+- Allow idle profiles to save their separate FFScouter key and strength filters even when an old manual fight remains pending. Preserve the pending target/receipt and keep active-worker settings changes blocked.
+- Acknowledge settings saves with account-specific request receipts. Verify the credential can be read back, clear the password field only after successful saving, retain it on errors, and show feedback beside the controls.
+- Separate scouting drafts from queue/status rendering so background list changes do not erase typed keys or stat filters. Clear secret drafts on account switches and display unresolved manual fight details.
+- Support Torn's current weapon_main and weapon_second IDs alongside the existing primary/secondary IDs, retaining attacker-only action checks and Pillow refusal.
+- Regression tests cover save acknowledgments/failures, key/filter draft retention, pending-fight display and both current weapon slot aliases. Live test outcome is recorded in delivery notes.
+
 v0.6.70 (2026-10-24) - Recovery readiness and medical cooldown decay
 - Correct medical receipt math when prior cooldown is zero or expires during observation: the newly added item cooldown also counts down before verification. Validate the feasible cooldown interval across the observation period, while retaining exactly-one quantity decrement, hospital/life, account identity and bounded freshness checks. Reproduce the observed FAK receipt: prior cooldown 0, elapsed 70.5 seconds, resulting cooldown 851 seconds.
 - Wait up to 60 seconds for the post-heal attack page to expose a verified Start Fight control, matching the existing normal attack wait instead of pausing at 15 seconds. Never infer recovery from Pillow artwork alone.

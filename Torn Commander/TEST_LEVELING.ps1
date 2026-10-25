@@ -21,6 +21,8 @@ foreach(var invalid in new[]{"[]","{}",baldr.Replace("\"123\"","\"invalid\"")}){
 try{BaldrListProvider.Parse(baldr,"Missing list",0,DateTime.UtcNow);throw new Exception("missing group accepted");}catch(InvalidDataException){}
 var actualFixture=Environment.GetEnvironmentVariable("BALDR_LIST_TEST_FIXTURE");
 if(!string.IsNullOrEmpty(actualFixture)){var actual=BaldrListProvider.Parse(File.ReadAllText(actualFixture),"",0,DateTime.UtcNow);Check(actual.Targets.Count==382&&actual.Groups.Count==7,"current public Baldr data fixture");Console.WriteLine("PUBLIC BALDR DATA PASSED: 382 unique targets across seven lists.");}
+Check(LevelingScouting.SearchResults(FFScouterProvider.DecodeResponse("get-targets",404,"""{"code":17,"error":"No targets found matching the specified criteria"}"""),0).Count==0,"documented no-targets response is an empty result");
+try{FFScouterProvider.DecodeResponse("check-key",404,"""{"code":17,"error":"not a search"}""");throw new Exception("key failure treated as empty search");}catch(InvalidDataException){}
 var scoutNow=DateTime.UtcNow;
 var scoutSession=new LevelingSession{OwnStats=300,OwnStatsUtc=scoutNow,MaxStatRatio=0.5};
 LevelingTarget weak=new(){Id=123,EstimatedStats=100,EstimateUtc=scoutNow,ScannedUtc=scoutNow,LastActionUtc=scoutNow.AddDays(-30)};

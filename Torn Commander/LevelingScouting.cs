@@ -33,6 +33,15 @@ internal static class LevelingScouting {
 internal static class FFScouterProvider {
  private static readonly HttpClient Http=new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(25),MaxResponseContentBufferSize=2097152};
  private static readonly SemaphoreSlim Gate=new(1,1);private static DateTime Next=DateTime.MinValue;
+ public static string DecodeResponse(string route,int status,string body){
+  using var doc=JsonDocument.Parse(body);
+  var root=doc.RootElement;
+  int? code=root.ValueKind==JsonValueKind.Object&&root.TryGetProperty("code",out var v)&&v.TryGetInt32(out int n)?n:null;
+  if(route=="get-targets"&&status==404&&code==17)return "{\"targets\":[]}";
+  if(status is <200 or >=300)throw new InvalidDataException("FFScouter request failed (HTTP "+status+(code.HasValue?", provider code "+code:"")+"). Check the connection, registration or provider limits.");
+  if(root.ValueKind==JsonValueKind.Object&&root.TryGetProperty("error",out _))throw new InvalidDataException("FFScouter could not provide this data. Check registration, permissions or service limits.");
+  return body;
+ }
  public static async Task<string> GetAsync(string key,string route,string query){
   if(key.Length!=16||!key.All(char.IsLetterOrDigit)||route is not ("get-stats" or "get-targets" or "check-key"))throw new InvalidDataException("Use a registered 16-character FFScouter key.");
   await Gate.WaitAsync();try{
@@ -42,10 +51,8 @@ internal static class FFScouterProvider {
    HttpResponseMessage response;try{response=await Http.SendAsync(request);}catch{throw new InvalidDataException("FFScouter connection failed. Your queue was kept; try again later.");}
    using(response){Next=DateTime.UtcNow.AddSeconds(3);
     if((int)response.StatusCode==429){Next=DateTime.UtcNow.AddSeconds(Math.Clamp(response.Headers.RetryAfter?.Delta?.TotalSeconds??60,3,3600));throw new InvalidDataException("FFScouter rate limit reached. Wait before rescanning.");}
-    if(!response.IsSuccessStatusCode)throw new InvalidDataException("FFScouter rejected the request (HTTP "+(int)response.StatusCode+"). Check the registered key and permissions.");
-    var body=await response.Content.ReadAsStringAsync();using var doc=JsonDocument.Parse(body);
-    if(doc.RootElement.ValueKind==JsonValueKind.Object&&doc.RootElement.TryGetProperty("error",out _))throw new InvalidDataException("FFScouter could not provide this data. Check registration, permissions or service limits.");
-    return body;
+    var body=await response.Content.ReadAsStringAsync();
+    return DecodeResponse(route,(int)response.StatusCode,body);
    }
   }finally{Gate.Release();}
  }

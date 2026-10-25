@@ -77,7 +77,7 @@ public sealed partial class MainForm {
      target.Status=t.GetProperty("status").GetProperty("state").GetString()??"Unknown";target.Name=t.GetProperty("name").GetString()??"";target.Level=t.GetProperty("level").GetInt32();target.CheckedUtc=DateTime.UtcNow;
      target.LastActionUtc=LevelingScouting.Time(t.GetProperty("last_action"),"timestamp");target.Suitability=LevelingScouting.Suitability(target,session,DateTime.UtcNow);
      if(!LevelingRunContext(worker,run,request))return;
-     if(!LevelingScouting.Eligible(target,session,DateTime.UtcNow))continue;
+     if(!LevelingScouting.Eligible(target,session,DateTime.UtcNow)){target.Finished=true;target.Status="Skipped: "+target.Suitability;continue;}
      if(target.Status=="Okay"){
       run.Target=target.Id;run.Claim=Guid.NewGuid().ToString("N");run.Opened=DateTime.UtcNow;session.PendingTarget=target.Id;session.OpenedUtc=run.Opened;SaveLeveling(worker.ProfileId);
       await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=true,claimId=run.Claim,targetId=run.Target,message="Leveling target verified. Opening fight."});return;
@@ -85,7 +85,7 @@ public sealed partial class MainForm {
      target.Finished=true;target.Status="Skipped: "+target.Status;
      if(checks>=10)break;
     }
-    SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message=session.Targets.Any(x=>!x.Finished)?"No eligible target in this pass. Scan estimates or adjust strength/activity filters before restarting.":"Complete: no available targets remain in this pass."});
+    SaveLeveling(worker.ProfileId);await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message=checks>=10&&session.Targets.Any(x=>!x.Finished&&LevelingScouting.StrengthEligible(x,session,DateTime.UtcNow))?"Checking the next batch of eligible targets.":"Complete: no eligible targets remain in this pass. Review estimates or filters before starting another pass."});
    }else if(type=="tc-level-commit"){
     if(claim==run.LastCommitted&&claim!=""){await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});return;}
     if(claim==""||claim!=run.Claim)throw new InvalidDataException("No matching leveling fight reservation.");

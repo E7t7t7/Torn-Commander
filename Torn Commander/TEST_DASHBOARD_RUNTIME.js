@@ -205,11 +205,27 @@ console.log('AUTOMATIC LEVELING / BALDR UI PASSED: medical permission, equipped 
 context.S={profileId:'B'};
 nodes.levelStatRatio.value='50';nodes.levelMaxFF.value='2';nodes.levelEstimateDays.value='30';nodes.levelInactive.checked=true;
 context.saveScoutFilters();assert.equal(levelingMessage.cmd,'levelScoutSave');assert.equal(levelingMessage.data.ratio,0.5);assert(levelingMessage.data.inactive);
-nodes.levelScoutKey.value='TESTKEYONLY00000';context.saveScouterKey();assert.equal(nodes.levelScoutKey.value,'');assert.equal(levelingMessage.cmd,'levelScoutKey');assert.equal(levelingMessage.data.profileId,'B');
+const filtersRequest=levelingMessage.data.requestId;
+context.renderLeveling({profileId:'B',scouterFeedback:{requestId:filtersRequest,success:true,message:'Filters saved'},session:{maxStatRatio:0.5}});
+nodes.levelScoutKey.value='TESTKEYONLY00000';context.saveScouterKey();assert.equal(nodes.levelScoutKey.value,'TESTKEYONLY00000','Key erased before save confirmation');assert.equal(levelingMessage.cmd,'levelScoutKey');assert.equal(levelingMessage.data.profileId,'B');
+const failedKeyRequest=levelingMessage.data.requestId;
+context.renderLeveling({profileId:'B',scouterFeedback:{requestId:failedKeyRequest,success:false,message:'Wait for current check'},session:{targets:[{id:999}]}});
+assert.equal(nodes.levelScoutKey.value,'TESTKEYONLY00000','Failed save or background list update erased key');
+assert(nodes.levelScoutStatus.textContent.includes('Wait for current check'));
+context.saveScouterKey();const goodKeyRequest=levelingMessage.data.requestId;
+context.renderLeveling({profileId:'B',scouterConfigured:true,scouterFeedback:{requestId:goodKeyRequest,success:true,message:'Key saved'},session:{openedUtc:'2026-10-23T20:13:00Z',pendingTarget:123}});
+assert.equal(nodes.levelScoutKey.value,'','Successful save did not clear secret');assert(nodes.levelPendingFight.textContent.includes('Unfinished manual fight'));
+
 const scoutingData={profileId:'B',scouterConfigured:true,session:{ownStats:300,ownStatsUtc:new Date().toISOString(),maxStatRatio:0.5,maxFairFight:2,maxEstimateDays:30,targets:[{id:5,name:'Weak',estimatedStats:100,estimateUtc:new Date().toISOString(),scannedUtc:new Date().toISOString()},{id:6,name:'TooStrong',estimatedStats:1000,estimateUtc:new Date().toISOString(),scannedUtc:new Date().toISOString()}]}};
 context.renderLeveling(scoutingData);nodes.levelScoutView.value='within';context.renderLeveling(scoutingData);
 assert(nodes.levelRows.innerHTML.includes('Weak')&&!nodes.levelRows.innerHTML.includes('TooStrong'),'Strength list filter failed');
 assert(nodes.levelScoutSummary.textContent.includes('150'),'300-stat account cap missing');
-nodes.levelStatRatio.value='25';context.renderLeveling(scoutingData);assert.equal(nodes.levelStatRatio.value,'25','Status erased scouting draft');
+nodes.levelStatRatio.value='25';context.renderLeveling({...scoutingData,session:{...scoutingData.session,targets:[...scoutingData.session.targets,{id:7,name:'Added'}]}});assert.equal(nodes.levelStatRatio.value,'25','Status erased scouting draft');
 context.renderLeveling({profileId:'C',session:{targets:[]}});assert.equal(nodes.levelScoutView.value,'all');assert.equal(nodes.levelScoutKey.value,'');assert(!nodes.levelRows.innerHTML.includes('Weak'),'Scouting target leaked across accounts');
 console.log('SCOUTING UI PASSED: account-specific filters, 300-stat cap, strength view, credential clearing and draft preservation.');
+
+context.S={profileId:'P'};
+context.renderLeveling({profileId:'P',session:{targets:Array.from({length:120},(_,i)=>({id:i+1,name:'PageTarget'+(i+1)}))}});
+assert(nodes.levelPageSummary.textContent.includes('1-50 of 120'));assert(!nodes.levelRows.innerHTML.includes('PageTarget51</b>'));
+context.changeLevelPage(1);assert(nodes.levelPageSummary.textContent.includes('51-100 of 120'));assert(nodes.levelRows.innerHTML.includes('PageTarget51'));
+console.log('LEVELING PAGINATION PASSED: full queue retained and bounded visible target cards.');

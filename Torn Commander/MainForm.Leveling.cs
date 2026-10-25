@@ -4,10 +4,11 @@ public sealed partial class MainForm {
  private readonly Dictionary<string,LevelingSession> _leveling=new();
  private readonly Dictionary<string,LevelingAccount> _levelingAccounts=new();
  private bool _levelingBusy;
+ private readonly Dictionary<string,object> _levelScoutFeedback=new();
  private sealed record LevelingAccount(int Player,string Name,int Energy,int Life,int Maximum,string Status,MedicalObservation Medical,LevelingHealPlan Recovery,DateTime At);
  private LevelingSession LevelingFor(string profile){if(!_leveling.TryGetValue(profile,out var s)){s=IntelStore.Load(profile,"leveling-queue",new LevelingSession());_leveling[profile]=s;}return s;}
  private void SaveLeveling(string profile)=>IntelStore.Save(profile,"leveling-queue",LevelingFor(profile));
- private object LevelingDashboard(){var s=LevelingFor(CurrentProfileId);_levelingAccounts.TryGetValue(CurrentProfileId,out var a);var worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Key;MedicalSession? medical=null;if(worker!=null)_medicalSessions.TryGetValue(worker,out medical);return new{scouterConfigured=!string.IsNullOrWhiteSpace(CredentialManager.LoadScouterKey(CurrentProfileId)),profileId=CurrentProfileId,session=s,account=a,worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Value?.Status??"Not started",medical=medical==null?null:new{itemsUsed=medical.ItemsUsed,cooldownUsed=medical.CooldownUsed},estimatedAttacks=a==null?(int?)null:Math.Max(0,(a.Energy-s.EnergyReserve)/25),stale=a==null||DateTime.UtcNow-a.At>TimeSpan.FromSeconds(45)};}
+ private object LevelingDashboard(){var s=LevelingFor(CurrentProfileId);_levelingAccounts.TryGetValue(CurrentProfileId,out var a);var worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Key;MedicalSession? medical=null;if(worker!=null)_medicalSessions.TryGetValue(worker,out medical);return new{scouterFeedback=_levelScoutFeedback.GetValueOrDefault(CurrentProfileId),scouterConfigured=!string.IsNullOrWhiteSpace(CredentialManager.LoadScouterKey(CurrentProfileId)),profileId=CurrentProfileId,session=s,account=a,worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Value?.Status??"Not started",medical=medical==null?null:new{itemsUsed=medical.ItemsUsed,cooldownUsed=medical.CooldownUsed},estimatedAttacks=a==null?(int?)null:Math.Max(0,(a.Energy-s.EnergyReserve)/25),stale=a==null||DateTime.UtcNow-a.At>TimeSpan.FromSeconds(45)};}
  private async Task<LevelingAccount> ReadLevelingAccountAsync(string profile){
   var key=CredentialManager.LoadApiKey(profile);if(string.IsNullOrWhiteSpace(key))throw new InvalidDataException("Save this account's Torn API key first.");
   var s=LevelingFor(profile);
@@ -23,6 +24,7 @@ public sealed partial class MainForm {
  }
  private async Task HandleLevelingAsync(string action,JsonElement root){
   string profile=ReadWorkerString(root,"profileId");if(profile!=CurrentProfileId||!_settings.Profiles.Any(p=>p.Id==profile))throw new InvalidDataException("The selected account changed; refresh this page.");
+  if(action is "levelScoutKey" or "levelScoutSave"){await SaveLevelingScoutSettingsAsync(action,root,profile);return;}
   if(action!="levelSources"&&_levelingRuns.Any(x=>x.Key.ProfileId==profile&&x.Value.Active))throw new InvalidOperationException("Stop automatic leveling before editing the queue or using manual session controls.");
   if(_levelingBusy)throw new InvalidOperationException("A leveling check is already running.");_levelingBusy=true;
   var s=LevelingFor(profile);

@@ -2,6 +2,19 @@ using System.Text.Json;
 using System.Globalization;
 namespace TornCommander;
 public sealed partial class MainForm {
+ private async Task SaveLevelingScoutSettingsAsync(string action,JsonElement root,string profile){
+  string requestId=ReadWorkerString(root,"requestId");bool entered=false;
+  try{
+   if(_levelingBusy)throw new InvalidOperationException("A leveling check is running. Wait for it to finish, then save.");
+   if(_levelingRuns.Any(x=>x.Key.ProfileId==profile&&x.Value.Active))throw new InvalidOperationException("Stop automatic leveling before changing its key or strength filters.");
+   _levelingBusy=true;entered=true;
+   await LevelingScoutActionAsync(action,root,profile);SaveLeveling(profile);
+   _levelScoutFeedback[profile]=new{requestId,success=true,message=action=="levelScoutKey"?"FFScouter credential saved for this account.":"Strength filters saved for this account."};
+  }catch(Exception ex){
+   string message=ex is InvalidDataException or InvalidOperationException or ArgumentException?ex.Message:"Could not save settings locally. The entered key has been kept for retry.";
+   _levelScoutFeedback[profile]=new{requestId,success=false,message};
+  }finally{if(entered)_levelingBusy=false;UpdateModernDashboard();}
+ }
  private async Task RefreshLevelingStrengthAsync(string profile){
   var key=CredentialManager.LoadApiKey(profile)??throw new InvalidDataException("Missing Torn key.");
   using var doc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/battlestats",key));
@@ -28,10 +41,9 @@ public sealed partial class MainForm {
  }
  private async Task LevelingScoutActionAsync(string action,JsonElement root,string profile){
   var s=LevelingFor(profile);
-  if(s.OpenedUtc!=null)throw new InvalidDataException("Resolve the pending fight before changing scouting settings or lists.");
   if(action=="levelScoutKey"){
    if(root.TryGetProperty("remove",out var remove)&&remove.GetBoolean())CredentialManager.ForgetScouterKey(profile);
-   else CredentialManager.SaveScouterKey(profile,ReadWorkerString(root,"key"));
+   else {string enteredKey=ReadWorkerString(root,"key");CredentialManager.SaveScouterKey(profile,enteredKey);if(CredentialManager.LoadScouterKey(profile)!=enteredKey.Trim())throw new InvalidOperationException("FFScouter credential could not be verified after saving.");}
    s.Note="FFScouter credential updated locally for this account.";return;
   }
   if(action=="levelScoutSave"){
@@ -41,11 +53,13 @@ public sealed partial class MainForm {
    foreach(var t in s.Targets)t.Suitability=LevelingScouting.Suitability(t,s,DateTime.UtcNow);
    s.Note="Strength filters saved. Unknown, stale and over-limit targets cannot be opened automatically.";return;
   }
+  if(s.OpenedUtc!=null)throw new InvalidDataException("Check the pending fight result or skip it before replacing/scanning the queue. Keys and strength filters can be saved separately.");
   var a=await ReadLevelingAccountAsync(profile);await RefreshLevelingStrengthAsync(profile);
   string key=await ScouterKeyAsync(profile,a.Player);
   if(action=="levelScoutSearch"){
    string query="minlevel=1&maxlevel=100&minff=1&maxff="+s.MaxFairFight.ToString(CultureInfo.InvariantCulture)+"&inactiveonly="+(s.InactiveOnly?"1":"0")+"&limit=50";
    var targets=LevelingScouting.SearchResults(await FFScouterProvider.GetAsync(key,"get-targets",query),a.Player);
+   if(targets.Count==0){s.Note="No FFScouter targets match these search filters. Your saved key and existing queue were kept. Review the Fair Fight ceiling or inactivity filter; the independent strength cap remains enforced.";return;}
    await ScanLevelingTargetsAsync(profile,targets,key);
    if(CurrentProfileId!=profile)throw new InvalidDataException("Account changed; existing queue kept.");
    s.Targets=targets.OrderByDescending(x=>LevelingScouting.Eligible(x,s,DateTime.UtcNow)).ThenByDescending(x=>x.Level).ToList();s.PendingTarget=0;s.BaldrSource="";s.BaldrLoadedUtc=null;
