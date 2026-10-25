@@ -1,3 +1,15 @@
+v0.6.76 (2026-10-25) - Load, scan and filter complete Baldr queues
+- Provide Load all Baldr lists & scan as one action; preserve partial scan results, show scan progress and zero-match explanations, and permit scanning an existing idle queue while keeping unresolved fight receipts.
+- Default to All lists. Disable scan/load buttons while an operation runs. Read only identity and battle stats for scouting instead of unrelated medical/bars state.
+- Includes mission-NPC exclusion and all v0.6.74 settings, weapon and recovery fixes. Regression checks and live scan results are reported on delivery.
+
+v0.6.75 (2026-10-25) - Exclude mission-only leveling NPCs
+- Live FFScouter search returned Test Dummy #1/#2 as low-stat targets. Exclude these mission-only NPC names during suitability checks, including saved queues, and skip an explicitly mission-blocked attack page without attacking or counting a win.
+- Add a single Load all Baldr lists & scan action; scan the entire list in provider-sized batches before filtering, save partial batches, show progress and actionable completion/failure details, and default the list picker to All lists.
+- Allow rescanning an existing idle queue despite an unresolved manual receipt; preserve that receipt and continue blocking queue replacement. Remove unrelated healing/bars reads from strength scans and show a zero-match explanation with cap/lowest returned estimate.
+- Add optimizer eligibility and mission-page full-cycle regression tests. Keep ordinary missing/ambiguous controls paused rather than guessing.
+- Live v0.6.74 completed seven verified medical uses, exited hospital and reached full life without drugs or duplicate consumption; 530 energy remained when the mission restriction was found.
+
 v0.6.74 (2026-10-25) - Torn medical server-error recovery
 - Recognize the observed TORN 500 Error medical page instead of presenting its absent inventory as exhausted supplies. When no item was dispatched, wait then retry the page at most twice, with 15 seconds between attempts.
 - If an item was already dispatched, pause for reconciliation rather than refreshing into a repeat use. CAPTCHA/verification screens remain manual and take precedence.

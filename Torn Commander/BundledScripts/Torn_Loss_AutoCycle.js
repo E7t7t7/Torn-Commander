@@ -627,6 +627,7 @@
           openPage(state,ITEMS_URL,'Items / Medical');
           return;
         }
+        if(state.mode==='level'&&/a mission is needed to be activated in order to attack this npc/i.test(bodyText())){const claimId=state.claimId;state.claimId='';state.stage='claim';state.pendingClaimRequest='';state.status='Mission-only NPC skipped. Looking for a player target.';save(state);post({type:'tc-loss-skip',profileId:state.profileId,orderId:state.orderId,claimId,reason:'Mission-only NPC'});return;}
         if(state.mode==='level'&&/(?:this player|this person|your target|the target) (?:is |is currently |has been )?(?:in (?:the )?hospital|in jail|traveling|travelling|abroad|unavailable|already in a fight)/i.test(bodyText())){
           const claimId=state.claimId;state.claimId='';state.stage='claim';state.pendingClaimRequest='';state.status='Target became unavailable. Skipping to the next account.';save(state);post({type:'tc-loss-skip',profileId:state.profileId,orderId:state.orderId,claimId});return;
         }

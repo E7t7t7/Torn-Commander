@@ -3,6 +3,7 @@ using System.Globalization;
 namespace TornCommander;
 internal static class LevelingScouting {
  public static string Suitability(LevelingTarget t,LevelingSession s,DateTime now,bool checkActivity=true){
+  if(System.Text.RegularExpressions.Regex.IsMatch(t.Name,@"^Test Dummy #\d+$",System.Text.RegularExpressions.RegexOptions.IgnoreCase))return "Mission-only NPC - excluded";
   if(!double.IsFinite(s.OwnStats)||s.OwnStats<=0||s.OwnStatsUtc==null||now-s.OwnStatsUtc>TimeSpan.FromMinutes(15)||s.OwnStatsUtc>now.AddMinutes(1))return "Refresh your battle stats";
   if(!double.IsFinite(s.MaxStatRatio)||s.MaxStatRatio is <=0 or >1||s.MaxEstimateDays is <1 or >365)return "Invalid strength filter";
   if(t.EstimatedStats is not double stats||!double.IsFinite(stats)||stats<=0||t.EstimateUtc==null||t.ScannedUtc==null)return "Unknown strength — excluded";

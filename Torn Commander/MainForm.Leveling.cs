@@ -8,7 +8,7 @@ public sealed partial class MainForm {
  private sealed record LevelingAccount(int Player,string Name,int Energy,int Life,int Maximum,string Status,MedicalObservation Medical,LevelingHealPlan Recovery,DateTime At);
  private LevelingSession LevelingFor(string profile){if(!_leveling.TryGetValue(profile,out var s)){s=IntelStore.Load(profile,"leveling-queue",new LevelingSession());_leveling[profile]=s;}return s;}
  private void SaveLeveling(string profile)=>IntelStore.Save(profile,"leveling-queue",LevelingFor(profile));
- private object LevelingDashboard(){var s=LevelingFor(CurrentProfileId);_levelingAccounts.TryGetValue(CurrentProfileId,out var a);var worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Key;MedicalSession? medical=null;if(worker!=null)_medicalSessions.TryGetValue(worker,out medical);return new{scouterFeedback=_levelScoutFeedback.GetValueOrDefault(CurrentProfileId),scouterConfigured=!string.IsNullOrWhiteSpace(CredentialManager.LoadScouterKey(CurrentProfileId)),profileId=CurrentProfileId,session=s,account=a,worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Value?.Status??"Not started",medical=medical==null?null:new{itemsUsed=medical.ItemsUsed,cooldownUsed=medical.CooldownUsed},estimatedAttacks=a==null?(int?)null:Math.Max(0,(a.Energy-s.EnergyReserve)/25),stale=a==null||DateTime.UtcNow-a.At>TimeSpan.FromSeconds(45)};}
+ private object LevelingDashboard(){var s=LevelingFor(CurrentProfileId);_levelingAccounts.TryGetValue(CurrentProfileId,out var a);var worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Key;MedicalSession? medical=null;if(worker!=null)_medicalSessions.TryGetValue(worker,out medical);return new{busy=_levelingBusy,scouterFeedback=_levelScoutFeedback.GetValueOrDefault(CurrentProfileId),scouterConfigured=!string.IsNullOrWhiteSpace(CredentialManager.LoadScouterKey(CurrentProfileId)),profileId=CurrentProfileId,session=s,account=a,worker=_levelingRuns.LastOrDefault(x=>x.Key.ProfileId==CurrentProfileId).Value?.Status??"Not started",medical=medical==null?null:new{itemsUsed=medical.ItemsUsed,cooldownUsed=medical.CooldownUsed},estimatedAttacks=a==null?(int?)null:Math.Max(0,(a.Energy-s.EnergyReserve)/25),stale=a==null||DateTime.UtcNow-a.At>TimeSpan.FromSeconds(45)};}
  private async Task<LevelingAccount> ReadLevelingAccountAsync(string profile){
   var key=CredentialManager.LoadApiKey(profile);if(string.IsNullOrWhiteSpace(key))throw new InvalidDataException("Save this account's Torn API key first.");
   var s=LevelingFor(profile);
@@ -36,6 +36,8 @@ public sealed partial class MainForm {
     if(CurrentProfileId!=profile)throw new InvalidOperationException("Account changed during download. The existing queue was kept.");
     s.Targets=data.Targets;s.PendingTarget=0;s.BaldrGroups=data.Groups;s.BaldrSource=BaldrListProvider.SourceUrl;s.BaldrLoadedUtc=data.FetchedUtc;
     s.Note="Loaded "+data.Targets.Count+" distinct targets from Baldr's list, in source order. Listed stats are historical reference values; Commander checks current availability before fighting.";
+    SaveLeveling(profile);UpdateModernDashboard();
+    if(root.TryGetProperty("scan",out var scan)&&scan.ValueKind==JsonValueKind.True)await LevelingScoutActionAsync("levelScoutScan",root,profile);
    }else if(action=="levelSave"){
     int reserve=root.GetProperty("reserve").GetInt32(),percent=root.GetProperty("lifePercent").GetInt32(),limit=root.GetProperty("limit").GetInt32();
     if(reserve is <0 or >10000||percent is <1 or >100||limit is <0 or >10000)throw new InvalidDataException("Invalid reserve, life target or attack limit.");
@@ -137,7 +139,7 @@ public sealed partial class MainForm {
     }
    }
    SaveLeveling(profile);
-  }catch(Exception ex){s.Note=action=="levelLoadBaldr"?"Baldr list load failed; your existing queue was kept. "+(ex is InvalidDataException?ex.Message:"Check the connection and try again."):s.Note;SaveLeveling(profile);throw;}
+  }catch(Exception ex){s.Note="Leveling action stopped: "+(ex is InvalidDataException or InvalidOperationException?ex.Message:"The provider or connection failed. Your loaded list and completed scan batches were kept; try scanning again.");SaveLeveling(profile);throw;}
   finally{_levelingBusy=false;UpdateModernDashboard();}
  }
  private void EnsureLevelingProfileIdle(string profile){if(new[]{_lossWorkerA,_lossWorkerB}.Any(w=>w?.IsArmed==true&&w.ProfileId==profile))throw new InvalidOperationException("Stop this account's Loss Desk worker before using Leveling.");}

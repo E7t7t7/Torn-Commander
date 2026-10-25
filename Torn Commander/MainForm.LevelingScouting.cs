@@ -36,7 +36,7 @@ public sealed partial class MainForm {
    string json=await FFScouterProvider.GetAsync(key,"get-stats","targets="+string.Join(",",batch.Select(x=>x.Id)));
    LevelingScouting.ApplyStats(batch,json,DateTime.UtcNow);
    var s=LevelingFor(profile);foreach(var t in batch)t.Suitability=LevelingScouting.Suitability(t,s,DateTime.UtcNow);
-   s.Note="Scanned "+Math.Min(i+205,targets.Count)+"/"+targets.Count+" strength estimates. Live status is checked before each fight.";UpdateModernDashboard();
+   s.Note="Scanned "+Math.Min(i+205,targets.Count)+"/"+targets.Count+" strength estimates. Live status is checked before each fight.";SaveLeveling(profile);UpdateModernDashboard();
   }
  }
  private async Task LevelingScoutActionAsync(string action,JsonElement root,string profile){
@@ -53,18 +53,23 @@ public sealed partial class MainForm {
    foreach(var t in s.Targets)t.Suitability=LevelingScouting.Suitability(t,s,DateTime.UtcNow);
    s.Note="Strength filters saved. Unknown, stale and over-limit targets cannot be opened automatically.";return;
   }
-  if(s.OpenedUtc!=null)throw new InvalidDataException("Check the pending fight result or skip it before replacing/scanning the queue. Keys and strength filters can be saved separately.");
-  var a=await ReadLevelingAccountAsync(profile);await RefreshLevelingStrengthAsync(profile);
-  string key=await ScouterKeyAsync(profile,a.Player);
+  if(action=="levelScoutSearch"&&s.OpenedUtc!=null)throw new InvalidDataException("Check or skip the pending fight before replacing its queue. Scanning the existing list and saving filters are still available.");
+  if(action=="levelScoutScan"&&s.Targets.Count==0)throw new InvalidDataException("Load Baldr lists or import targets first.");
+  s.Note="Reading this account and scanning all "+s.Targets.Count+" loaded targets. Unknown strength is pending a scan, not too strong.";UpdateModernDashboard();
+  string tornKey=CredentialManager.LoadApiKey(profile)??throw new InvalidDataException("Save this account Torn API key first.");
+  using var ownerDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",tornKey));int player=ownerDoc.RootElement.GetProperty("profile").GetProperty("id").GetInt32();
+  await RefreshLevelingStrengthAsync(profile);
+  string key=await ScouterKeyAsync(profile,player);
   if(action=="levelScoutSearch"){
    string query="minlevel=1&maxlevel=100&minff=1&maxff="+s.MaxFairFight.ToString(CultureInfo.InvariantCulture)+"&inactiveonly="+(s.InactiveOnly?"1":"0")+"&limit=50";
-   var targets=LevelingScouting.SearchResults(await FFScouterProvider.GetAsync(key,"get-targets",query),a.Player);
+   var targets=LevelingScouting.SearchResults(await FFScouterProvider.GetAsync(key,"get-targets",query),player);
    if(targets.Count==0){s.Note="No FFScouter targets match these search filters. Your saved key and existing queue were kept. Review the Fair Fight ceiling or inactivity filter; the independent strength cap remains enforced.";return;}
    await ScanLevelingTargetsAsync(profile,targets,key);
    if(CurrentProfileId!=profile)throw new InvalidDataException("Account changed; existing queue kept.");
    s.Targets=targets.OrderByDescending(x=>LevelingScouting.Eligible(x,s,DateTime.UtcNow)).ThenByDescending(x=>x.Level).ToList();s.PendingTarget=0;s.BaldrSource="";s.BaldrLoadedUtc=null;
   }else await ScanLevelingTargetsAsync(profile,s.Targets,key);
   foreach(var t in s.Targets)t.Suitability=LevelingScouting.Suitability(t,s,DateTime.UtcNow);
-  s.Note=s.Targets.Count(t=>LevelingScouting.StrengthEligible(t,s,DateTime.UtcNow))+" / "+s.Targets.Count+" targets within your strength limit (live activity still checked before fighting). Your total: "+s.OwnStats.ToString("N0")+"; target cap: "+(s.OwnStats*s.MaxStatRatio).ToString("N0")+". Estimates cannot guarantee a win; equipment and stat distribution matter.";
+  var now=DateTime.UtcNow;var estimated=s.Targets.Where(t=>t.EstimatedStats>0).ToList();int within=s.Targets.Count(t=>LevelingScouting.StrengthEligible(t,s,now));
+  s.Note="Scan complete: "+within+" / "+s.Targets.Count+" within your limits. "+(s.Targets.Count-estimated.Count)+" have no known estimate. Your stats: "+s.OwnStats.ToString("N0")+"; strength cap: "+(s.OwnStats*s.MaxStatRatio).ToString("N0")+"; Fair Fight ceiling: "+s.MaxFairFight.ToString("0.##")+"."+(within==0&&estimated.Count>0?" Lowest returned estimate: "+estimated.Min(t=>t.EstimatedStats)!.Value.ToString("N0")+". Review strength/FF/age filters; unknown or stale estimates are not assumed safe.":"")+" Hospitalized, traveling, jailed or active targets are skipped automatically before each fight. Estimates are not win guarantees.";
  }
 }

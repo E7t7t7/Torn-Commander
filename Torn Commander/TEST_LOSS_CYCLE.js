@@ -61,6 +61,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   if(scene==='victory')return node('body',options.noVictoryText?'Choose an outcome':'Seller defeated Target.',{},[button('Leave',()=>{counts.leave++;scene='finished'}),button('Mug',()=>counts.wrong++)]);
   if(scene==='finished')return node('body','You left Target on the street.');
   if(scene==='loss')return node('body','Seller lost to Target.');
+  if(scene==='attack'&&options.missionOnly)return node('body','A MISSION IS NEEDED TO BE ACTIVATED IN ORDER TO ATTACK THIS NPC!');
   if(scene==='attack'&&missingJoin)return node('body','Waiting for combat controls');
   if(scene==='attack'&&!hospital&&energy<25)return node('body','YOU DO NOT HAVE ENOUGH ENERGY');
   if(scene==='attack'){
@@ -113,6 +114,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const store=m=>({getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)});
  const window={chrome:{webview:{postMessage:raw=>{
   const m=JSON.parse(raw);messages.push(m);
+  if(m.type==='tc-level-skip'){assert.equal(m.claimId,activeLease);activeLease='';remaining--;return;}
   if(m.type==='tc-level-claim'){
    if(!remaining){replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:false,message:'Complete: no targets remain.'}));return;}
    activeLease='level-'+remaining;replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:true,claimId:activeLease,targetId:remaining===2?123:456,message:'Verified leveling target'}));return;
@@ -319,6 +321,9 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   for(let i=0;i<1800&&liveSlots.h.getState().stage!=='complete';i++)await liveSlots.step(250);
   assert.equal(liveSlots.h.getState().stage,'complete',liveSlots.h.getState().status);assert.equal(liveSlots.counts.levelCommits,2);assert.equal(liveSlots.counts.wrong,0);
  }
+ const mission=fixture(false,false,false,{leveling:true,smartMedical:true,missionOnly:true});
+ for(let i=0;i<600&&mission.h.getState().stage!=='complete';i++)await mission.step(250);
+ assert.equal(mission.h.getState().stage,'complete',mission.h.getState().status);assert.equal(mission.counts.join,0);assert.equal(mission.counts.pillow,0);assert.equal(mission.counts.levelCommits,0);assert.equal(mission.messages.filter(m=>m.type==='tc-level-skip').length,2);
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');

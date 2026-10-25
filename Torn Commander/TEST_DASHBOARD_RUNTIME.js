@@ -229,3 +229,11 @@ context.renderLeveling({profileId:'P',session:{targets:Array.from({length:120},(
 assert(nodes.levelPageSummary.textContent.includes('1-50 of 120'));assert(!nodes.levelRows.innerHTML.includes('PageTarget51</b>'));
 context.changeLevelPage(1);assert(nodes.levelPageSummary.textContent.includes('51-100 of 120'));assert(nodes.levelRows.innerHTML.includes('PageTarget51'));
 console.log('LEVELING PAGINATION PASSED: full queue retained and bounded visible target cards.');
+
+nodes.levelBaldrGroup.value="Baldr's List 1";context.loadBaldrList(true);
+assert.equal(levelingMessage.data.group,'');assert.equal(levelingMessage.data.scan,true);
+context.renderLeveling({profileId:'P',busy:true,session:{targets:[]}});
+for(const id of ['levelLoadScan','levelLoadList','levelScanList','levelFindTargets'])assert(nodes[id].disabled,'Concurrent scan control enabled');
+context.renderLeveling({profileId:'P',busy:false,session:{targets:[]}});
+assert(!nodes.levelLoadScan.disabled);
+console.log('BALDR LOAD-AND-SCAN PASSED: all groups requested before filtering, busy controls and existing list-only action.');
