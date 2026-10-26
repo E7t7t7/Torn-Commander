@@ -15,6 +15,7 @@ public sealed class LevelingSession {
  public List<LevelingTarget> Targets {get;set;}=new(); public int EnergyReserve {get;set;}
  public bool AutoHeal {get;set;} public string WeaponSlot {get;set;}="weapon_primary"; public int AttackDelayMs {get;set;}=1000;
  public int LifePercent {get;set;}=100; public int AttackLimit {get;set;}
+ public int UnverifiedResults {get;set;}
  public int Wins {get;set;} public int OtherResults {get;set;} public List<long> AttackIds {get;set;}=new();
  public int PendingTarget {get;set;} public DateTime? OpenedUtc {get;set;}
  public Dictionary<int,int> Inventory {get;set;}=new(){{68,0},{67,0},{66,0}};
@@ -67,6 +68,8 @@ internal static class LevelingPlanner {
   var items=catalog.SelectMany((x,i)=>Enumerable.Repeat(x.Id,best[i])).OrderBy(id=>SmartMedicalOptimizer.Item(id).CooldownSeconds).ToArray();
   return new("Heal first","Estimated minimum cooldown to leave hospital and reach "+percent+"% life. Use one item manually, then refresh/recalculate; natural recovery and rounding can change the remainder.",items,bestCost,goal);
  }
+ public static bool CanAdvanceUnverified(bool terminal,int checks,int self,int owner,int target,int opponent,string ownState,string targetState)=>terminal&&checks>=3&&self>0&&target>0&&self!=target&&self==owner&&target==opponent&&(ownState=="Okay"||ownState=="Hospital")&&(targetState=="Hospital"||ownState=="Hospital");
+ public static bool ContinueAfter(string result)=>result is "Attacked" or "Assist" or "Interrupted";
  public static (long Id,string Result)? FindReceipt(string json,int self,int target,DateTime opened,IEnumerable<long> seen){
   using var d=JsonDocument.Parse(json);long start=new DateTimeOffset(opened).ToUnixTimeSeconds();
   foreach(var a in d.RootElement.GetProperty("attacks").EnumerateArray()){

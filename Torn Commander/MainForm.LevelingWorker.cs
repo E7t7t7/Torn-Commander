@@ -3,7 +3,7 @@ namespace TornCommander;
 public sealed partial class MainForm {
  private sealed class LevelingRun {
   public string Id="level-"+Guid.NewGuid().ToString("N"),Claim="",LastCommitted="";
-  public int Player,Target,LastRemaining;public DateTime Opened,LastStatus;public bool Active=true,Busy,LastStop;
+  public int Player,Target,LastRemaining,ReceiptChecks;public bool TerminalSeen;public DateTime Opened,LastStatus;public bool Active=true,Busy,LastStop;
   public string LastMessage="",Status="Starting automatic leveling";
  }
  private readonly Dictionary<LossAutoCycleWorker,LevelingRun> _levelingRuns=new();
@@ -78,10 +78,10 @@ public sealed partial class MainForm {
     using var bars=JsonDocument.Parse(await _api.FetchEndpointAsync("user/bars",key));int energy=bars.RootElement.GetProperty("bars").GetProperty("energy").GetProperty("current").GetInt32();
     if(!LevelingRunContext(worker,run,request))return;
     if(_levelingAccounts.TryGetValue(worker.ProfileId,out var currentAccount))_levelingAccounts[worker.ProfileId]=currentAccount with{Energy=energy,Life=life,Maximum=maximum,Status=state??"Unknown",At=DateTime.UtcNow};
-    if(energy-session.EnergyReserve<25||session.AttackLimit>0&&session.Wins+session.OtherResults>=session.AttackLimit){await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message="Complete: energy reserve or attack limit reached."});return;}
+    if(energy-session.EnergyReserve<25||session.AttackLimit>0&&session.Wins+session.OtherResults+session.UnverifiedResults>=session.AttackLimit){await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message="Complete: energy reserve or attack limit reached."});return;}
     if(state=="Hospital"||state=="Okay"&&life<(int)Math.Ceiling(maximum*session.LifePercent/100d)){await worker.ReplyLevelingAsync(new{kind="heal",requestId=rid});return;}
     if(state!="Okay")throw new InvalidDataException("Cannot level while account is "+state+".");
-      run.Target=target.Id;run.Claim=Guid.NewGuid().ToString("N");run.Opened=DateTime.UtcNow;session.PendingTarget=target.Id;session.OpenedUtc=run.Opened;SaveLeveling(worker.ProfileId);
+      run.Target=target.Id;run.ReceiptChecks=0;run.TerminalSeen=false;run.Claim=Guid.NewGuid().ToString("N");run.Opened=DateTime.UtcNow;session.PendingTarget=target.Id;session.OpenedUtc=run.Opened;SaveLeveling(worker.ProfileId);
       await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=true,claimId=run.Claim,targetId=run.Target,message="Leveling target verified. Opening fight."});return;
      }
      target.Finished=true;target.Status="Skipped: "+target.Status;
@@ -93,13 +93,29 @@ public sealed partial class MainForm {
    }else if(type=="tc-level-commit"){
     if(claim==run.LastCommitted&&claim!=""){await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});return;}
     if(claim==""||claim!=run.Claim)throw new InvalidDataException("No matching leveling fight reservation.");
+    if(request.TryGetProperty("terminal",out var terminal)&&terminal.ValueKind==JsonValueKind.True)run.TerminalSeen=true;
     string json=await _api.FetchEndpointAsync("user/attacks?filters=outgoing&limit=100&sort=desc&from="+new DateTimeOffset(run.Opened).ToUnixTimeSeconds(),key);
     if(!LevelingRunContext(worker,run,request))return;
     var result=LevelingPlanner.FindReceipt(json,run.Player,run.Target,run.Opened,session.AttackIds);
-    if(result==null){await worker.ReplyLevelingAsync(new{kind="pending",claimId=claim,message="Waiting for Torn's official attack log. No new attack will start."});return;}
+    if(result==null){
+     run.ReceiptChecks++;
+     if(run.TerminalSeen&&run.ReceiptChecks>=3){
+      using var ownDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key));var own=ownDoc.RootElement.GetProperty("profile");
+      using var targetDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/"+run.Target+"/profile",key));var opponent=targetDoc.RootElement.GetProperty("profile");
+      if(!LevelingRunContext(worker,run,request))return;
+      if(own.GetProperty("id").GetInt32()!=run.Player||opponent.GetProperty("id").GetInt32()!=run.Target)throw new InvalidDataException("Ended-fight account/target identity changed.");
+      string ownState=own.GetProperty("status").GetProperty("state").GetString()??"",opponentState=opponent.GetProperty("status").GetProperty("state").GetString()??"";
+      if(LevelingPlanner.CanAdvanceUnverified(run.TerminalSeen,run.ReceiptChecks,run.Player,own.GetProperty("id").GetInt32(),run.Target,opponent.GetProperty("id").GetInt32(),ownState,opponentState)){
+       var ended=session.Targets.First(x=>x.Id==run.Target);ended.Finished=true;ended.Status="Ended - receipt unverified";session.UnverifiedResults++;session.PendingTarget=0;session.OpenedUtc=null;
+       run.LastCommitted=claim;run.Claim="";run.LastStop=ownState=="Hospital";run.LastRemaining=run.LastStop?0:Math.Max(1,session.Targets.Count(x=>!x.Finished));run.LastMessage="Fight ended on Torn; API receipt unavailable. No win counted."+ (run.LastStop?" Account hospitalized; stopped for review.":" Moving to the next target.");session.Note=run.LastMessage;SaveLeveling(worker.ProfileId);
+       await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});return;
+      }
+     }
+     await worker.ReplyLevelingAsync(new{kind="pending",claimId=claim,message="Waiting for Torn's official attack log. No new attack will start."});return;
+    }
     var receipt=result.Value;session.AttackIds.Add(receipt.Id);bool won=receipt.Result=="Attacked";if(won)session.Wins++;else session.OtherResults++;
     var target=session.Targets.First(x=>x.Id==run.Target);target.Finished=true;target.Status="Verified: "+receipt.Result;session.PendingTarget=0;session.OpenedUtc=null;
-    run.LastCommitted=claim;run.Claim="";run.LastStop=!won;run.LastRemaining=won?session.Targets.Count(x=>!x.Finished):0;run.LastMessage=won?"Verified Leave win.":"Stopped after "+receipt.Result+". Review target difficulty and weapon before restarting.";session.Note=run.LastMessage;SaveLeveling(worker.ProfileId);
+    run.LastCommitted=claim;run.Claim="";run.LastStop=!LevelingPlanner.ContinueAfter(receipt.Result);run.LastRemaining=!run.LastStop?session.Targets.Count(x=>!x.Finished):0;run.LastMessage=won?"Verified Leave win.":!run.LastStop?"Verified "+receipt.Result+"; no win counted. Moving to the next target.":"Stopped after "+receipt.Result+". Review target difficulty and weapon before restarting.";session.Note=run.LastMessage;SaveLeveling(worker.ProfileId);
     await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});UpdateModernDashboard();
    }
   }catch(Exception ex){LevelingFor(worker.ProfileId).Note=ex is InvalidDataException?ex.Message:"Leveling API check failed. Review API access or rate-limit status; no new attack authorized.";await worker.ReplyLevelingAsync(new{kind="paused",message=LevelingFor(worker.ProfileId).Note});}

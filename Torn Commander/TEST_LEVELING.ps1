@@ -74,6 +74,14 @@ for(int trial=0;trial<100;trial++){
  }
  Check(best==int.MaxValue?actual.Items.Length==0:actual.CooldownSeconds==best,"hospital/life oracle "+trial);
 }
+Check(LevelingPlanner.ContinueAfter("Assist")&&LevelingPlanner.ContinueAfter("Interrupted")&&!LevelingPlanner.ContinueAfter("Lost")&&!LevelingPlanner.ContinueAfter("Stalemate"),"interrupted results continue, losses stop");
+Check(LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Okay","Hospital"),"ended fight corroborated without a win");
+Check(!LevelingPlanner.CanAdvanceUnverified(false,3,1,1,2,2,"Okay","Hospital"),"hospital alone not ended evidence");
+Check(!LevelingPlanner.CanAdvanceUnverified(true,2,1,1,2,2,"Okay","Hospital"),"cached receipt grace");
+Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,3,2,2,"Okay","Hospital"),"wrong own account");
+Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,3,"Okay","Hospital"),"wrong opponent");
+Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Okay","Okay"),"active fight cannot be abandoned");
+Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Unknown","Hospital"),"unknown own state rejected");
 var unix=new DateTimeOffset(now).ToUnixTimeSeconds();
 string Attack(int actor,int defender,long started,long ended,string result,int id=91)=>$$"""{"attacks":[{"id":{{id}},"started":{{started}},"ended":{{ended}},"attacker":{"id":{{actor}}},"defender":{"id":{{defender}}},"result":"{{result}}"}]}""";
 Check(LevelingPlanner.FindReceipt(Attack(1,2,unix,unix+5,"Attacked"),1,2,now,Array.Empty<long>())?.Result=="Attacked","valid Leave result");

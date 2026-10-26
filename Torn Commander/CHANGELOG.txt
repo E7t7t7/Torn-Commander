@@ -1,3 +1,10 @@
+v0.6.79 (2026-10-26) - Ended fights, interrupted kills and empty guns
+- Recognize a unique Continue control inside the single remaining combatant as an ended-fight signal before any further weapon clicks. Request reconciliation instead of clicking stale weapon controls or counting a win.
+- Continue after officially verified Assist/Interrupted results, recording them as other results. Preserve stop-on-loss and other unexpected outcomes.
+- After three missing receipt checks, require ended-page evidence plus native own/target identity and hospital-state corroboration before advancing an unverified ended attempt. Record this separately, never as a win; count it toward the configured attempt limit and stop if the account is hospitalized.
+- Fix premature healing pauses after slow API planning: start the item-panel wait at the Ready reply/actual accordion expansion, separately from backend response timing. Reproduce the old failure with a 20-second plan response and delayed Use control; require the corrected worker to complete without duplicate item use.
+- Refuse weapon slots labelled No ammo. Permit a reload action once and wait for the slot to change, pausing if it remains unchanged for ten seconds. Replace misleading Pillow turn-limit text in leveling mode.
+
 v0.6.78 (2026-10-25) - Revisit leveling targets after hospital release
 - Keep hospitalized targets eligible for another check in the same run after their official release timestamp. Back off at least 30 seconds after each hospital observation to avoid cached-response retry loops; completed fights remain finished.
 - If every matching candidate is hospitalized, wait for the earliest known release time rather than declaring the pass exhausted. Recheck availability before any attack; no medicine or energy is spent during this wait. Stop/Pause remain available.

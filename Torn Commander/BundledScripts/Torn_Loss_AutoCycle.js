@@ -173,8 +173,21 @@
     const candidates=slots.filter(slot=>{
       if(!enabledControl(slot,slot.parentElement))return false;
       const names=[slot.getAttribute?.('aria-label'),slot.getAttribute?.('title'),...Array.from(slot.querySelectorAll('[aria-label],[title],span')).map(x=>x.getAttribute?.('aria-label')||x.getAttribute?.('title')||x.textContent)].map(clean);
-      return names.some(x=>/^attack with (?!pillow\b).+/i.test(x))&&!names.some(x=>/this weapon is not available/i.test(x));
+      return names.some(x=>/^attack with (?!pillow\b).+/i.test(x))&&!names.some(x=>/this weapon is not available/i.test(x))&&!/\bno ammo\b/i.test(labelOf(slot));
     });return candidates.length===1?candidates[0]:null;
+  }
+  function levelingEmptyGun(state){
+    const ids=state.weaponSlot==='weapon_primary'?['weapon_primary','weapon_main']:state.weaponSlot==='weapon_secondary'?['weapon_secondary','weapon_second']:[];
+    if(!ids.length)return false;
+    const slots=outerRoots(Array.from(document.querySelectorAll(ids.map(id=>'[id="'+id+'"]').join(','))).filter(visible));
+    const own=slots.filter(slot=>[slot,...slot.querySelectorAll('[aria-label],[title]')].some(el=>/^attack with (?!pillow\b).+/i.test(clean(el.getAttribute?.('aria-label')||el.getAttribute?.('title'))))&&!/this weapon is not available/i.test(labelOf(slot)));
+    return own.length===1&&/\bno ammo\b/i.test(labelOf(own[0]));
+  }
+  function levelingContinueControl(){
+    const roots=outerRoots(Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible));
+    if(roots.length!==1)return null;
+    const buttons=Array.from(roots[0].querySelectorAll('button,a,[role="button"]')).filter(el=>visible(el)&&enabledControl(el,el.parentElement)&&/^continue$/i.test(labelOf(el)));
+    return buttons.length===1?buttons[0]:null;
   }
   function levelingLeaveControl(requireChoices=false){
     const controls=Array.from(document.querySelectorAll('button,a,[role="button"],input[type="button"]')).filter(el=>visible(el)&&enabledControl(el,el.parentElement));
@@ -186,7 +199,7 @@
     if(state.finishAfterRecovery){state.running=false;state.stage='complete';state.status=state.levelStopMessage||'Leveling pass complete; recovery verified.';save(state);post({type:'tc-loss-finished',profileId:state.profileId,orderId:state.orderId});}
     else{state.stage=state.claimId?'attack-open':'claim';state.status='Recovery verified. Checking the next leveling target.';state.navigationUrl='';save(state);}
   }
-  function levelCommit(state){state.stage='commit-wait';state.commitAttempts=1;state.replyWaitAt=now();state.status='Verifying the completed leveling fight with Torn.';save(state);post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId});}
+  function levelCommit(state,terminal=false){state.levelTerminalSeen=terminal;state.stage='commit-wait';state.commitAttempts=1;state.replyWaitAt=now();state.status='Verifying the completed leveling fight with Torn.';save(state);post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,terminal});}
   function detectFightResult(state) {
     const text = bodyText();
     const self = clean(state.selfName || '');
@@ -351,7 +364,7 @@
       const use=medicalUse(op.itemId);
       if(!use){
         if(!state.medicalExpandedAt){const header=medicalExpand(op.itemId);if(header){state.medicalExpandedAt=now();save(state);click(header);return;}}
-        if(now()-state.medicalReplyAt>15000)pauseState(state,'Selected medical item did not expose one verified Use control. No item consumed.',true);return;
+        if(now()-Number(state.medicalExpandedAt||state.medicalReadyAt||state.medicalReplyAt)>15000)pauseState(state,'Selected medical item did not expose one verified Use control. No item consumed.',true);return;
       }
       requestMedical(state,'tc-medical-authorize',{token:op.token});return;
     }
@@ -580,7 +593,9 @@
         return;
       }
 
+      if(state.mode==='level'&&state.claimId&&['level-finish','level-verify'].includes(state.stage)&&levelingContinueControl())state.levelTerminalSeen=true;
       if(state.mode==='level'&&state.stage==='level-finish'){
+        if(levelingContinueControl()){levelCommit(state,true);return;}
         const leave=levelingLeaveControl();
         if(leave){state.levelLeaveClicked=true;save(state);if(click(leave))levelCommit(state);else pauseState(state,'Leave control changed before dispatch. Review the fight.',false);return;}
         if(now()-state.levelFinishAt>20000)pauseState(state,'A single verified Leave control did not appear. Finish the fight manually, then Resume to verify its receipt.',false);return;
@@ -588,7 +603,7 @@
       if(state.mode==='level'&&state.stage==='level-verify'){
         if(now()<state.levelVerifyAt)return;
         if(Number(state.commitAttempts||1)>=8){pauseState(state,'Official attack log did not update after eight checks. Resume verifies this same fight; no new attack will start.',false);return;}
-        state.commitAttempts=Number(state.commitAttempts||1)+1;state.stage='commit-wait';state.replyWaitAt=now();save(state);post({type:'tc-loss-commit',profileId:state.profileId,orderId:state.orderId,claimId:state.claimId});return;
+        state.commitAttempts=Number(state.commitAttempts||1)+1;state.stage='commit-wait';state.replyWaitAt=now();save(state);post({type:'tc-loss-commit',profileId:state.profileId,orderId:state.orderId,claimId:state.claimId,terminal:!!state.levelTerminalSeen});return;
       }
       if (state.stage === 'claim-wait' || state.stage === 'commit-wait') {
         if (!state.replyWaitAt) { state.replyWaitAt=now(); save(state); return; }
@@ -657,6 +672,7 @@
           pauseState(state, 'Attack page changed during the fight. Paused rather than guessing the result.', false);
           return;
         }
+        if(state.mode==='level'&&levelingContinueControl()){levelCommit(state,true);return;}
         if(state.mode==='level'&&levelingLeaveControl(true)){state.stage='level-finish';state.levelFinishAt=now();state.status='Finishing choices are visible. Preparing Leave.';save(state);return;}
         const outcome = detectFightResult(state);
         if (outcome === 'loss') {
@@ -679,10 +695,11 @@
           return;
         }
         if (Number(state.pillowTurns || 0) >= MAX_PILLOW_TURNS) {
-          pauseState(state, '100 Pillow attempts reached without a visible result. Fight paused; check the combat page before resuming. Nothing was counted.', false);
+          pauseState(state, state.mode==='level'?'100 combat actions reached without a verified result. Paused for review; no win counted.':'100 Pillow attempts reached without a visible result. Fight paused; check the combat page before resuming. Nothing was counted.', false);
           return;
         }
         if (now() - Number(state.lastPillowAt || 0) < attackDelay(state.attackDelayMs ?? 1900)) return;
+        if(state.mode==='level'&&levelingEmptyGun(state)){pauseState(state,'Selected gun has no ammo. Equip ammunition or choose an equipped melee weapon; no empty-gun clicks or win counted.',false);return;}
         const pillow = state.mode==='level'?levelingWeapon(state):pillowControl();
         if (!pillow) {
           state.pillowMissingSince = state.pillowMissingSince || now();
@@ -691,6 +708,11 @@
           if (now() - state.pillowMissingSince > 45000) pauseState(state, state.mode==='level'?'Selected fighting weapon could not be verified for 45 seconds. Check equipment/ammo; no alternative weapon was clicked.':'Pillow control could not be identified for 45 seconds. Auto-cycle paused.', false);
           return;
         }
+        if(state.mode==='level'&&/\breload\b/i.test(labelOf(pillow))){
+          const signature=labelOf(pillow);
+          if(state.levelReloadSignature===signature){if(now()-state.levelReloadAt>10000)pauseState(state,'Selected gun still shows Reload after ten seconds. No repeated reload click or win counted.',false);return;}
+          state.levelReloadSignature=signature;state.levelReloadAt=now();save(state);
+        }else if(state.mode==='level'){state.levelReloadSignature='';}
         if (!click(pillow)) {
           state.status = 'Pillow changed before the click. Rechecking the current weapon control.';
           save(state);
@@ -980,7 +1002,7 @@
         return true;
       }
       if (!claimId) { pauseState(state,'Commander granted an empty claim. No attack started.',false); return false; }
-      state.claimId = String(claimId || '');
+      state.claimId = String(claimId || '');state.levelTerminalSeen=false;state.levelReloadSignature='';
       state.kitsThisLoss = 0;
       state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;state.aidExpandedAt=0;
       state.stage = 'attack-open';
@@ -1036,7 +1058,7 @@
       if(!state.medicalDispatched&&/^TORN\s*[-\u2013\u2014]\s*50[0-4]\s*Error$/i.test(clean(document.title))&&reply.state!=='Ready'&&reply.state!=='Authorized'){state.stage='heal-open';state.status='Torn medical server error; waiting for page recovery without an item click.';save(state);return true;}
       if(reply.state==='Ready'){
         if(!medicalNames[reply.itemId]||!sameMedicalName(reply.name,medicalNames[reply.itemId])){pauseState(state,'Backend medical item is outside the fixed allowlist.',true);return false;}
-        state.medicalVerification=null;state.medicalOp=reply;state.medicalDispatched=false;state.medicalExpandedAt=0;
+        state.medicalVerification=null;state.medicalOp=reply;state.medicalDispatched=false;state.medicalExpandedAt=0;state.medicalReadyAt=now();
         if(!reply.automatic){pauseState(state,'Recommendation only: '+reply.name+'. Enable automatic consumption explicitly in Smart Medical Management to use it.',true);return true;}
         state.stage='smart-medical-ready';state.status='Plan: '+reply.name+'. Verifying personal inventory and account.';save(state);return true;
       }
@@ -1056,7 +1078,7 @@
     },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {medicalServerAttempts:load()?.medicalServerAttempts,recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {levelTerminalSeen:load()?.levelTerminalSeen,levelContinue:summary(levelingContinueControl()),levelEmptyGun:levelingEmptyGun(load()||{}),medicalServerAttempts:load()?.medicalServerAttempts,recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },
