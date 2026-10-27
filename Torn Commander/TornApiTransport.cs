@@ -6,11 +6,20 @@ public sealed record TornApiResponse(int Status, string Reason, string Body, str
 public static class TornApiTransport
 {
     public static Task<TornApiResponse> SendAsync(HttpClient http, HttpRequestMessage request, CancellationToken ct = default,
-        TornRequestCoordinator? coordinator = null)
+        TornRequestCoordinator? coordinator = null, bool fresh = false)
     {
         var queue = coordinator ?? TornRequestCoordinator.Shared;
         return queue.RunAsync(async token =>
         {
+            if(fresh){
+                var uri=request.RequestUri??throw new InvalidOperationException("Missing Torn API URL.");
+                if(!uri.IsAbsoluteUri)uri=new Uri(http.BaseAddress??throw new InvalidOperationException("Missing Torn API base URL."),uri);
+                if(uri.Scheme!="https"||uri.Host!="api.torn.com")throw new InvalidOperationException("Fresh state reads are restricted to the Torn API.");
+                var builder=new UriBuilder(uri);
+                var parts=builder.Query.TrimStart('?').Split('&',StringSplitOptions.RemoveEmptyEntries).Where(x=>!x.Split('=')[0].Equals("timestamp",StringComparison.OrdinalIgnoreCase));
+                builder.Query=string.Join("&",parts.Append("timestamp="+queue.UtcNow.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                request.RequestUri=builder.Uri;
+            }
             using var response = await http.SendAsync(request, token);
             var body = await response.Content.ReadAsStringAsync(token);
             if (response.StatusCode == HttpStatusCode.TooManyRequests || IsRateLimit(body))

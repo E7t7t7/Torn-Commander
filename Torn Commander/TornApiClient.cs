@@ -17,11 +17,11 @@ internal sealed class TornApiClient
         _http.DefaultRequestHeaders.UserAgent.ParseAdd($"TornCommander/{version} (desktop companion)");
     }
 
-    private async Task<string> GetAsync(string relative, string key, CancellationToken ct)
+    private async Task<string> GetAsync(string relative, string key, CancellationToken ct, bool fresh = false)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, relative);
         request.Headers.Authorization = new AuthenticationHeaderValue("ApiKey", key);
-        var response = await TornApiTransport.SendAsync(_http, request, ct);
+        var response = await TornApiTransport.SendAsync(_http, request, ct, fresh:fresh);
         var body = response.Body;
 
         if (response.Status is < 200 or >= 300)
@@ -114,13 +114,13 @@ internal sealed class TornApiClient
         return s;
     }
 
-    public async Task<string> FetchEndpointAsync(string path, string key, CancellationToken ct = default)
+    public async Task<string> FetchEndpointAsync(string path, string key, CancellationToken ct = default, bool fresh = false)
     {
         var clean = path.Trim();
         if (clean.StartsWith("https://api.torn.com/v2/", StringComparison.OrdinalIgnoreCase))
             clean = clean["https://api.torn.com/v2/".Length..];
         if (clean.StartsWith("v2/", StringComparison.OrdinalIgnoreCase)) clean = clean[3..];
-        return await GetAsync(clean.TrimStart('/'), key, ct);
+        return await GetAsync(clean.TrimStart('/'), key, ct, fresh);
     }
 
     public async Task<List<MarketCatalogItem>> FetchItemCatalogAsync(string key, CancellationToken ct = default)

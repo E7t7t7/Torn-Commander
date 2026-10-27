@@ -1064,7 +1064,7 @@
       }
       if(reply.state==='Authorized'&&state.medicalOp?.token===reply.token&&state.medicalOp.itemId===reply.itemId){state.medicalOp.expires=reply.expires;state.stage='smart-medical-execute';save(state);return true;}
       if(reply.verification)state.medicalVerification=reply.verification;
-      if(reply.state==='PendingVerification'&&state.medicalDispatched&&state.medicalOp?.token===reply.token){state.stage='smart-medical-receipt-wait';state.medicalVerifyAt=now()+10000;state.status=reply.reason;save(state);return true;}
+      if(reply.state==='PendingVerification'&&state.medicalDispatched&&state.medicalOp?.token===reply.token){state.stage='smart-medical-receipt-wait';state.medicalVerifyAt=now()+Math.max(2000,Math.min(10000,Number(reply.retryAfterMs)||10000));state.status=reply.reason;save(state);return true;}
       if(reply.state==='Verified'&&state.medicalOp?.token===reply.token&&state.mode==='level'){state.medicalOp=null;state.medicalDispatched=false;state.medicalInventorySignature='';state.medicalReplans=0;state.stage='heal-open';save(state);return true;}
       if(reply.state==='Verified'&&state.medicalOp?.token===reply.token){state.medicalOp=null;state.medicalDispatched=false;state.medicalReplans=0;state.stage='recovery-probe';state.probeStartedAt=now();state.status='Medical quantity, cooldown and hospital changes verified. Rechecking recovery.';save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
       if(reply.state==='Replan'){replanMedical(state,reply.reason||'Recalculating medical plan before dispatch.');return true;}

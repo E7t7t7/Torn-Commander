@@ -1,3 +1,11 @@
+v0.6.80 (2026-10-27) - Fresh medical verification without repeated cache waits
+- Request current own profile/cooldowns with Torn documented timestamp service-cache refresh, generated at actual paced dispatch. Keep unchanged API spacing, shared limits and cooldown handling; ordinary dashboard reads remain cached.
+- Reuse the immediately verified medical observation for up to eight seconds when planning the next item, preserving its original age, account, inventory and operation checks. Every actual use still requires fresh post-use API verification and exactly one inventory decrement.
+- Retry the first two inconsistent receipts after 2.5 seconds rather than ten; later retries back off to eight seconds. Keep bounded verification and never repeat a dispatched item or use drugs.
+- Use fresh own profile/bars before leveling grants and fresh outgoing fight receipts, avoiding returning to healing based on pre-heal cached life.
+- Validation: provider-cache fixture proves ordinary identical URLs remain cached while fresh reads return new state; concurrent fresh requests retain shared pacing, timestamp replacement and host restrictions. Medical/leveling/dashboard regression tests and Release build pass. A read-only saved-account check confirmed accepted fresh profile/cooldown requests and advancing cooldown; no item consumption was tested live.
+- Documentation: https://www.torn.com/api.html (Service Cache). Global caches are not bypassed and service freshness is not a promise of instant provider response.
+
 v0.6.79 (2026-10-26) - Ended fights, interrupted kills and empty guns
 - Recognize a unique Continue control inside the single remaining combatant as an ended-fight signal before any further weapon clicks. Request reconciliation instead of clicking stale weapon controls or counting a win.
 - Continue after officially verified Assist/Interrupted results, recording them as other results. Preserve stop-on-loss and other unexpected outcomes.

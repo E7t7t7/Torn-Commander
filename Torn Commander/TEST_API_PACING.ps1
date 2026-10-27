@@ -78,6 +78,32 @@ var success=new TornSnapshot{CurrentEnergy=0,FastRetrievedAt=new DateTime(2026,1
 success.RawJson["bars"]="new bars";
 SnapshotMerge.MergeFast(old,success);
 Check(old.CurrentEnergy==0 && old.Errors.Count==0 && old.FastRetrievedAt==success.FastRetrievedAt,"Successful zero-valued data or transient errors merged incorrectly.");
+// A provider fixture caches identical URLs, matching Torn's documented service cache.
+var freshClock=new Clock();var freshQueue=new TornRequestCoordinator(freshClock,(d,ct)=>{freshClock.Advance(d);return Task.CompletedTask;});
+var cache=new Dictionary<string,string>();var freshUrls=new List<string>();int revisions=0;
+using var cachedHttp=new HttpClient(new FakeHandler(req=>{
+ string url=req.RequestUri!.ToString();freshUrls.Add(url);
+ if(!cache.TryGetValue(url,out string? value)){value=(++revisions).ToString();cache[url]=value;}
+ return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(value)});
+})){BaseAddress=new Uri("https://api.torn.com/v2/")};
+async Task<string> ReadState(bool fresh){
+ using var request=new HttpRequestMessage(HttpMethod.Get,"user/cooldowns?keep=yes&timestamp=old");
+ return (await TornApiTransport.SendAsync(cachedHttp,request,coordinator:freshQueue,fresh:fresh)).Body;
+}
+Check(await ReadState(false)=="1"&&await ReadState(false)=="1","Fixture did not reproduce stale identical response");
+Check(await ReadState(true)=="2"&&await ReadState(true)=="3","Fresh state read reused cached URL");
+Check(freshUrls.Take(2).Distinct().Count()==1&&freshUrls.Skip(2).Distinct().Count()==2,"Freshness changed ordinary reads or reused timestamps");
+Check(freshUrls.Skip(2).All(x=>x.Contains("keep=yes")&&!x.Contains("timestamp=old")&&x.Split("timestamp=").Length==2),"Fresh request lost query or duplicated timestamp");
+int beforeForeign=freshUrls.Count;
+using(var foreign=new HttpRequestMessage(HttpMethod.Get,"https://example.com/user/profile")){
+ try{await TornApiTransport.SendAsync(cachedHttp,foreign,coordinator:freshQueue,fresh:true);throw new Exception("Foreign freshness accepted");}catch(InvalidOperationException){}
+}
+Check(freshUrls.Count==beforeForeign,"Fresh state request sent to another host");
+var freshTimes=new List<DateTimeOffset>();var uniqueUrls=new HashSet<string>();
+using var parallelHttp=new HttpClient(new FakeHandler(req=>{freshTimes.Add(freshClock.GetUtcNow());uniqueUrls.Add(req.RequestUri!.ToString());return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("{}")});}));
+await Task.WhenAll(Enumerable.Range(0,50).Select(async _=>{using var request=new HttpRequestMessage(HttpMethod.Get,"https://api.torn.com/v2/user/profile");await TornApiTransport.SendAsync(parallelHttp,request,coordinator:freshQueue,fresh:true);}));
+Check(uniqueUrls.Count==50&&freshTimes.Zip(freshTimes.Skip(1)).All(x=>(x.Second-x.First).TotalMilliseconds>=1250),"Fresh concurrent requests escaped pacing or shared timestamps");
+Console.WriteLine("FRESH STATE PASSED: cached-response reproduction, distinct dispatch timestamps, relative paths, query preservation, host restriction and shared pacing.");
 Console.WriteLine("API PACING PASSED: concurrent spacing/headroom, queued error-5 block, cooldown expiry, HTTP429/Retry-After, malformed/access errors and cancellation.");
 class Clock:TimeProvider{
  DateTimeOffset value=new(2026,10,13,0,0,0,TimeSpan.Zero);

@@ -30,14 +30,14 @@ public sealed partial class MainForm
     }
     private async Task<MedicalObservation> ReadMedicalObservationAsync(LossAutoCycleWorker worker,MedicalSession session,Dictionary<int,int> inventory){
         var key=CredentialManager.LoadApiKey(worker.ProfileId);if(string.IsNullOrWhiteSpace(key))throw new InvalidDataException("This profile needs a Torn API key.");
-        using var profile=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key));var p=profile.RootElement.GetProperty("profile");
+        using var profile=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key,fresh:true));var p=profile.RootElement.GetProperty("profile");
         if(p.GetProperty("id").GetInt32()!=session.Player)throw new InvalidDataException("API account changed; no medical action allowed.");
         var status=p.GetProperty("status");var state=status.GetProperty("state").GetString();DateTime until=DateTime.UtcNow;
         if(string.Equals(state,"Hospital",StringComparison.OrdinalIgnoreCase)){
             until=DateTimeOffset.FromUnixTimeSeconds(status.GetProperty("until").GetInt64()).UtcDateTime;
             var description=status.ToString();if(description.Contains("radiation",StringComparison.OrdinalIgnoreCase)||description.Contains("poison",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Nonstandard hospitalization; review manually. No medical or drug fallback used.");
         }else if(!string.Equals(state,"Okay",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Account is not in a verified Hospital/Okay state.");
-        using var cooldown=JsonDocument.Parse(await _api.FetchEndpointAsync("user/cooldowns",key));int seconds=cooldown.RootElement.GetProperty("cooldowns").GetProperty("medical").GetInt32();
+        using var cooldown=JsonDocument.Parse(await _api.FetchEndpointAsync("user/cooldowns",key,fresh:true));int seconds=cooldown.RootElement.GetProperty("cooldowns").GetProperty("medical").GetInt32();
         var settings=MedicalSettings(worker.ProfileId);
         if(settings.AutoDetect&&DateTime.UtcNow-session.PerksAt>TimeSpan.FromMinutes(5)){
             session.Perks=await _api.FetchEndpointAsync("user/perks",key);session.PerksAt=DateTime.UtcNow;
@@ -70,7 +70,9 @@ public sealed partial class MainForm
                 bool unresolved=!string.IsNullOrEmpty(s.Pending)&&s.Issued&&!s.Verified;
                 if(unresolved&&(s.Item is null||s.Observation is null||ReadWorkerString(request,"operationToken")!=s.Pending||!request.TryGetProperty("medicalDispatched",out var dispatched)||dispatched.ValueKind!=JsonValueKind.False))throw new InvalidDataException("The previous healing operation still needs verification. Resume that operation before another attack; if its outcome cannot be verified, stop and review. Your healing permissions are enabled.");
                 if(DateTime.UtcNow-s.LastRequest<TimeSpan.FromSeconds(3))throw new InvalidDataException("Medical refresh requested too quickly; pause and review.");s.LastRequest=DateTime.UtcNow;
-                var observation=await ReadMedicalObservationAsync(worker,s,inventory);
+                var observation=s.Verified&&s.Observation is not null&&DateTime.UtcNow-s.Observation.ObservedUtc<=TimeSpan.FromSeconds(8)
+                    ?s.Observation with{Inventory=inventory}
+                    :await ReadMedicalObservationAsync(worker,s,inventory);
                 if(!MedicalContext(worker,s,request))return;
                 if(unresolved&&!SmartMedicalOptimizer.VerifyUnused(s.Observation!,observation,s.Item!.Id,DateTime.UtcNow))throw new InvalidDataException("Could not prove the previous healing permission was unused. No second item authorized; stop and review the item count and cooldown.");
                 s.Observation=observation;s.Plan=WorkerMedicalPlan(worker,s,observation,settings);s.Note=s.Plan.Reason;
@@ -111,7 +113,7 @@ public sealed partial class MainForm
                     double elapsed=(after.ObservedUtc-s.Observation.ObservedUtc).TotalSeconds;
                     var verification=new{itemId=s.Item.Id,attempt=s.VerifyAttempts+1,beforeObserved=s.Observation.ObservedUtc,afterObserved=after.ObservedUtc,beforeQuantity=s.Before.GetValueOrDefault(s.Item.Id),afterQuantity=inventory.GetValueOrDefault(s.Item.Id),beforeCooldown=s.Observation.CooldownSeconds,afterCooldown=after.CooldownSeconds,expectedCooldownCost=s.Item.CooldownSeconds,minimumExpectedCooldown=Math.Max(0,s.Observation.CooldownSeconds+s.Item.CooldownSeconds-elapsed),maximumExpectedCooldown=Math.Max(0,s.Observation.CooldownSeconds-elapsed)+s.Item.CooldownSeconds,observedCooldownDelta=after.CooldownSeconds-Math.Max(0,s.Observation.CooldownSeconds-elapsed),beforeHospitalUntil=s.Observation.HospitalUntilUtc,afterHospitalUntil=after.HospitalUntilUtc,beforeLife=s.Observation.Life,afterLife=after.Life,maximumLife=after.MaximumLife,bonus=s.Observation.BonusPercent};
                     try{IntelStore.Snapshot(worker.ProfileId,"medical-verification",s.Id,DateTime.UtcNow,verification);}catch{}
-                    if(++s.VerifyAttempts<=6){await worker.ReplyMedicalAsync(rid,new{state="PendingVerification",token=s.Pending,verification,reason="Item count decreased once. Waiting for Torn's cooldown/hospital snapshot; no further item click."});return;}
+                    if(++s.VerifyAttempts<=6){await worker.ReplyMedicalAsync(rid,new{state="PendingVerification",token=s.Pending,verification,retryAfterMs=s.VerifyAttempts<=2?2500:8000,reason="Item count decreased once. Waiting for Torn's cooldown/hospital snapshot; no further item click."});return;}
                     s.Note="Medical receipt still disagrees after six refreshes: cooldown "+s.Observation.CooldownSeconds+" -> "+after.CooldownSeconds+" seconds, expected item cost "+s.Item.CooldownSeconds+". Copy worker diagnostic. No repeat use.";
                     await worker.ReplyMedicalAsync(rid,new{state="Paused",verification,reason=s.Note});return;
                 }

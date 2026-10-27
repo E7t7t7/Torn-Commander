@@ -5,7 +5,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
  let serverRecovered=false;let targetWaits=0;let expandAt=0;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
- const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[]},local=new Map(),session=new Map();
+ const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
   get textContent(){return [this.text,...this.children.map(c=>c.textContent)].join(' ').trim()}
@@ -144,7 +144,8 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
     replies.push(()=>h.onMedical(m.requestId,!hospital?{state:'Recovered'}:{state:'Ready',itemId:options.badMedicalItem?206:(options.selectedMedicalId||67),name:options.badMedicalItem?'Xanax':({66:'Morphine',67:'First Aid Kit',68:'Small First Aid Kit',739:'Blood Bag : O-'})[options.selectedMedicalId||67],quantity:stock,token:medicalToken,expires:new Date(clock+40000).toISOString(),automatic:!options.medicalRecommend}));
    }
    if(m.type==='tc-medical-authorize'){assert.equal(m.token,medicalToken);if(options.alwaysMedicalReplan||(options.replanMedicalOnce&&medicalPlans===1)){replies.push(()=>h.onMedical(m.requestId,{state:'Replan',reason:'Fixture changed before dispatch'}));return;}replies.push(()=>h.onMedical(m.requestId,{state:'Authorized',itemId:options.selectedMedicalId||67,token:medicalToken,expires:new Date(clock+30000).toISOString()}));}
-   if(m.type==='tc-medical-verify'&&options.levelMedicalPending&&medicalPending++===0){replies.push(()=>h.onMedical(m.requestId,{state:'PendingVerification',token:medicalToken,reason:'API life snapshot pending'}));return;}
+   if(m.type==='tc-medical-verify')counts.medicalVerifyTimes.push(clock);
+   if(m.type==='tc-medical-verify'&&options.levelMedicalPending&&medicalPending++===0){replies.push(()=>h.onMedical(m.requestId,{state:'PendingVerification',token:medicalToken,retryAfterMs:options.medicalRetryMs,reason:'API life snapshot pending'}));return;}
    if(m.type==='tc-medical-verify'){assert.equal(m.token,medicalToken);assert.equal(h.onMedical('stale-reply',{state:'Verified',token:medicalToken}),false);replies.push(()=>h.onMedical(m.requestId,options.failMedicalVerification?{state:'Paused',reason:'Fixture failed verification'}:{state:'Verified',token:medicalToken}));}
    return;
   }
@@ -349,6 +350,9 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const slowPlan=fixture(false,false,false,{smartMedical:true,collapsed:true,headerOnly:true,planApiDelayMs:20000,expandDelayMs:3000});
  for(let i=0;i<1600&&slowPlan.h.getState().stage!=='complete';i++)await slowPlan.step(250);
  assert.equal(slowPlan.h.getState().stage,'complete',slowPlan.h.getState().status);assert.equal(slowPlan.counts.medicine,2);assert.equal(slowPlan.counts.wrong,0);
+ const quickReceipt=fixture(false,false,false,{smartMedical:true,levelMedicalPending:true,medicalRetryMs:2500});
+ for(let i=0;i<1400&&quickReceipt.h.getState().stage!=='complete';i++)await quickReceipt.step(250);
+ assert.equal(quickReceipt.h.getState().stage,'complete',quickReceipt.h.getState().status);assert.equal(quickReceipt.counts.medicine,2);assert(quickReceipt.counts.medicalVerifyTimes[1]-quickReceipt.counts.medicalVerifyTimes[0]>=2500&&quickReceipt.counts.medicalVerifyTimes[1]-quickReceipt.counts.medicalVerifyTimes[0]<5000,'Fast pending receipt retry was not bounded near 2.5 seconds');
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');

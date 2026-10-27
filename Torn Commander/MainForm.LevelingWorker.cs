@@ -72,10 +72,10 @@ public sealed partial class MainForm {
      await worker.ReplyLevelingAsync(new{kind="scan",requestId=rid,message="Checked "+session.Targets.Count(x=>x.Finished)+"/"+session.Targets.Count+" targets. "+target.Name+": "+target.Status+". Looking for an available target."});
      if(!LevelingScouting.Eligible(target,session,DateTime.UtcNow)){target.Finished=true;target.Status="Skipped: "+target.Suitability;continue;}
      if(target.Status=="Okay"){
-    using var self=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key));var p=self.RootElement.GetProperty("profile");
+    using var self=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key,fresh:true));var p=self.RootElement.GetProperty("profile");
     if(p.GetProperty("id").GetInt32()!=run.Player)throw new InvalidDataException("API account changed; leveling paused.");
     var state=p.GetProperty("status").GetProperty("state").GetString();int life=p.GetProperty("life").GetProperty("current").GetInt32(),maximum=p.GetProperty("life").GetProperty("maximum").GetInt32();
-    using var bars=JsonDocument.Parse(await _api.FetchEndpointAsync("user/bars",key));int energy=bars.RootElement.GetProperty("bars").GetProperty("energy").GetProperty("current").GetInt32();
+    using var bars=JsonDocument.Parse(await _api.FetchEndpointAsync("user/bars",key,fresh:true));int energy=bars.RootElement.GetProperty("bars").GetProperty("energy").GetProperty("current").GetInt32();
     if(!LevelingRunContext(worker,run,request))return;
     if(_levelingAccounts.TryGetValue(worker.ProfileId,out var currentAccount))_levelingAccounts[worker.ProfileId]=currentAccount with{Energy=energy,Life=life,Maximum=maximum,Status=state??"Unknown",At=DateTime.UtcNow};
     if(energy-session.EnergyReserve<25||session.AttackLimit>0&&session.Wins+session.OtherResults+session.UnverifiedResults>=session.AttackLimit){await worker.ReplyLevelingAsync(new{kind="claim",requestId=rid,ok=false,message="Complete: energy reserve or attack limit reached."});return;}
@@ -94,13 +94,13 @@ public sealed partial class MainForm {
     if(claim==run.LastCommitted&&claim!=""){await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});return;}
     if(claim==""||claim!=run.Claim)throw new InvalidDataException("No matching leveling fight reservation.");
     if(request.TryGetProperty("terminal",out var terminal)&&terminal.ValueKind==JsonValueKind.True)run.TerminalSeen=true;
-    string json=await _api.FetchEndpointAsync("user/attacks?filters=outgoing&limit=100&sort=desc&from="+new DateTimeOffset(run.Opened).ToUnixTimeSeconds(),key);
+    string json=await _api.FetchEndpointAsync("user/attacks?filters=outgoing&limit=100&sort=desc&from="+new DateTimeOffset(run.Opened).ToUnixTimeSeconds(),key,fresh:true);
     if(!LevelingRunContext(worker,run,request))return;
     var result=LevelingPlanner.FindReceipt(json,run.Player,run.Target,run.Opened,session.AttackIds);
     if(result==null){
      run.ReceiptChecks++;
      if(run.TerminalSeen&&run.ReceiptChecks>=3){
-      using var ownDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key));var own=ownDoc.RootElement.GetProperty("profile");
+      using var ownDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key,fresh:true));var own=ownDoc.RootElement.GetProperty("profile");
       using var targetDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user/"+run.Target+"/profile",key));var opponent=targetDoc.RootElement.GetProperty("profile");
       if(!LevelingRunContext(worker,run,request))return;
       if(own.GetProperty("id").GetInt32()!=run.Player||opponent.GetProperty("id").GetInt32()!=run.Target)throw new InvalidDataException("Ended-fight account/target identity changed.");
