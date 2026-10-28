@@ -81,7 +81,7 @@ public sealed partial class MainForm
                 if(!settings.Enabled&&s.Plan.State!="Recovered")throw new InvalidDataException("Smart Medical Management is disabled. Heal manually; no automatic fallback is permitted.");
                 if(s.Plan.State!="Ready"){
                     s.Item=null;if(s.Plan.State=="Recovered"){s.EpisodeBaseline=0;s.EpisodeCost=0;}
-                    await worker.ReplyMedicalAsync(rid,new{state=s.Plan.State,reason=s.Plan.Reason,waitUntil=s.Plan.AvailableUtc,autoResume=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings)&&settings.AutoResume});return;
+                    await worker.ReplyMedicalAsync(rid,new{state=s.Plan.State,reason=s.Plan.Reason,waitUntil=s.Plan.AvailableUtc,autoResume=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings)&&(s.Leveling?LevelingFor(worker.ProfileId).AutoResumeMedical:settings.AutoResume)});return;
                 }
                 s.Item=SmartMedicalOptimizer.Item(s.Plan.Items[0]);s.Before=inventory;s.Pending=Guid.NewGuid().ToString("N");s.PendingUntil=DateTime.UtcNow.AddSeconds(40);
                 await worker.ReplyMedicalAsync(rid,new{state="Ready",reason=s.Plan.Reason,token=s.Pending,itemId=s.Item.Id,name=s.Item.Name,quantity=inventory.GetValueOrDefault(s.Item.Id),expires=s.PendingUntil,automatic=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings),medicalSession=s.Id});

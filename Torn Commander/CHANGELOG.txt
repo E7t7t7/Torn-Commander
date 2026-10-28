@@ -1,3 +1,11 @@
+v0.6.81 (2026-10-28) - Hospital races and repeat-heal timing
+- Reset heal-entry/category/inventory timers whenever a new leveling heal or replan begins, including after verified medicine use. Prevent an old episode timer from causing an immediate Medical tab missing pause during the next page load.
+- Recover from an explicit own-hospital refusal after Start Fight when no weapon action began, retaining the target reservation. If combat actions occurred, reconcile that fight before another attack.
+- Recognize permitted medical inventory even without a regular FAK. Keep wrong-account, missing-control and post-dispatch protections.
+- Show observed current medical cooldown/maximum separately from cooldown added by this session, with observation and next-capacity times. Session-added cooldown is not the current balance and does not include cooldown already present at start.
+- Regression coverage includes late hospitalization after Join, delayed tabs in a later healing episode, alternate medical inventory, cooldown balance versus session totals, cooldown waits and preserved saved resume choices. Release build and medical/leveling/API pacing checks pass; these new paths have not been tested on live fights.
+- Add a persisted, account-specific leveling option to wait/resume after medical capacity returns (enabled by default for leveling; requires automatic medical consent). Existing Loss Desk auto-resume preferences remain unchanged.
+
 v0.6.80 (2026-10-27) - Fresh medical verification without repeated cache waits
 - Request current own profile/cooldowns with Torn documented timestamp service-cache refresh, generated at actual paced dispatch. Keep unchanged API spacing, shared limits and cooldown handling; ordinary dashboard reads remain cached.
 - Reuse the immediately verified medical observation for up to eight seconds when planning the next item, preserving its original age, account, inventory and operation checks. Every actual use still requires fresh post-use API verification and exactly one inventory decrement.

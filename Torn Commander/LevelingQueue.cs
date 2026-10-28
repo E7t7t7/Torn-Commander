@@ -13,6 +13,7 @@ public sealed class LevelingSession {
  public double OwnStats {get;set;} public DateTime? OwnStatsUtc {get;set;} public double MaxStatRatio {get;set;}=0.5; public int MaxEstimateDays {get;set;}=30; public double MaxFairFight {get;set;}=2; public bool InactiveOnly {get;set;}=true;
  public string BaldrSource {get;set;}=""; public DateTime? BaldrLoadedUtc {get;set;} public List<string> BaldrGroups {get;set;}=new();
  public List<LevelingTarget> Targets {get;set;}=new(); public int EnergyReserve {get;set;}
+ public bool AutoResumeMedical {get;set;}=true;
  public bool AutoHeal {get;set;} public string WeaponSlot {get;set;}="weapon_primary"; public int AttackDelayMs {get;set;}=1000;
  public int LifePercent {get;set;}=100; public int AttackLimit {get;set;}
  public int UnverifiedResults {get;set;}

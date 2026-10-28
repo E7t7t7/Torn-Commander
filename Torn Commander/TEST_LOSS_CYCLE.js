@@ -4,7 +4,7 @@ const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
- let serverRecovered=false;let targetWaits=0;let expandAt=0;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
+ let serverRecovered=false;let targetWaits=0;let expandAt=0;let hospitalRace=0,forcedHeal=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
@@ -33,6 +33,8 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const button=(text,fn,a={})=>{const n=node('button',text,a);n.onclick=fn;return n};
  function buildBody(){
   if(options.medicalServerError&&!serverRecovered&&scene==='items')return node('body','Torn server error');
+  if(scene==='blocked')return node('body','You cannot attack while in hospital.');
+  if(scene==='items'&&options.itemsTabDelayMs&&clock-attackPageAt<options.itemsTabDelayMs)return node('body','Items loading');
   if(scene==='fight'){
    const pillow=button('',()=>{counts.pillow++;counts.pillowTimes.push(clock);if(++fightHits>=(options.pillowHits||1)){hospital=true;scene=options.leveling?(options.continueEnded?'ended':'victory'):'loss'}}, {},);
    Object.defineProperty(pillow,'disabled',{get:()=>clock-fightJoinAt<(options.pillowDisabledMs||0)});
@@ -73,7 +75,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   if(scene==='attack'){
    if(hospital)return node('body','You cannot attack while in hospital.');
    if(clock-attackPageAt<(options.joinDelayMs||0))return node('body','Loading combatants...');
-   let join=button(options.startFightLabel||'Join fight',()=>{counts.join++;energy-=25;fightHits=0;fightJoinAt=clock;counts.joinTimes.push(clock);scene='fight'});
+   let join=button(options.startFightLabel||'Join fight',()=>{counts.join++;if(options.hospitalAfterJoin&&hospitalRace++===0){hospital=true;scene='blocked';return;}energy-=25;fightHits=0;fightJoinAt=clock;counts.joinTimes.push(clock);scene='fight'});
    if(options.nestedJoin)join=node('div','',{role:'button'},[join]);
    const controls=[join];if(options.ambiguousJoin)controls.push(button('Start fight',()=>counts.wrong++));
    return node('body','',{},controls);
@@ -100,12 +102,12 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
      row.children.push(prompt,confirm,cancel);for(const x of [prompt,confirm,cancel])x.parentElement=row;
     }else children.push(node('div','Use '+chosenName+'?',{role:'dialog'},[button('Okay',consume)]));
    }
-   return node('body','Your items - Medical',{},children);
+   return node('body',options.medicalHeading||'Your items - Medical',{},children);
   }
   return node('body','Torn');
  }
  let lastKey='',cached;
- function body(){const key=scene+stock+expanded+serverRecovered+(options.expandDelayMs?':'+clock:'')+(options.joinDelayMs?':'+clock:'')+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
+ function body(){const key=scene+stock+expanded+serverRecovered+(options.itemsTabDelayMs?':'+clock:'')+(options.expandDelayMs?':'+clock:'')+(options.joinDelayMs?':'+clock:'')+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
  const owner=node('a',options.decoratedOwner?'2BDecided [wife]':'Seller',{...(options.ariaMedicalOwner?{'aria-label':'Name: Seller'}:{}),href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
  const ownerLabel=node('span','Name:');const ownerRow=node('div','',{},[ownerLabel,owner]);if(options.medicalOwnerHidden){ownerLabel.getClientRects=()=>[];owner.getClientRects=()=>[];}const stranger=node('a','Unrelated chat user',{href:'/profiles.php?XID=777'});
  const secondStranger=node('a','Other chat avatar',{href:'/profiles.php?XID=888'});
@@ -123,6 +125,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   const m=JSON.parse(raw);messages.push(m);
   if(m.type==='tc-level-skip'){assert.equal(m.claimId,activeLease);activeLease='';remaining--;return;}
   if(m.type==='tc-level-claim'){
+   if(options.levelHealAfterWinOnce&&counts.levelCommits===1&&!forcedHeal){forcedHeal=true;clock+=60000;hospital=true;replies.push(()=>h.onLevelReply({kind:'heal',requestId:m.requestId}));return;}
    if(options.levelWaitOnce&&targetWaits++===0){replies.push(()=>h.onLevelReply({kind:'wait',requestId:m.requestId,waitUntil:new Clock(clock+5000).toISOString(),message:'Waiting for hospital release'}));return;}
    if(options.levelProgress)replies.push(()=>{assert.equal(h.onLevelReply({kind:'scan',requestId:'wrong',message:'wrong'}),false);assert.equal(h.onLevelReply({kind:'scan',requestId:m.requestId,message:'Checked target: Hospital'}),true);assert.equal(h.getState().stage,'claim-wait');});
    if(!remaining){replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:false,message:'Complete: no targets remain.'}));return;}
@@ -353,6 +356,15 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const quickReceipt=fixture(false,false,false,{smartMedical:true,levelMedicalPending:true,medicalRetryMs:2500});
  for(let i=0;i<1400&&quickReceipt.h.getState().stage!=='complete';i++)await quickReceipt.step(250);
  assert.equal(quickReceipt.h.getState().stage,'complete',quickReceipt.h.getState().status);assert.equal(quickReceipt.counts.medicine,2);assert(quickReceipt.counts.medicalVerifyTimes[1]-quickReceipt.counts.medicalVerifyTimes[0]>=2500&&quickReceipt.counts.medicalVerifyTimes[1]-quickReceipt.counts.medicalVerifyTimes[0]<5000,'Fast pending receipt retry was not bounded near 2.5 seconds');
+ const newEpisode=fixture(false,false,false,{leveling:true,smartMedical:true,levelHealAfterWinOnce:true,itemsTabDelayMs:3000});
+ for(let i=0;i<1800&&newEpisode.h.getState().stage!=='complete';i++)await newEpisode.step(250);
+ assert.equal(newEpisode.h.getState().stage,'complete',newEpisode.h.getState().status);assert.equal(newEpisode.counts.levelCommits,2);assert.equal(newEpisode.counts.wrong,0);
+ const hospRace=fixture(false,false,false,{leveling:true,smartMedical:true,hospitalAfterJoin:true});
+ for(let i=0;i<1800&&hospRace.h.getState().stage!=='complete';i++)await hospRace.step(250);
+ assert.equal(hospRace.h.getState().stage,'complete',hospRace.h.getState().status);assert.equal(hospRace.counts.levelCommits,2);assert.equal(hospRace.counts.join,3);assert.equal(hospRace.messages.filter(m=>m.type==='tc-level-claim').length,2,'Hospital recovery lost the reservation');
+ const onlySmall=fixture(false,false,false,{smartMedical:true,selectedMedicalId:68,medicalHeading:'Medical inventory'});
+ for(let i=0;i<1800&&onlySmall.h.getState().stage!=='complete';i++)await onlySmall.step(250);
+ assert.equal(onlySmall.h.getState().stage,'complete',onlySmall.h.getState().status);assert.equal(onlySmall.counts.medicine,2);
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');

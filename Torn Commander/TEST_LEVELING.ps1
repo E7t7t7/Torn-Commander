@@ -46,6 +46,8 @@ var searched=LevelingScouting.SearchResults("""{"parameters":{"key":"not-persist
 Check(searched.Count==1&&searched[0].Id==123&&searched[0].LastActionUtc!=null,"search dedupe/self/activity");
 Check(!System.Text.Json.JsonSerializer.Serialize(searched).Contains("not-persisted"),"key echo not persisted");
 Console.WriteLine("STRENGTH SCOUTING PASSED: low-stat limits, stale/unknown data, activity, parsing, credential echo exclusion.");
+Check(new LevelingSession().AutoResumeMedical,"new leveling cooldown waits enabled");
+Check(!System.Text.Json.JsonSerializer.Deserialize<LevelingSession>("""{"AutoResumeMedical":false}""")!.AutoResumeMedical,"saved no-resume choice retained");
 var now=DateTime.UtcNow;
 var o=new MedicalObservation("A",1,now,now,0,21600,0,false,"fixture",new(){{68,200},{67,200},{66,200},{206,200}});
 var cfg=new SmartMedicalSettings();

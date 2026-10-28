@@ -73,7 +73,7 @@
   function isItemsPage() { return location.pathname === '/item.php'; }
 
   function hospitalBanner() {
-    return /you can(?:not|'t|â€™t) attack while in (?:the )?hospital|you are (?:currently |still )?in (?:the )?hospital/i.test(bodyText());
+    return /you can(?:not|'t|â€™t) attack(?: anyone)? while (?:you are )?in (?:the )?hospital|you are (?:currently |still )?in (?:the )?hospital/i.test(bodyText());
   }
 
   function insufficientEnergy() {
@@ -327,7 +327,7 @@
   function replanMedical(state,reason){
     state.medicalReplans=Number(state.medicalReplans||0)+1;
     if(state.medicalReplans>3){pauseState(state,'Medical state changed repeatedly; review before continuing. No uncertain item was retried.',true);return;}
-    state.medicalExpandedAt=0;state.medicalInventorySignature='';state.stage='heal-open';state.status=reason;save(state);
+    beginHealing(state);state.status=reason;save(state);
   }
   function smartMedicalTick(state){
     if(state.stage==='smart-medical-identity'){
@@ -474,7 +474,7 @@
 
   function medicalVisible() {
     const text = bodyText();
-    return /your items\s*[-â€“â€”]\s*medical\b/i.test(text) || firstAidRow() !== null;
+    return /your items\s*[-â€“â€”]\s*medical\b/i.test(text) || firstAidRow() !== null || (load()?.smartMedical&&medicalInventory().length>0);
   }
 
   function confirmUseButton() {
@@ -532,7 +532,7 @@
   }
   function beginHealing(state) {
     state.stage='heal-open';
-    state.healEnteredAt=0;state.aidExpandedAt=0;state.medicalClickedAt=0;
+    state.healEnteredAt=0;state.aidExpandedAt=0;state.medicalClickedAt=0;state.medicalInventorySignature='';state.medicalInventorySettledAt=0;
     state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
   }
   function openAttack(state){openPage(state,ATTACK_URL(state.targetId),'attack page',true);}
@@ -688,6 +688,10 @@
         if (outcome === 'win') {
           pauseState(state, 'Fight result was NOT a loss. Nothing was counted; review the order.', true);
           return;
+        }
+        if(state.mode==='level'&&hospitalBanner()){
+          if(Number(state.pillowTurns||0)>0){levelCommit(state);return;}
+          beginHealing(state);state.status='Hospitalized before combat began. Recovering before retrying this target.';save(state);openPage(state,ITEMS_URL,'Items / Medical');return;
         }
         if (insufficientEnergy()) { pauseForEnergy(state); return; }
         if (now() - Number(state.fightStartedAt || now()) > 9 * 60 * 1000) {
@@ -1044,7 +1048,7 @@
       if(reply.kind==='scan'){if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;state.replyWaitAt=now();state.status=reply.message;save(state);return true;}
       if(reply.kind==='claim'||reply.kind==='heal'){
         if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;
-        if(reply.kind==='heal'){state.stage='heal-open';state.medicalInventorySignature='';state.pendingClaimRequest='';save(state);openPage(state,ITEMS_URL,'Items / Medical');return true;}
+        if(reply.kind==='heal'){beginHealing(state);state.pendingClaimRequest='';save(state);openPage(state,ITEMS_URL,'Items / Medical');return true;}
         if(reply.ok){if(!Number.isSafeInteger(Number(reply.targetId))||Number(reply.targetId)<=0||Number(reply.targetId)===state.playerId){pauseState(state,'Invalid leveling target grant.',false);return false;}state.targetId=String(reply.targetId);save(state);}
         return window.TornCommanderLossCycle.onClaim(reply.requestId,!!reply.ok,reply.claimId||'',reply.message||'');
       }
@@ -1065,7 +1069,7 @@
       if(reply.state==='Authorized'&&state.medicalOp?.token===reply.token&&state.medicalOp.itemId===reply.itemId){state.medicalOp.expires=reply.expires;state.stage='smart-medical-execute';save(state);return true;}
       if(reply.verification)state.medicalVerification=reply.verification;
       if(reply.state==='PendingVerification'&&state.medicalDispatched&&state.medicalOp?.token===reply.token){state.stage='smart-medical-receipt-wait';state.medicalVerifyAt=now()+Math.max(2000,Math.min(10000,Number(reply.retryAfterMs)||10000));state.status=reply.reason;save(state);return true;}
-      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token&&state.mode==='level'){state.medicalOp=null;state.medicalDispatched=false;state.medicalInventorySignature='';state.medicalReplans=0;state.stage='heal-open';save(state);return true;}
+      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token&&state.mode==='level'){state.medicalOp=null;state.medicalDispatched=false;state.medicalInventorySignature='';state.medicalReplans=0;beginHealing(state);save(state);return true;}
       if(reply.state==='Verified'&&state.medicalOp?.token===reply.token){state.medicalOp=null;state.medicalDispatched=false;state.medicalReplans=0;state.stage='recovery-probe';state.probeStartedAt=now();state.status='Medical quantity, cooldown and hospital changes verified. Rechecking recovery.';save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
       if(reply.state==='Replan'){replanMedical(state,reply.reason||'Recalculating medical plan before dispatch.');return true;}
       if(reply.state==='Recovered'&&state.mode==='level'){finishLevelingMedical(state);return true;}
@@ -1078,7 +1082,7 @@
     },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {levelTerminalSeen:load()?.levelTerminalSeen,levelContinue:summary(levelingContinueControl()),levelEmptyGun:levelingEmptyGun(load()||{}),medicalServerAttempts:load()?.medicalServerAttempts,recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {levelTerminalSeen:load()?.levelTerminalSeen,levelContinue:summary(levelingContinueControl()),levelEmptyGun:levelingEmptyGun(load()||{}),medicalServerAttempts:load()?.medicalServerAttempts,healEnteredAt:load()?.healEnteredAt,medicalClickedAt:load()?.medicalClickedAt,medicalWakeAt:load()?.medicalWakeAt,medicalVisible:medicalVisible(),recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },
