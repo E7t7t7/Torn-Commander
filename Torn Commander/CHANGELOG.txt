@@ -1,3 +1,11 @@
+v0.6.85
+- Medical account identity: read Torn's logged-in script[uid][name] account marker, independent of NPC/friend/other profile links elsewhere in the sidebar.
+- A unique page account takes precedence over incidental sidebar links; differing explicit account markers or Name fields remain blocked. Never choose the expected ID from an ambiguous link list.
+- Diagnostics include pageAccountIds and page-account/conflicting-account-fields strategy.
+- Offline regressions reproduce own-account plus player 102 in the sidebar for both loss and leveling. Wrong-account and conflicting markers cannot authorize medicine.
+- Reference for Torn page marker: https://github.com/Mephiles/torntools_extension/blob/master/src/common/utils/functions/torn.ts (getUserDetails).
+- Release build and automated regression suite run; actual logged-in browser validation remains necessary.
+
 v0.6.84
 - Medical identity: reset per-episode wait clocks, pass a single verified identity snapshot into pending requests, and recover missing sidebars using up to two safe pre-dispatch page refreshes.
 - Never refresh/repeat an already dispatched item to recover identity; retain its receipt operation and wait for account verification.

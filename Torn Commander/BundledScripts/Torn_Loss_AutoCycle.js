@@ -220,7 +220,14 @@
   const medicalNames={66:'Morphine',67:'First Aid Kit',68:'Small First Aid Kit',739:'Blood Bag : O-'};
   const sameMedicalName=(text,name)=>clean(text).replace(/\s*:\s*/g,':').toLowerCase()===clean(name).replace(/\s*:\s*/g,':').toLowerCase();
   function medicalIdentity(){
-    const labeled=new Set(),sidebar=new Set(),named=new Set(),chatIds=new Set();
+    const labeled=new Set(),sidebar=new Set(),named=new Set(),chatIds=new Set(),pageAccounts=new Set();
+    // Torn exposes the logged-in account on script[uid][name], also used by
+    // TornTools getUserDetails. This does not depend on incidental profile links.
+    for(const script of document.querySelectorAll('script[uid][name]')){
+      const uid=script.getAttribute('uid'),name=clean(script.getAttribute('name'));
+      if(!/^\d{1,9}$/.test(uid||'')||!name||name.length>100)continue;
+      const id=Number(uid);if(Number.isSafeInteger(id)&&id>0)pageAccounts.add(id);
+    }
     const inChat=link=>{for(let node=link;node;node=node.parentElement){const id=node.getAttribute?.("id")||"";if(id.startsWith("chat_panel_button:")||id.startsWith("chat_panel:"))return true;}return false;};
     const idOf=link=>{try{const u=new URL(link.getAttribute('href'),location.href);return u.protocol==='https:'&&(u.hostname==='www.torn.com'||u.hostname==='torn.com')?Number(u.searchParams.get('XID')):0;}catch{return 0;}};
     // The responsive account Name link can expose its label through ARIA rather than textContent.
@@ -247,9 +254,11 @@
     }
     // A single sidebar profile identity is usable even when Torn decorates or hides its name text.
     // Never select the expected ID from multiple candidates or override explicit Name fields.
-    const uniqueSidebar=!labeled.size&&!named.size&&sidebar.size===1;
-    const owner=labeled.size===1?[...labeled][0]:labeled.size>1?null:named.size===1?[...named][0]:uniqueSidebar?[...sidebar][0]:null;
-    return{owner,strategy:labeled.size?'name-field':named.size?'sidebar-name':uniqueSidebar?'sidebar-unique':'unavailable',labeledIds:[...labeled],sidebarIds:[...sidebar],excludedChatIds:[...chatIds]};
+    const authoritative=new Set([...pageAccounts,...labeled]);
+    const conflict=authoritative.size>1;
+    const uniqueSidebar=!authoritative.size&&!named.size&&sidebar.size===1;
+    const owner=conflict?null:authoritative.size===1?[...authoritative][0]:named.size===1?[...named][0]:uniqueSidebar?[...sidebar][0]:null;
+    return{owner,strategy:conflict?'conflicting-account-fields':pageAccounts.size?'page-account':labeled.size?'name-field':named.size?'sidebar-name':uniqueSidebar?'sidebar-unique':'unavailable',pageAccountIds:[...pageAccounts],labeledIds:[...labeled],sidebarIds:[...sidebar],excludedChatIds:[...chatIds]};
   }
   function medicalOwnId(){return medicalIdentity().owner;}
   function medicalRow(id){
