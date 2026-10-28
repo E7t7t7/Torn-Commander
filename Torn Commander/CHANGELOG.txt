@@ -1,3 +1,8 @@
+v0.6.82 (2026-10-28) - Fresh state for each new hospitalization
+- Reuse the immediately verified medical observation only when planning another item in the same healing episode. A new heal request, hospital refusal or replan clears this continuation marker and reads fresh account/hospital/cooldown state.
+- Preserve faster consecutive-item planning without temporarily treating a newly hospitalized account as healthy. Backend reuse still requires its matching verified operation, account/session and short observation age.
+- Add regression checks for fresh initial/raced-hospital reads and allowed same-episode continuation. Includes all v0.6.81 hospital recovery, healing timer, current-cooldown display and wait/resume fixes.
+
 v0.6.81 (2026-10-28) - Hospital races and repeat-heal timing
 - Reset heal-entry/category/inventory timers whenever a new leveling heal or replan begins, including after verified medicine use. Prevent an old episode timer from causing an immediate Medical tab missing pause during the next page load.
 - Recover from an explicit own-hospital refusal after Start Fight when no weapon action began, retaining the target reservation. If combat actions occurred, reconcile that fight before another attack.

@@ -5,7 +5,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
  let serverRecovered=false;let targetWaits=0;let expandAt=0;let hospitalRace=0,forcedHeal=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
- const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[]},local=new Map(),session=new Map();
+ const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[],medicalPlanModes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
   get textContent(){return [this.text,...this.children.map(c=>c.textContent)].join(' ').trim()}
@@ -140,7 +140,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
    assert.equal(m.medicalSession,'session-'+(options.slot||'A'));assert.equal(m.browserPlayerId,321);
    assert(m.inventory.every(x=>[66,67,68,739].includes(x.id)),'Non-medical inventory/action');
    if(m.type==='tc-medical-plan'){
-    medicalPlans++;
+    medicalPlans++;counts.medicalPlanModes.push(m.continueVerifiedMedical===true);
     if(options.planApiDelayMs)clock+=options.planApiDelayMs;
     if(options.medicalCooldownOnce&&hospital&&cooldownWaits++===0){replies.push(()=>h.onMedical(m.requestId,{state:'Cooldown',reason:'Fixture cooldown',waitUntil:new Date(clock+5000).toISOString(),autoResume:options.medicalAutoResume===true}));return;}
     medicalToken='medical-'+medicalPlans;
@@ -361,7 +361,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  assert.equal(newEpisode.h.getState().stage,'complete',newEpisode.h.getState().status);assert.equal(newEpisode.counts.levelCommits,2);assert.equal(newEpisode.counts.wrong,0);
  const hospRace=fixture(false,false,false,{leveling:true,smartMedical:true,hospitalAfterJoin:true});
  for(let i=0;i<1800&&hospRace.h.getState().stage!=='complete';i++)await hospRace.step(250);
- assert.equal(hospRace.h.getState().stage,'complete',hospRace.h.getState().status);assert.equal(hospRace.counts.levelCommits,2);assert.equal(hospRace.counts.join,3);assert.equal(hospRace.messages.filter(m=>m.type==='tc-level-claim').length,2,'Hospital recovery lost the reservation');
+ assert.equal(hospRace.h.getState().stage,'complete',hospRace.h.getState().status);assert.equal(hospRace.counts.levelCommits,2);assert.equal(hospRace.counts.join,3);assert.equal(hospRace.messages.filter(m=>m.type==='tc-level-claim').length,2,'Hospital recovery lost the reservation');assert.equal(hospRace.counts.medicalPlanModes[0],false);assert.equal(hospRace.counts.medicalPlanModes[1],false,'New hospital reused prior healthy state');assert(hospRace.counts.medicalPlanModes.some(x=>x),'Same-episode verified continuation lost');
  const onlySmall=fixture(false,false,false,{smartMedical:true,selectedMedicalId:68,medicalHeading:'Medical inventory'});
  for(let i=0;i<1800&&onlySmall.h.getState().stage!=='complete';i++)await onlySmall.step(250);
  assert.equal(onlySmall.h.getState().stage,'complete',onlySmall.h.getState().status);assert.equal(onlySmall.counts.medicine,2);

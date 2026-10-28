@@ -70,7 +70,7 @@ public sealed partial class MainForm
                 bool unresolved=!string.IsNullOrEmpty(s.Pending)&&s.Issued&&!s.Verified;
                 if(unresolved&&(s.Item is null||s.Observation is null||ReadWorkerString(request,"operationToken")!=s.Pending||!request.TryGetProperty("medicalDispatched",out var dispatched)||dispatched.ValueKind!=JsonValueKind.False))throw new InvalidDataException("The previous healing operation still needs verification. Resume that operation before another attack; if its outcome cannot be verified, stop and review. Your healing permissions are enabled.");
                 if(DateTime.UtcNow-s.LastRequest<TimeSpan.FromSeconds(3))throw new InvalidDataException("Medical refresh requested too quickly; pause and review.");s.LastRequest=DateTime.UtcNow;
-                var observation=s.Verified&&s.Observation is not null&&DateTime.UtcNow-s.Observation.ObservedUtc<=TimeSpan.FromSeconds(8)
+                var observation=request.TryGetProperty("continueVerifiedMedical",out var continuation)&&continuation.ValueKind==JsonValueKind.True&&s.Verified&&s.Observation is not null&&DateTime.UtcNow-s.Observation.ObservedUtc<=TimeSpan.FromSeconds(8)
                     ?s.Observation with{Inventory=inventory}
                     :await ReadMedicalObservationAsync(worker,s,inventory);
                 if(!MedicalContext(worker,s,request))return;

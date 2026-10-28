@@ -322,7 +322,8 @@
     if(owner!==Number(state.playerId)){pauseState(state,'Medical page belongs to player '+owner+'; this worker expects '+state.playerId+' (profile '+state.profileId+'). Check this profile’s Torn login and API key. No item authorized.',true);return;}
     state.medicalIdentityWaitAt=0;state.medicalIdentityRequest=null;
     state.medicalRequest='med_'+now()+'_'+Math.random().toString(36).slice(2);state.medicalReplyAt=now();state.stage='smart-medical-await';state.status=type==='tc-medical-plan'?'Checking hospital time and medical cooldown with Torn API.':type==='tc-medical-authorize'?'Checking medical permission before use.':'Verifying item use and hospital recovery with Torn API.';save(state);
-    post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),operationToken:state.medicalOp?.token||'',medicalDispatched:state.medicalDispatched===true,...extra});
+    const continueVerifiedMedical=type==='tc-medical-plan'&&state.medicalContinueVerified===true;if(type==='tc-medical-plan'){state.medicalContinueVerified=false;save(state);}
+    post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),operationToken:state.medicalOp?.token||'',medicalDispatched:state.medicalDispatched===true,continueVerifiedMedical,...extra});
   }
   function replanMedical(state,reason){
     state.medicalReplans=Number(state.medicalReplans||0)+1;
@@ -532,7 +533,7 @@
   }
   function beginHealing(state) {
     state.stage='heal-open';
-    state.healEnteredAt=0;state.aidExpandedAt=0;state.medicalClickedAt=0;state.medicalInventorySignature='';state.medicalInventorySettledAt=0;
+    state.healEnteredAt=0;state.aidExpandedAt=0;state.medicalClickedAt=0;state.medicalInventorySignature='';state.medicalInventorySettledAt=0;state.medicalContinueVerified=false;
     state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
   }
   function openAttack(state){openPage(state,ATTACK_URL(state.targetId),'attack page',true);}
@@ -1069,7 +1070,7 @@
       if(reply.state==='Authorized'&&state.medicalOp?.token===reply.token&&state.medicalOp.itemId===reply.itemId){state.medicalOp.expires=reply.expires;state.stage='smart-medical-execute';save(state);return true;}
       if(reply.verification)state.medicalVerification=reply.verification;
       if(reply.state==='PendingVerification'&&state.medicalDispatched&&state.medicalOp?.token===reply.token){state.stage='smart-medical-receipt-wait';state.medicalVerifyAt=now()+Math.max(2000,Math.min(10000,Number(reply.retryAfterMs)||10000));state.status=reply.reason;save(state);return true;}
-      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token&&state.mode==='level'){state.medicalOp=null;state.medicalDispatched=false;state.medicalInventorySignature='';state.medicalReplans=0;beginHealing(state);save(state);return true;}
+      if(reply.state==='Verified'&&state.medicalOp?.token===reply.token&&state.mode==='level'){state.medicalOp=null;state.medicalDispatched=false;state.medicalInventorySignature='';state.medicalReplans=0;beginHealing(state);state.medicalContinueVerified=true;save(state);return true;}
       if(reply.state==='Verified'&&state.medicalOp?.token===reply.token){state.medicalOp=null;state.medicalDispatched=false;state.medicalReplans=0;state.stage='recovery-probe';state.probeStartedAt=now();state.status='Medical quantity, cooldown and hospital changes verified. Rechecking recovery.';save(state);openPage(state,ATTACK_URL(state.targetId),'attack recovery page');return true;}
       if(reply.state==='Replan'){replanMedical(state,reply.reason||'Recalculating medical plan before dispatch.');return true;}
       if(reply.state==='Recovered'&&state.mode==='level'){finishLevelingMedical(state);return true;}
