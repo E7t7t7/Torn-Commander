@@ -1,3 +1,11 @@
+v0.6.84
+- Medical identity: reset per-episode wait clocks, pass a single verified identity snapshot into pending requests, and recover missing sidebars using up to two safe pre-dispatch page refreshes.
+- Never refresh/repeat an already dispatched item to recover identity; retain its receipt operation and wait for account verification.
+- Recalculate from remaining permitted personal supplies if an item disappears or its count changes after authorization but before consumption. Existing permissions/reserves and drug exclusion remain enforced.
+- Recognize a single item without an x1 marker only when its verified personal row exposes Use and has no successful-use receipt.
+- Tests cover delayed identity restoration, bounded missing/wrong identity, depletion before dispatch and switching medical supplies after a verified final item.
+- No live fights or medical consumption performed during validation.
+
 v0.6.83
 - Leveling: bounded automatic recovery from temporary Torn API/network errors, honoring shared rate-limit waits. Keeps pending fight reservations and never counts an unverified win.
 - Reports API error codes/HTTP status without printing private provider response bodies; permanent access failures pause.

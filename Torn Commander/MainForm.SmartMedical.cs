@@ -74,7 +74,7 @@ public sealed partial class MainForm
                     ?s.Observation with{Inventory=inventory}
                     :await ReadMedicalObservationAsync(worker,s,inventory);
                 if(!MedicalContext(worker,s,request))return;
-                if(unresolved&&!SmartMedicalOptimizer.VerifyUnused(s.Observation!,observation,s.Item!.Id,DateTime.UtcNow))throw new InvalidDataException("Could not prove the previous healing permission was unused. No second item authorized; stop and review the item count and cooldown.");
+                if(unresolved&&!SmartMedicalOptimizer.VerifyUnused(s.Observation!,observation,s.Item!.Id,DateTime.UtcNow,request.TryGetProperty("cancelBeforeDispatch",out var cancel)&&cancel.ValueKind==JsonValueKind.True))throw new InvalidDataException("Could not prove the previous healing permission was unused. No second item authorized; stop and review the item count and cooldown.");
                 s.Observation=observation;s.Plan=WorkerMedicalPlan(worker,s,observation,settings);s.Note=s.Plan.Reason;
                 if(s.EpisodeBaseline==0&&s.Plan.State=="Ready"){s.EpisodeBaseline=s.Plan.FakBaselineSeconds;s.LastHospitalSeconds=s.Plan.HospitalSeconds;}
                 s.Pending="";s.Issued=false;s.Verified=false;s.VerifyAttempts=0;

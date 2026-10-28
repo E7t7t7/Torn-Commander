@@ -278,6 +278,7 @@
     if(/(?:^|\s)remove-act(?:\s|$)/.test(String(row.className||''))&&rowText.includes('you use your '+medicalNames[id].toLowerCase()))return 0;
     // Visible quantities update before Torn refreshes its cached quantity attributes.
     for(const node of [row,...row.querySelectorAll('[data-qty],[data-quantity]')])for(const key of ['data-qty','data-quantity']){const q=node.getAttribute?.(key);if(q!=null&&/^\d+$/.test(q))return Number(q);}
+    if(medicalUse(id)&&!rowText.includes('you use your '))return 1;
     return null;
   }
   function medicalInventory(){
@@ -316,35 +317,53 @@
     if(roots.length!==1)return null;
     const buttons=Array.from(roots[0].querySelectorAll('button,a,[role="button"]')).filter(el=>visible(el)&&enabledControl(el,roots[0].parentElement)&&/^(okay|ok|confirm|use)$/i.test(labelOf(el)));return buttons.length===1?buttons[0]:null;
   }
-  function requestMedical(state,type,extra={}){
-    const owner=medicalOwnId();
-    if(owner===null){state.medicalIdentityWaitAt=state.medicalIdentityWaitAt||now();state.medicalIdentityRequest={type,extra};state.stage='smart-medical-identity';state.status='Waiting for Torn to show this account’s Name / profile identity. No item authorized.';save(state);return;}
+  function requestMedical(state,type,extra={},identity=medicalIdentity()){
+    const owner=identity.owner;
+    if(owner===null){if(state.stage!=='smart-medical-identity')state.medicalIdentityWaitAt=now();state.medicalIdentityWaitAt=state.medicalIdentityWaitAt||now();state.medicalIdentityRequest={type,extra};state.stage='smart-medical-identity';state.status='Waiting for Torn to show this account’s Name / profile identity. No item authorized.';save(state);return;}
     if(owner!==Number(state.playerId)){pauseState(state,'Medical page belongs to player '+owner+'; this worker expects '+state.playerId+' (profile '+state.profileId+'). Check this profile’s Torn login and API key. No item authorized.',true);return;}
-    state.medicalIdentityWaitAt=0;state.medicalIdentityRequest=null;
+    state.medicalIdentityWaitAt=0;state.medicalIdentityLostAt=0;state.medicalIdentityReloads=0;state.medicalIdentityRequest=null;
     state.medicalRequest='med_'+now()+'_'+Math.random().toString(36).slice(2);state.medicalReplyAt=now();state.stage='smart-medical-await';state.status=type==='tc-medical-plan'?'Checking hospital time and medical cooldown with Torn API.':type==='tc-medical-authorize'?'Checking medical permission before use.':'Verifying item use and hospital recovery with Torn API.';save(state);
     const continueVerifiedMedical=type==='tc-medical-plan'&&state.medicalContinueVerified===true;if(type==='tc-medical-plan'){state.medicalContinueVerified=false;save(state);}
-    post({type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),operationToken:state.medicalOp?.token||'',medicalDispatched:state.medicalDispatched===true,continueVerifiedMedical,...extra});
+    const cancelBeforeDispatch=type==='tc-medical-plan'&&state.medicalCancelBeforeDispatch===true;if(type==='tc-medical-plan'){state.medicalCancelBeforeDispatch=false;save(state);}
+    post({cancelBeforeDispatch,type,requestId:state.medicalRequest,profileId:state.profileId,orderId:state.orderId,medicalSession:state.medicalSession,browserPlayerId:owner,inventory:medicalInventory(),operationToken:state.medicalOp?.token||'',medicalDispatched:state.medicalDispatched===true,continueVerifiedMedical,...extra});
   }
-  function replanMedical(state,reason){
+  function replanMedical(state,reason,cancelBeforeDispatch=false){
     state.medicalReplans=Number(state.medicalReplans||0)+1;
     if(state.medicalReplans>3){pauseState(state,'Medical state changed repeatedly; review before continuing. No uncertain item was retried.',true);return;}
-    beginHealing(state);state.status=reason;save(state);
+    beginHealing(state);state.medicalCancelBeforeDispatch=cancelBeforeDispatch;state.medicalReplanAt=now()+3000;state.status=reason;save(state);
+  }
+  function waitMedicalIdentity(state,started){
+    // Refresh only before dispatch. A dispatched operation must retain its receipt/token.
+    const elapsed=now()-Number(started||now());
+    if(state.medicalDispatched){
+      if(elapsed>60000)pauseState(state,'Account identity unavailable while verifying the previous medicine. No additional item used; resume after the sidebar returns.',true);
+      return;
+    }
+    if(elapsed<15000)return;
+    if(Number(state.medicalIdentityReloads||0)>=2){
+      pauseState(state,'Account identity is still unavailable after two safe Medical page refreshes. No item consumed.',true);return;
+    }
+    state.medicalIdentityReloads=Number(state.medicalIdentityReloads||0)+1;
+    state.medicalIdentityWaitAt=0;state.medicalIdentityLostAt=0;state.medicalIdentityRequest=null;
+    state.stage='heal-open';state.healEnteredAt=0;state.medicalClickedAt=0;state.medicalInventorySignature='';state.medicalInventorySettledAt=0;
+    state.status='Refreshing Medical to restore account identity ('+state.medicalIdentityReloads+'/2). No item clicked.';
+    save(state);location.assign(ITEMS_URL);
   }
   function smartMedicalTick(state){
     if(state.stage==='smart-medical-identity'){
       if(!medicalPage()){pauseState(state,'Medical page changed while waiting for account identity.',true);return;}
-      const owner=medicalOwnId();
-      if(owner!==null){const request=state.medicalIdentityRequest;if(!request){pauseState(state,'Medical identity request was lost; stop and restart the worker.',true);return;}requestMedical(state,request.type,request.extra||{});return;}
-      if(now()-state.medicalIdentityWaitAt>15000)pauseState(state,'Torn’s account Name/profile field could not be verified after 15 seconds. Copy the worker diagnostic; no medicine consumed.',true);return;
+      const identity=medicalIdentity(),owner=identity.owner;
+      if(owner!==null){const request=state.medicalIdentityRequest;if(!request){pauseState(state,'Medical identity request was lost; stop and restart the worker.',true);return;}requestMedical(state,request.type,request.extra||{},identity);return;}
+      waitMedicalIdentity(state,state.medicalIdentityWaitAt);return;
     }
     if(!medicalPage()){pauseState(state,'Medical page changed. No further item clicks allowed.',true);return;}
     const owner=medicalOwnId();
     if(owner===null){
       state.medicalIdentityLostAt=state.medicalIdentityLostAt||now();
-      if(now()-state.medicalIdentityLostAt>15000){pauseState(state,'Medical account identity remained unavailable for 15 seconds. No further item clicks allowed.',true);return;}
+      waitMedicalIdentity(state,state.medicalIdentityLostAt);if(!state.running)return;
       state.status='Waiting for the medical account identity to finish refreshing. No item clicked.';save(state);return;
     }
-    state.medicalIdentityLostAt=0;
+    state.medicalIdentityLostAt=0;state.medicalIdentityReloads=0;
     if(owner!==Number(state.playerId)){pauseState(state,'Medical page belongs to another account. No further item clicks allowed.',true);return;}
     if(state.stage==='medical-cooldown'){
       if(now()<state.medicalWakeAt)return;
@@ -370,8 +389,9 @@
       requestMedical(state,'tc-medical-authorize',{token:op.token});return;
     }
     if(state.stage==='smart-medical-execute'){
-      if(state.medicalDispatched||medicalCount(op.itemId)!==op.quantity){pauseState(state,'Medical dispatch identity/count changed. No retry.',true);return;}
-      const use=medicalUse(op.itemId);if(!use){pauseState(state,'Authorized Use control disappeared. No retry.',true);return;}
+      if(state.medicalDispatched){pauseState(state,'Medical item already dispatched. Await verification before another item.',true);return;}
+      if(medicalCount(op.itemId)!==op.quantity){replanMedical(state,'Selected medical supply changed or ran out. Recalculating from remaining permitted supplies.',true);return;}
+      const use=medicalUse(op.itemId);if(!use){replanMedical(state,'Unused medical control disappeared. Refreshing the remaining personal supplies.',true);return;}
       state.medicalDispatched=true;state.medicalUseAt=now();state.medicalConfirmed=false;state.stage='smart-medical-wait';save(state);
       if(!click(use))pauseState(state,'Medical click could not be dispatched; review before restarting.',true);return;
     }
@@ -533,7 +553,7 @@
   }
   function beginHealing(state) {
     state.stage='heal-open';
-    state.healEnteredAt=0;state.aidExpandedAt=0;state.medicalClickedAt=0;state.medicalInventorySignature='';state.medicalInventorySettledAt=0;state.medicalContinueVerified=false;
+    state.healEnteredAt=0;state.aidExpandedAt=0;state.medicalClickedAt=0;state.medicalInventorySignature='';state.medicalInventorySettledAt=0;state.medicalContinueVerified=false;state.medicalCancelBeforeDispatch=false;state.medicalIdentityWaitAt=0;state.medicalIdentityLostAt=0;state.medicalIdentityReloads=0;state.medicalIdentityRequest=null;
     state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;
   }
   function openAttack(state){openPage(state,ATTACK_URL(state.targetId),'attack page',true);}
@@ -790,6 +810,7 @@
         }
         state.medicalClickedAt = 0;
         if(state.smartMedical){
+          if(now()<Number(state.medicalReplanAt||0))return;
           const signature=JSON.stringify(medicalInventory());
           if(state.medicalInventorySignature!==signature){state.medicalInventorySignature=signature;state.medicalInventorySettledAt=now();save(state);return;}
           if(now()-Number(state.medicalInventorySettledAt||0)<1250)return;
@@ -983,7 +1004,7 @@
       // A dispatched item is observed/verified only; it must never be clicked again.
       const resumeMedical=state.smartMedical&&(state.medicalOp||state.previousStage==='smart-medical-identity')&&String(state.previousStage||'').startsWith('smart-medical-');
       state.stage = resumeMedical ? (state.medicalDispatched?'smart-medical-wait':'heal-open') : reconcile ? 'commit-wait' : resumeFight ? 'fight' : state.claimId ? 'recovery-probe' : 'claim';
-      if(resumeMedical&&!state.medicalDispatched){state.medicalIdentityWaitAt=0;state.medicalIdentityRequest=null;state.medicalInventorySignature='';state.medicalExpandedAt=0;state.healEnteredAt=0;}
+      if(resumeMedical&&!state.medicalDispatched){state.medicalIdentityWaitAt=0;state.medicalIdentityLostAt=0;state.medicalIdentityReloads=0;state.medicalIdentityRequest=null;state.medicalInventorySignature='';state.medicalExpandedAt=0;state.healEnteredAt=0;}
 
       if(resumeFight){state.pillowMissingSince=0;state.fightStartedAt=now();}
       state.claimAttempts=0; state.commitAttempts=1; state.replyWaitAt=now();
@@ -1121,7 +1142,7 @@
     },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {levelTerminalSeen:load()?.levelTerminalSeen,levelContinue:summary(levelingContinueControl()),levelEmptyGun:levelingEmptyGun(load()||{}),medicalServerAttempts:load()?.medicalServerAttempts,healEnteredAt:load()?.healEnteredAt,medicalClickedAt:load()?.medicalClickedAt,medicalWakeAt:load()?.medicalWakeAt,medicalVisible:medicalVisible(),recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {medicalIdentityWaitAt:load()?.medicalIdentityWaitAt,medicalIdentityLostAt:load()?.medicalIdentityLostAt,medicalIdentityReloads:load()?.medicalIdentityReloads,levelTerminalSeen:load()?.levelTerminalSeen,levelContinue:summary(levelingContinueControl()),levelEmptyGun:levelingEmptyGun(load()||{}),medicalServerAttempts:load()?.medicalServerAttempts,healEnteredAt:load()?.healEnteredAt,medicalClickedAt:load()?.medicalClickedAt,medicalWakeAt:load()?.medicalWakeAt,medicalVisible:medicalVisible(),recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },

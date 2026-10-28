@@ -60,6 +60,10 @@ Assert(!SmartMedicalOptimizer.VerifyUse(before,after with{ObservedUtc=now.AddSec
 var unused=before with{ObservedUtc=now.AddSeconds(5),CooldownSeconds=995};
 Assert(SmartMedicalOptimizer.VerifyUnused(before,unused,67,now.AddSeconds(5)),"unused authorization not recoverable");
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,after,67,now.AddSeconds(5)),"consumed item reauthorized");
+Assert(SmartMedicalOptimizer.VerifyUnused(before,unused with{Inventory=new Dictionary<int,int>{{67,0}}},67,now.AddSeconds(5),true),"pre-click depletion cannot replan");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,after,67,now.AddSeconds(5),true),"consumed item cannot be cancelled");
+Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{Life=unused.Life+1},67,now.AddSeconds(5),true),"life change cannot cancel issued operation");
+
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{ProfileId="B"},67,now.AddSeconds(5)),"cross-account unused authorization");
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{CooldownSeconds=1500},67,now.AddSeconds(5)),"changed cooldown treated as unused");
 Assert(!SmartMedicalOptimizer.VerifyUnused(before,unused with{HospitalUntilUtc=now},67,now.AddSeconds(5)),"changed hospital treated as unused");
