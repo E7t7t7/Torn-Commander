@@ -3,7 +3,7 @@ namespace TornCommander;
 public sealed partial class MainForm {
  private sealed class LevelingRun {
   public string Id="level-"+Guid.NewGuid().ToString("N"),Claim="",LastCommitted="";
-  public int Player,Target,LastRemaining,ReceiptChecks;public bool TerminalSeen;public DateTime Opened,LastStatus;public bool Active=true,Busy,LastStop;
+  public int ApiFailures;public int Player,Target,LastRemaining,ReceiptChecks;public bool TerminalSeen;public DateTime Opened,LastStatus;public bool Active=true,Busy,LastStop;
   public string LastMessage="",Status="Starting automatic leveling";
  }
  private readonly Dictionary<LossAutoCycleWorker,LevelingRun> _levelingRuns=new();
@@ -37,7 +37,7 @@ public sealed partial class MainForm {
    if(!cfg.Targets.Any(t=>!t.Finished&&LevelingScouting.StrengthEligible(t,cfg,DateTime.UtcNow)))throw new InvalidDataException("No targets have usable strength estimates within your limit. Scan the list or find FFScouter targets first.");
    var worker=await InitializeLossWorkerAsync(slotA,profile);var run=new LevelingRun{Player=account.Player};
    _levelingRuns[worker]=run;_medicalSessions[worker]=new MedicalSession{Order=run.Id,Player=account.Player,Leveling=true};
-   await worker.StartAsync(new{mode="level",profileId=profile,slot=worker.Slot,orderId=run.Id,targetId=cfg.Targets.First(x=>!x.Finished).Id.ToString(),selfName=account.Name,playerId=account.Player,smartMedical=true,medicalSession=_medicalSessions[worker].Id,weaponSlot=cfg.WeaponSlot,attackDelayMs=cfg.AttackDelayMs,maxKits=8});
+   await worker.StartAsync(new{mode="level",profileId=profile,slot=worker.Slot,orderId=run.Id,targetId=cfg.Targets.First(x=>!x.Finished).Id.ToString(),selfName=account.Name,playerId=account.Player,smartMedical=true,medicalSession=_medicalSessions[worker].Id,acceptLevelUps=cfg.AcceptLevelUps,weaponSlot=cfg.WeaponSlot,attackDelayMs=cfg.AttackDelayMs,maxKits=8});
    cfg.Note="Automatic leveling started. The worker verifies its own weapon, finishes wins with Leave, and verifies official receipts before advancing.";SaveLeveling(profile);UpdateModernDashboard();
   }finally{_levelingBusy=false;}
  }
@@ -52,6 +52,7 @@ public sealed partial class MainForm {
   }
   if(type=="tc-level-finished"){run.Active=false;worker.MarkFinished();UpdateModernDashboard();return;}
   if(run.Busy)return;run.Busy=true;
+  bool apiFailed=false;
   try{
    var session=LevelingFor(worker.ProfileId);string key=CredentialManager.LoadApiKey(worker.ProfileId)??throw new InvalidDataException("Missing API key.");
    if(type=="tc-level-claim"){
@@ -118,7 +119,14 @@ public sealed partial class MainForm {
     run.LastCommitted=claim;run.Claim="";run.LastStop=!LevelingPlanner.ContinueAfter(receipt.Result);run.LastRemaining=!run.LastStop?session.Targets.Count(x=>!x.Finished):0;run.LastMessage=won?"Verified Leave win.":!run.LastStop?"Verified "+receipt.Result+"; no win counted. Moving to the next target.":"Stopped after "+receipt.Result+". Review target difficulty and weapon before restarting.";session.Note=run.LastMessage;SaveLeveling(worker.ProfileId);
     await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});UpdateModernDashboard();
    }
-  }catch(Exception ex){LevelingFor(worker.ProfileId).Note=ex is InvalidDataException?ex.Message:"Leveling API check failed. Review API access or rate-limit status; no new attack authorized.";await worker.ReplyLevelingAsync(new{kind="paused",message=LevelingFor(worker.ProfileId).Note});}
-  finally{run.Busy=false;}
+  }catch(Exception ex){
+   apiFailed=true;run.ApiFailures++;
+   var retry=LevelingApiRecovery.Transient(ex)&&run.ApiFailures<=4;
+   int seconds=ex is TornApiCooldownException?Math.Max(5,TornRequestCoordinator.Shared.CooldownSeconds+1):Math.Min(60,5*(1<<Math.Min(run.ApiFailures-1,4)));
+   string message=LevelingApiRecovery.Describe(ex)+(retry?" Waiting "+seconds+" seconds before retry "+run.ApiFailures+"/4.":" Paused; review API access/connection and resume.");
+   LevelingFor(worker.ProfileId).Note=message;SaveLeveling(worker.ProfileId);
+   await worker.ReplyLevelingAsync(new{kind=retry?"api-wait":"paused",requestId=rid,claimId=claim,waitUntil=DateTime.UtcNow.AddSeconds(seconds),message});
+  }
+  finally{if(!apiFailed)run.ApiFailures=0;run.Busy=false;}
  }
 }

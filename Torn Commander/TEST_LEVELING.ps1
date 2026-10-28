@@ -1,10 +1,17 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderLeveling'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('LevelingQueue.cs','SmartMedicalOptimizer.cs','BaldrListProvider.cs','LevelingScouting.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
+foreach($file in @('LevelingQueue.cs','TornRequestCoordinator.cs','SmartMedicalOptimizer.cs','BaldrListProvider.cs','LevelingScouting.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
 $program=@'
 using TornCommander;
 static void Check(bool ok,string reason){if(!ok)throw new Exception(reason);}
+Check(!new LevelingSession().AcceptLevelUps,"old profiles hold levels");
+Check(System.Text.Json.JsonSerializer.Deserialize<LevelingSession>("{\"AcceptLevelUps\":true}")!.AcceptLevelUps,"accept level setting persists");
+Check(LevelingApiRecovery.Transient(new TornApiCooldownException(DateTimeOffset.UtcNow)),"rate limit retries");
+Check(LevelingApiRecovery.Transient(new HttpRequestException("network")),"network retries");
+Check(!LevelingApiRecovery.Transient(new HttpRequestException("Torn API: {\"code\":2,\"error\":\"bad key\"}")),"bad key does not retry");
+Check(!LevelingApiRecovery.Transient(new HttpRequestException("Torn API: {\"code\":16}")),"permissions do not retry");
+Check(LevelingApiRecovery.Describe(new HttpRequestException("secret-data")).Contains("connection"),"no raw secret error exposed");
 var ids=LevelingPlanner.Import("https://www.torn.com/profiles.php?XID=123\n123\n456,Some player\n789",789);
 Check(ids.Select(t=>t.Id).SequenceEqual(new[]{123,456}),"ordered import/dedup/self filter");
 Check(LevelingPlanner.Import("""{"targets":[{"player_id":45,"name":"Fixture","level":70,"fair_fight":1.8}]}""")[0].FairFight==1.8,"FFScouter response import");

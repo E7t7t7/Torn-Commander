@@ -1,3 +1,10 @@
+v0.6.83
+- Leveling: bounded automatic recovery from temporary Torn API/network errors, honoring shared rate-limit waits. Keeps pending fight reservations and never counts an unverified win.
+- Reports API error codes/HTTP status without printing private provider response bodies; permanent access failures pause.
+- Per-account saved level-up choice: hold current level (default) or accept. Handles an identified level-up dialog only when both explicit choices and the current account are verified; no blind upgrade clicks.
+- Tests: API classification, settings persistence, retry timing, both level-up choices, full loss/medical/leveling regressions and Release build.
+- Limitation: live level-up dialog variants not matching explicit choices require manual handling. No live energy or items consumed during development.
+
 v0.6.82 (2026-10-28) - Fresh state for each new hospitalization
 - Reuse the immediately verified medical observation only when planning another item in the same healing episode. A new heal request, hospital refusal or replan clears this continuation marker and reads fresh account/hospital/cooldown state.
 - Preserve faster consecutive-item planning without temporarily treating a newly hospitalized account as healthy. Backend reuse still requires its matching verified operation, account/session and short observation age.

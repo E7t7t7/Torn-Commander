@@ -4,7 +4,7 @@ const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
- let serverRecovered=false;let targetWaits=0;let expandAt=0;let hospitalRace=0,forcedHeal=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
+ let levelChoiceDone=false,apiWaited=false;let serverRecovered=false;let targetWaits=0;let expandAt=0;let hospitalRace=0,forcedHeal=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[],medicalPlanModes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
@@ -32,6 +32,11 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const node=(t,text='',a={},c=[])=>new Node(t,text,a,c);
  const button=(text,fn,a={})=>{const n=node('button',text,a);n.onclick=fn;return n};
  function buildBody(){
+  if(options.levelChoice&&!levelChoiceDone)return node('body','',{},[node('div','Level up',{role:'dialog'},[
+   button('Hold level',()=>{assert(!options.acceptLevelUps);levelChoiceDone=true;}),
+   button('Level up',()=>{assert(options.acceptLevelUps);levelChoiceDone=true;})
+  ])]);
+
   if(options.medicalServerError&&!serverRecovered&&scene==='items')return node('body','Torn server error');
   if(scene==='blocked')return node('body','You cannot attack while in hospital.');
   if(scene==='items'&&options.itemsTabDelayMs&&clock-attackPageAt<options.itemsTabDelayMs)return node('body','Items loading');
@@ -107,7 +112,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   return node('body','Torn');
  }
  let lastKey='',cached;
- function body(){const key=scene+stock+expanded+serverRecovered+(options.itemsTabDelayMs?':'+clock:'')+(options.expandDelayMs?':'+clock:'')+(options.joinDelayMs?':'+clock:'')+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
+ function body(){const key=scene+stock+expanded+serverRecovered+levelChoiceDone+(options.itemsTabDelayMs?':'+clock:'')+(options.expandDelayMs?':'+clock:'')+(options.joinDelayMs?':'+clock:'')+((options.replacedControls||options.nestedMelee)?fightHits+':'+clock:'');if(key!==lastKey){lastKey=key;cached=buildBody()}return cached;}
  const owner=node('a',options.decoratedOwner?'2BDecided [wife]':'Seller',{...(options.ariaMedicalOwner?{'aria-label':'Name: Seller'}:{}),href:'/profiles.php?XID='+String(options.wrongMedicalAccount?999:321)});
  const ownerLabel=node('span','Name:');const ownerRow=node('div','',{},[ownerLabel,owner]);if(options.medicalOwnerHidden){ownerLabel.getClientRects=()=>[];owner.getClientRects=()=>[];}const stranger=node('a','Unrelated chat user',{href:'/profiles.php?XID=777'});
  const secondStranger=node('a','Other chat avatar',{href:'/profiles.php?XID=888'});
@@ -125,6 +130,8 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   const m=JSON.parse(raw);messages.push(m);
   if(m.type==='tc-level-skip'){assert.equal(m.claimId,activeLease);activeLease='';remaining--;return;}
   if(m.type==='tc-level-claim'){
+   if(options.apiWaitOnce&&!apiWaited){apiWaited=true;replies.push(()=>h.onLevelReply({kind:'api-wait',requestId:m.requestId,waitUntil:new Date(clock+5000).toISOString(),message:'Torn rate limit wait'}));return;}
+
    if(options.levelHealAfterWinOnce&&counts.levelCommits===1&&!forcedHeal){forcedHeal=true;clock+=60000;hospital=true;replies.push(()=>h.onLevelReply({kind:'heal',requestId:m.requestId}));return;}
    if(options.levelWaitOnce&&targetWaits++===0){replies.push(()=>h.onLevelReply({kind:'wait',requestId:m.requestId,waitUntil:new Clock(clock+5000).toISOString(),message:'Waiting for hospital release'}));return;}
    if(options.levelProgress)replies.push(()=>{assert.equal(h.onLevelReply({kind:'scan',requestId:'wrong',message:'wrong'}),false);assert.equal(h.onLevelReply({kind:'scan',requestId:m.requestId,message:'Checked target: Hospital'}),true);assert.equal(h.getState().stage,'claim-wait');});
@@ -132,6 +139,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
    activeLease='level-'+remaining;replies.push(()=>h.onLevelReply({kind:'claim',requestId:m.requestId,ok:true,claimId:activeLease,targetId:remaining===2?123:456,message:'Verified leveling target'}));return;
   }
   if(m.type==='tc-level-commit'){
+   if(options.apiCommitWaitOnce&&!apiWaited){apiWaited=true;replies.push(()=>h.onLevelReply({kind:'api-wait',requestId:m.requestId,claimId:m.claimId,waitUntil:new Date(clock+5000).toISOString(),message:'Connection retry'}));return;}
    assert.equal(m.claimId,activeLease);
    if(options.levelPendingOnce&&levelPending++===0){replies.push(()=>h.onLevelReply({kind:'pending',claimId:m.claimId,message:'API cache pending'}));return;}
    counts.levelCommits++;remaining--;activeLease='';replies.push(()=>h.onLevelReply({kind:'commit',claimId:m.claimId,remaining,message:'Verified Leave',stop:false}));return;
@@ -160,7 +168,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  }}}};
  const context={window,document,location,URL,Date:Clock,Math,console,localStorage:store(local),sessionStorage:store(session),getComputedStyle:()=>({visibility:'visible',display:'block'}),setInterval:fn=>{interval=fn},setTimeout:()=>{}};
  vm.createContext(context);vm.runInContext(source,context);h=window.TornCommanderLossCycle;
- h.start({mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
+ h.start({acceptLevelUps:!!options.acceptLevelUps,mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
  return {h,counts,messages,async step(milliseconds=1000){h.pump();while(replies.length)replies.shift()();clock+=milliseconds;await Promise.resolve()}};
 }
 (async()=>{
@@ -365,6 +373,11 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const onlySmall=fixture(false,false,false,{smartMedical:true,selectedMedicalId:68,medicalHeading:'Medical inventory'});
  for(let i=0;i<1800&&onlySmall.h.getState().stage!=='complete';i++)await onlySmall.step(250);
  assert.equal(onlySmall.h.getState().stage,'complete',onlySmall.h.getState().status);assert.equal(onlySmall.counts.medicine,2);
+ for(const opts of [{apiWaitOnce:true},{apiCommitWaitOnce:true},{levelChoice:true},{levelChoice:true,acceptLevelUps:true}]){
+  const recovery=fixture(false,false,false,{leveling:true,smartMedical:true,...opts});
+  for(let i=0;i<1800&&recovery.h.getState().stage!=='complete';i++)await recovery.step(250);
+  assert.equal(recovery.h.getState().stage,'complete',recovery.h.getState().status);assert.equal(recovery.counts.levelCommits,2);assert.equal(recovery.counts.wrong,0);
+ }
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');

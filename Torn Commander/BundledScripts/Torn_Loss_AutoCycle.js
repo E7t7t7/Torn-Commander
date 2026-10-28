@@ -538,6 +538,29 @@
   }
   function openAttack(state){openPage(state,ATTACK_URL(state.targetId),'attack page',true);}
 
+  function levelingChoice(state){
+    if(state.mode!=='level')return false;
+    const dialogs=[...document.querySelectorAll('[role="dialog"],[class*="ui-dialog"]')].filter(visible);
+    for(const dialog of dialogs){
+      if(!/level/i.test(clean(dialog.textContent)))continue;
+      const controls=[...dialog.querySelectorAll('button,a,input[type="button"],input[type="submit"]')].filter(visible);
+      const label=el=>clean(el.textContent||el.value).toLowerCase();
+      const hold=controls.filter(el=>/^(hold(?: (?:my |current )?level)?|remain (?:at )?(?:this|current) level)$/.test(label(el)));
+      const accept=controls.filter(el=>/^(level up|upgrade(?: level)?|accept level(?: up)?)$/.test(label(el)));
+      if(hold.length!==1||accept.length!==1)continue;
+      if(medicalOwnId()!==Number(state.playerId)){pauseState(state,'Level-up choice needs verified account identity. No choice clicked.',false);return true;}
+      if(state.levelChoiceAt){
+        if(now()-state.levelChoiceAt>15000)pauseState(state,'Level-up choice did not close. Check the dialog; no repeated click.',false);
+        return true;
+      }
+      const target=state.acceptLevelUps===true?accept[0]:hold[0];
+      if(!enabledControl(target,dialog))return true;
+      state.levelChoiceAt=now();state.status=state.acceptLevelUps?'Accepting the offered level-up.':'Holding the current level.';save(state);target.click();return true;
+    }
+    if(state.levelChoiceAt){state.levelChoiceAt=0;save(state);}
+    return false;
+  }
+
   async function tick() {
     if (busy) return;
     busy = true;
@@ -567,6 +590,7 @@
         pauseState(state, 'Verification screen detected. Auto-cycle paused; resolve it manually before resuming.', state.stage !== 'fight');
         return;
       }
+      if(levelingChoice(state))return;
       if(isItemsPage()&&/^TORN\s*[-\u2013\u2014]\s*50[0-4]\s*Error$/i.test(clean(document.title))){
         if(state.medicalDispatched){pauseState(state,'Torn returned a server error after an item dispatch. Resume only after the page recovers; no item will be repeated.',true);return;}
         state.medicalServerSince=state.medicalServerSince||now();
@@ -581,6 +605,12 @@
       }
 
       if(state.mode==='level'&&state.stage==='level-target-wait'){if(now()<state.levelTargetWakeAt)return;state.stage='claim';state.status='A hospitalized target is due out. Rechecking availability.';save(state);return;}
+      if(state.mode==='level'&&state.stage==='level-api-wait'){
+        if(now()<state.levelApiWakeAt)return;
+        state.stage=state.levelApiReturnStage;state.replyWaitAt=now();
+        if(state.stage==='level-verify')state.levelVerifyAt=now();
+        save(state);return;
+      }
       if (state.stage === 'claim') {
         if (now() < Number(state.retryAt || 0)) return;
         const requestId = 'claim_' + now() + '_' + Math.random().toString(36).slice(2);
@@ -907,7 +937,7 @@
       const token = 'sess_' + now() + '_' + Math.random().toString(36).slice(2);
       sessionStorage.setItem(SESSION_KEY, token);
       const state = {
-        mode:config.mode==='level'?'level':'loss',weaponSlot:String(config.weaponSlot||'weapon_primary'),
+        mode:config.mode==='level'?'level':'loss',acceptLevelUps:config.acceptLevelUps===true,weaponSlot:String(config.weaponSlot||'weapon_primary'),
         profileId: String(config.profileId || ''),
         slot: String(config.slot || ''),
         orderId: String(config.orderId || ''),
@@ -1044,6 +1074,14 @@
     },
     onLevelReply(reply){
       const state=load();if(!state?.running||state.mode!=='level')return false;
+      if(reply.kind==='api-wait'){
+        const claimWait=state.stage==='claim-wait'&&state.pendingClaimRequest===reply.requestId;
+        const commitWait=['commit-wait','level-verify'].includes(state.stage)&&state.claimId===reply.claimId;
+        if(!claimWait&&!commitWait)return false;
+        const at=Date.parse(reply.waitUntil);if(!Number.isFinite(at))return false;
+        state.levelApiReturnStage=claimWait?'claim':'level-verify';state.levelApiWakeAt=Math.max(now()+1000,at);
+        state.stage='level-api-wait';state.status=reply.message;save(state);return true;
+      }
       if(reply.kind==='paused'){pauseState(state,reply.message||'Leveling verification failed.',false);return true;}
       if(reply.kind==='wait'){if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;const at=Date.parse(reply.waitUntil);if(!Number.isFinite(at)){pauseState(state,'Invalid target availability time.',false);return false;}state.stage='level-target-wait';state.levelTargetWakeAt=Math.max(now()+1000,at);state.status=reply.message;save(state);return true;}
       if(reply.kind==='scan'){if(state.stage!=='claim-wait'||state.pendingClaimRequest!==reply.requestId)return false;state.replyWaitAt=now();state.status=reply.message;save(state);return true;}

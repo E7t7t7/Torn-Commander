@@ -241,5 +241,5 @@ console.log('BALDR LOAD-AND-SCAN PASSED: all groups requested before filtering, 
 context.renderLeveling({profileId:'P',session:{autoResumeMedical:true,targets:[]},medical:{itemsUsed:7,cooldownUsed:8400,currentCooldown:21600,maximumCooldown:32400,observed:new Date().toISOString()}});
 assert(nodes.levelWorker.textContent.includes('Current medical cooldown 360.0m / 540m'),'Current cooldown/max missing');
 assert(nodes.levelWorker.textContent.includes('Added by this session 140.0m'),'Session cost confused with current cooldown');
-assert(nodes.levelAutoResumeMedical.checked);context.saveLeveling();assert.equal(levelingMessage.data.autoResumeMedical,true);
+assert.equal(nodes.levelAcceptUps.value,'false');nodes.levelAcceptUps.value='true';assert(nodes.levelAutoResumeMedical.checked);context.saveLeveling();assert.equal(levelingMessage.data.autoResumeMedical,true);assert.equal(levelingMessage.data.acceptLevelUps,true);
 console.log('LEVELING MEDICAL STATUS PASSED: current balance versus session additions, capacity and auto-resume payload.');

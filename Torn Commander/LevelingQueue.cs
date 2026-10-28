@@ -13,6 +13,7 @@ public sealed class LevelingSession {
  public double OwnStats {get;set;} public DateTime? OwnStatsUtc {get;set;} public double MaxStatRatio {get;set;}=0.5; public int MaxEstimateDays {get;set;}=30; public double MaxFairFight {get;set;}=2; public bool InactiveOnly {get;set;}=true;
  public string BaldrSource {get;set;}=""; public DateTime? BaldrLoadedUtc {get;set;} public List<string> BaldrGroups {get;set;}=new();
  public List<LevelingTarget> Targets {get;set;}=new(); public int EnergyReserve {get;set;}
+ public bool AcceptLevelUps {get;set;}
  public bool AutoResumeMedical {get;set;}=true;
  public bool AutoHeal {get;set;} public string WeaponSlot {get;set;}="weapon_primary"; public int AttackDelayMs {get;set;}=1000;
  public int LifePercent {get;set;}=100; public int AttackLimit {get;set;}
@@ -78,4 +79,15 @@ internal static class LevelingPlanner {
    long id=a.GetProperty("id").GetInt64();if(!seen.Contains(id))return(id,a.GetProperty("result").GetString()??"Unknown");
   }return null;
  }
+}
+
+internal static class LevelingApiRecovery {
+ public static int? Code(Exception ex){var m=Regex.Match(ex.Message,"code[^0-9]{0,8}([0-9]+)",RegexOptions.IgnoreCase);return m.Success?int.Parse(m.Groups[1].Value):null;}
+ public static bool Transient(Exception ex){
+  if(ex is TornApiCooldownException or TaskCanceledException)return true;
+  if(ex is not HttpRequestException http)return false;
+  if(Code(ex) is int code)return code is 0 or 5 or 17;
+  return http.StatusCode==null||http.StatusCode==System.Net.HttpStatusCode.RequestTimeout||(int)http.StatusCode==429||(int)http.StatusCode>=500;
+ }
+ public static string Describe(Exception ex)=>ex is TornApiCooldownException?"Torn API rate limit reached.":Code(ex) is int code?"Torn API rejected the check (code "+code+").":ex is HttpRequestException http&&http.StatusCode!=null?"Torn API HTTP "+(int)http.StatusCode+".":ex is HttpRequestException or TaskCanceledException?"Torn API connection timed out or failed.":ex is InvalidDataException?"Leveling check stopped: "+ex.Message:"Torn API response could not be read safely.";
 }

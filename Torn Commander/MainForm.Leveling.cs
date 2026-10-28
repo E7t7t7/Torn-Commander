@@ -47,7 +47,7 @@ public sealed partial class MainForm {
     if(_levelingRuns.Any(x=>x.Key.ProfileId==profile&&x.Value.Active))throw new InvalidOperationException("Stop the leveling worker before changing its settings.");
     string weapon=ReadWorkerString(root,"weapon");if(weapon is not ("weapon_primary" or "weapon_secondary" or "weapon_melee"))throw new InvalidDataException("Select a supported equipped weapon slot.");
     int delay=root.GetProperty("delay").GetInt32();if(delay is <500 or >5000)throw new InvalidDataException("Attack delay must be 500–5000 ms.");
-    s.AutoHeal=root.GetProperty("autoHeal").GetBoolean();if(root.TryGetProperty("autoResumeMedical",out var resume))s.AutoResumeMedical=resume.GetBoolean();s.WeaponSlot=weapon;s.AttackDelayMs=delay;
+    if(root.TryGetProperty("acceptLevelUps",out var accept))s.AcceptLevelUps=accept.GetBoolean();s.AutoHeal=root.GetProperty("autoHeal").GetBoolean();if(root.TryGetProperty("autoResumeMedical",out var resume))s.AutoResumeMedical=resume.GetBoolean();s.WeaponSlot=weapon;s.AttackDelayMs=delay;
     s.EnergyReserve=reserve;s.LifePercent=percent;s.AttackLimit=limit;s.Inventory=inventory;s.InventoryUtc=DateTime.UtcNow;
     if(imported!=null){s.Targets=imported;s.PendingTarget=0;s.BaldrSource="";s.BaldrLoadedUtc=null;}
     _levelingAccounts.Remove(profile);s.Note="Saved for this account. Supply quantities are user-entered estimates; refresh/recalculate after each medical use.";
