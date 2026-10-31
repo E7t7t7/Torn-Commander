@@ -93,6 +93,8 @@ Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Okay","Okay"),"activ
 Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Unknown","Hospital"),"unknown own state rejected");
 var unix=new DateTimeOffset(now).ToUnixTimeSeconds();
 string Attack(int actor,int defender,long started,long ended,string result,int id=91)=>$$"""{"attacks":[{"id":{{id}},"started":{{started}},"ended":{{ended}},"attacker":{"id":{{actor}}},"defender":{"id":{{defender}}},"result":"{{result}}"}]}""";
+Check(LevelingPlanner.FindReceipt(Attack(1,2,unix,unix+5,"Lost"),1,2,now,Array.Empty<long>())?.Result=="Lost","loss terminal official receipt");
+Check(LevelingPlanner.FindReceipt(Attack(1,2,unix-2,unix+5,"Lost"),1,2,now,Array.Empty<long>())==null,"prior loss cannot satisfy current fight");
 Check(LevelingPlanner.FindReceipt(Attack(1,2,unix,unix+5,"Attacked"),1,2,now,Array.Empty<long>())?.Result=="Attacked","valid Leave result");
 Check(LevelingPlanner.FindReceipt(Attack(3,2,unix,unix+5,"Attacked"),1,2,now,Array.Empty<long>())==null,"wrong attacker");
 Check(LevelingPlanner.FindReceipt(Attack(1,3,unix,unix+5,"Attacked"),1,2,now,Array.Empty<long>())==null,"wrong target");

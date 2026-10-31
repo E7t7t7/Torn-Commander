@@ -199,6 +199,14 @@
     if(state.finishAfterRecovery){state.running=false;state.stage='complete';state.status=state.levelStopMessage||'Leveling pass complete; recovery verified.';save(state);post({type:'tc-loss-finished',profileId:state.profileId,orderId:state.orderId});}
     else{state.stage=state.claimId?'attack-open':'claim';state.status='Recovery verified. Checking the next leveling target.';state.navigationUrl='';save(state);}
   }
+  function lossTerminalCheck(state){
+    if(state.stage!=='loss-verify'){state.stage='loss-verify';state.lossVerifyAttempts=0;state.lossVerifyAt=0;}
+    if(now()<Number(state.lossVerifyAt||0))return;
+    if(Number(state.lossVerifyAttempts||0)>=6){pauseState(state,'Ended fight could not be verified after six checks. No loss counted; Resume rechecks this same fight.',false);return;}
+    state.lossVerifyAttempts=Number(state.lossVerifyAttempts||0)+1;state.lossVerifyAt=now()+45000;
+    state.status='Fight ended. Checking Torn attack log before counting a loss ('+state.lossVerifyAttempts+'/6).';save(state);
+    post({type:'tc-loss-terminal',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,fightStartedAt:state.fightOpenedAt||state.fightStartedAt});
+  }
   function levelCommit(state,terminal=false){state.levelTerminalSeen=terminal;state.stage='commit-wait';state.commitAttempts=1;state.replyWaitAt=now();state.status='Verifying the completed leveling fight with Torn.';save(state);post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,terminal});}
   function detectFightResult(state) {
     const text = bodyText();
@@ -536,6 +544,7 @@
 
 
   function pauseState(state, reason, abandonClaim = false) {
+    state.lastFailure={stage:state.stage,reason,at:now()};
     state.running = false;
     if (state.stage !== 'paused') state.previousStage = state.stage;
     state.stage = 'paused';
@@ -687,6 +696,7 @@
         return;
       }
 
+      if(state.mode!=='level'&&state.stage==='loss-verify'){lossTerminalCheck(state);return;}
       if (state.stage === 'attack-open') {
         if (!isAttackPage(state.targetId)) {
           openAttack(state);
@@ -718,7 +728,7 @@
         }
         state.attackWaitStartedAt = 0;
         state.stage = 'fight';
-        state.fightStartedAt = now();
+        state.fightStartedAt = now();state.fightOpenedAt=state.fightStartedAt;
         state.lastPillowAt = 0;
         state.pillowTurns = 0;
         state.status = 'JOIN FIGHT clicked. Looking for the equipped Pillow.';
@@ -749,6 +759,7 @@
           pauseState(state, 'Fight result was NOT a loss. Nothing was counted; review the order.', true);
           return;
         }
+        if(state.mode!=='level'&&levelingContinueControl()){lossTerminalCheck(state);return;}
         if(state.mode==='level'&&hospitalBanner()){
           if(Number(state.pillowTurns||0)>0){levelCommit(state);return;}
           beginHealing(state);state.status='Hospitalized before combat began. Recovering before retrying this target.';save(state);openPage(state,ITEMS_URL,'Items / Medical');return;
@@ -1008,13 +1019,15 @@
       state.sessionToken = token;
       state.running = true;
       const reconcile = (state.previousStage === 'commit-wait'||state.mode==='level'&&['level-verify','level-finish'].includes(state.previousStage)) && !!state.claimId;
+      const resumeLossReceipt=state.mode!=='level'&&state.previousStage==='loss-verify'&&!!state.claimId;
       const resumeFight = state.claimId && state.previousStage === 'fight' && isAttackPage(state.targetId);
       // Resume the pending medical operation before requesting another attack.
       // A dispatched item is observed/verified only; it must never be clicked again.
       const resumeMedical=state.smartMedical&&(state.medicalOp||state.previousStage==='smart-medical-identity')&&String(state.previousStage||'').startsWith('smart-medical-');
-      state.stage = resumeMedical ? (state.medicalDispatched?'smart-medical-wait':'heal-open') : reconcile ? 'commit-wait' : resumeFight ? 'fight' : state.claimId ? 'recovery-probe' : 'claim';
+      state.stage = resumeLossReceipt?'loss-verify':resumeMedical ? (state.medicalDispatched?'smart-medical-wait':'heal-open') : reconcile ? 'commit-wait' : resumeFight ? 'fight' : state.claimId ? 'recovery-probe' : 'claim';
       if(resumeMedical&&!state.medicalDispatched){state.medicalIdentityWaitAt=0;state.medicalIdentityLostAt=0;state.medicalIdentityReloads=0;state.medicalIdentityRequest=null;state.medicalInventorySignature='';state.medicalExpandedAt=0;state.healEnteredAt=0;}
 
+      if(resumeLossReceipt){state.lossVerifyAttempts=0;state.lossVerifyAt=0;}
       if(resumeFight){state.pillowMissingSince=0;state.fightStartedAt=now();}
       state.claimAttempts=0; state.commitAttempts=1; state.replyWaitAt=now();
       state.pendingClaimRequest='';
@@ -1076,6 +1089,12 @@
       save(state);
       if (!isAttackPage(state.targetId)) openAttack(state);
       return true;
+    },
+    onLossTerminal(reply){
+      const state=load();if(!state?.running||state.mode==='level'||state.stage!=='loss-verify'||state.claimId!==reply.claimId)return false;
+      if(reply.kind==='pending'){state.lossVerifyAt=Math.max(now()+2000,Number(reply.retryAt)||now()+12000);state.status=reply.message;save(state);return true;}
+      if(reply.kind!=='verified'){pauseState(state,reply.message||'Ended fight was not a confirmed loss. Nothing counted.',false);return true;}
+      state.stage='commit-wait';save(state);return window.TornCommanderLossCycle.onCommit(reply.claimId,!!reply.ok,reply.remaining,reply.message);
     },
     onCommit(claimId, ok, remaining, message) {
       const state = load();
@@ -1151,7 +1170,7 @@
     },
     diagnostics() {
       const summary=el=>el?{tag:el.tagName,id:el.getAttribute?.('id'),disabled:Boolean(el.disabled)||el.getAttribute?.('aria-disabled')==='true',className:String(el.className||''),role:el.getAttribute?.('role'),label:labelOf(el).slice(0,100)}:null;
-      return {medicalIdentityWaitAt:load()?.medicalIdentityWaitAt,medicalIdentityLostAt:load()?.medicalIdentityLostAt,medicalIdentityReloads:load()?.medicalIdentityReloads,levelTerminalSeen:load()?.levelTerminalSeen,levelContinue:summary(levelingContinueControl()),levelEmptyGun:levelingEmptyGun(load()||{}),medicalServerAttempts:load()?.medicalServerAttempts,healEnteredAt:load()?.healEnteredAt,medicalClickedAt:load()?.medicalClickedAt,medicalWakeAt:load()?.medicalWakeAt,medicalVisible:medicalVisible(),recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
+      return {lossVerifyAttempts:load()?.lossVerifyAttempts,lastFailure:load()?.lastFailure,medicalIdentityWaitAt:load()?.medicalIdentityWaitAt,medicalIdentityLostAt:load()?.medicalIdentityLostAt,medicalIdentityReloads:load()?.medicalIdentityReloads,levelTerminalSeen:load()?.levelTerminalSeen,levelContinue:summary(levelingContinueControl()),levelEmptyGun:levelingEmptyGun(load()||{}),medicalServerAttempts:load()?.medicalServerAttempts,healEnteredAt:load()?.healEnteredAt,medicalClickedAt:load()?.medicalClickedAt,medicalWakeAt:load()?.medicalWakeAt,medicalVisible:medicalVisible(),recoveryProbe:load()?.recoveryProbe,joinCandidates:joinFightCandidates().map(summary),medicalProfileId:load()?.profileId,medicalExpectedPlayerId:load()?.playerId,medicalIdentity:medicalIdentity(),mode:load()?.mode,weaponSlot:load()?.weaponSlot,medicalSession:load()?.medicalSession,medicalPlannedQuantity:load()?.medicalOp?.quantity,medicalVerification:load()?.medicalVerification,medicalItem:load()?.medicalOp?.itemId,medicalOwner:medicalOwnId(),medicalInventory:medicalInventory(),medicalDispatched:load()?.medicalDispatched,pillowTurns:Number(load()?.pillowTurns||0),previousStage:load()?.previousStage,stage:load()?.stage,status:load()?.status,path:location.pathname,
         playerAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(el=>String(el.className||'')),
         combatAreas:Array.from(document.querySelectorAll('[class*="playerArea"]')).filter(visible).map(area=>({id:area.getAttribute?.('id'),className:String(area.className||''),controls:Array.from(area.querySelectorAll('[id="weapon_melee"],button,[role="button"]')).filter(visible).map(summary).slice(0,12)})),pillow:summary(pillowControl(false)),firstAidRow:summary(firstAidRow()),firstAidUse:summary(firstAidUseButton()),firstAidExpand:summary(firstAidExpandControl()),attackDelayMs:attackDelay(load()?.attackDelayMs ?? 1900),medicalTab:summary(medicalTab()),confirmation:summary(confirmUseButton())};
     },

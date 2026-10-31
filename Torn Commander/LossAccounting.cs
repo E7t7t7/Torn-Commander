@@ -1,6 +1,7 @@
 namespace TornCommander;
 public sealed class LossCommitReceipt
 {
+    public long AttackId {get;set;}
     public string ClaimId { get; set; } = "";
     public string ProfileId { get; set; } = "";
     public string Slot { get; set; } = "";
@@ -26,17 +27,18 @@ public static class LossAccounting
             : new(false, order.Remaining, "Saved loss receipt belongs to a different worker.");
     }
     // Caller must authorize a live claim before invoking a new commit.
-    public static LossCommitResult Commit(LossOrder order, string claimId, string profileId, string slot, Action save)
+    public static LossCommitResult Commit(LossOrder order, string claimId, string profileId, string slot, Action save,long attackId=0)
     {
         var replay = Replay(order, claimId, profileId, slot);
         if (replay is not null) return replay;
+        if(attackId>0&&order.CommitReceipts.Any(x=>x.AttackId==attackId))return new(false,order.Remaining,"This official attack was already counted; no second loss saved.");
         if (string.IsNullOrWhiteSpace(claimId) || slot is not ("A" or "B") ||
             !(slot == "A" ? order.ProfileAId : order.ProfileBId).Equals(profileId, StringComparison.OrdinalIgnoreCase))
             return new(false, order.Remaining, "Invalid worker or claim.");
         if (order.Status == "Complete" || order.Remaining <= 0)
             return new(false, order.Remaining, "Requested total was already reached; no loss counted.");
         var previous = (order.CompletedA, order.CompletedB, order.NextA, order.NextB, order.Status);
-        var receipt = new LossCommitReceipt { ClaimId = claimId, ProfileId = profileId, Slot = slot };
+        var receipt = new LossCommitReceipt { AttackId=attackId, ClaimId = claimId, ProfileId = profileId, Slot = slot };
         if (slot == "A") { order.CompletedA++; order.NextA = "Auto recovery"; }
         else { order.CompletedB++; order.NextB = "Auto recovery"; }
         order.CommitReceipts.Add(receipt);

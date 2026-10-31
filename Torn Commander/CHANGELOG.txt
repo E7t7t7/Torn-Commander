@@ -1,3 +1,12 @@
+v0.6.86
+- Loss cycle recognizes an ended combat page with a single Continue control before attempting any more weapon actions.
+- When result text is missing, verify the worker account and an official outgoing Lost receipt for the reserved target/fight time before counting. No Continue-only result guessing.
+- Bounded cached-receipt/network/rate-limit wait and safe same-fight resume. Non-loss results stop without counting.
+- Persist verified official attack IDs with loss receipts, prevent duplicate attack counting and retain existing claim replay protection.
+- Diagnostics retain the last pause reason even after Stop.
+- Tests include a 30-loss simulated order (23 normal results followed by 7 Continue-only endings), plus ended-page verification, delayed/no receipt, non-loss refusal, no extra weapon clicks, accounting replay and duplicate official attack IDs; Release build and full automated checks.
+- Live event fights were not performed during this validation.
+
 v0.6.85
 - Medical account identity: read Torn's logged-in script[uid][name] account marker, independent of NPC/friend/other profile links elsewhere in the sidebar.
 - A unique page account takes precedence over incidental sidebar links; differing explicit account markers or Name fields remain blocked. Never choose the expected ID from an ambiguous link list.

@@ -108,6 +108,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
         IsArmed = true;
     }
 
+    public async Task ReplyLossTerminalAsync(object reply){await EnsureReadyAsync();await _webView.CoreWebView2.ExecuteScriptAsync("window.TornCommanderLossCycle?.onLossTerminal("+DashboardJson.Serialize(reply)+");");}
     public async Task ReplyMedicalAsync(string requestId,object payload){
         await EnsureReadyAsync();
         await _webView.CoreWebView2.ExecuteScriptAsync("window.TornCommanderLossCycle?.onMedical("+JsonSerializer.Serialize(requestId)+","+DashboardJson.Serialize(payload)+");");

@@ -49,6 +49,11 @@ Check(!LossAccounting.NormalizeCompletion(partial)&&partial.Status=="Active"&&pa
 var finalRollback=new LossOrder{RequestedLosses=1,ProfileAId="one"};
 try{LossAccounting.Commit(finalRollback,"final-fail","one","A",()=>throw new IOException("fixture"));throw new Exception("Expected completion save failure.");}catch(IOException){}
 Check(finalRollback.Status=="Active"&&finalRollback.CompletedTotal==0&&finalRollback.NextA=="Attack"&&finalRollback.CommitReceipts.Count==0,"Failed final commit left an order fulfilled.");
+var apiOrder=new LossOrder{RequestedLosses=3,ProfileAId="one"};
+Check(LossAccounting.Commit(apiOrder,"api-first","one","A",()=>{},12345).Ok,"verified receipt not saved");
+Check(apiOrder.CommitReceipts[0].AttackId==12345,"official attack ID lost");
+Check(!LossAccounting.Commit(apiOrder,"api-second","one","A",()=>{},12345).Ok&&apiOrder.CompletedTotal==1,"official attack counted twice");
+Check(LossAccounting.Commit(apiOrder,"api-first","one","A",()=>{},12345).Duplicate,"same claim receipt replay failed");
 Console.WriteLine("LOSS ACCOUNTING PASSED: receipt replay, profiles, restart, quota, failed-save rollback, atomic preservation and legacy orders.");
 '@
 Set-Content -LiteralPath (Join-Path $project 'Program.cs') -Value $prog -Encoding UTF8

@@ -390,6 +390,7 @@ public sealed partial class MainForm
             return;
         }
 
+        if(type=="tc-loss-terminal"){await VerifyLossTerminalAsync(worker,root);return;}
         if (type == "tc-loss-commit")
         {
             var orderId = ReadWorkerString(root, "orderId");
@@ -476,7 +477,7 @@ public sealed partial class MainForm
         }
     }
 
-    private (bool Ok, int Remaining, string Message) CommitLossClaim(LossAutoCycleWorker worker, string orderId, string claimId)
+    private (bool Ok, int Remaining, string Message) CommitLossClaim(LossAutoCycleWorker worker, string orderId, string claimId,long attackId=0)
     {
         if (string.IsNullOrWhiteSpace(claimId)) return (false, 0, "Worker had no active claim to commit.");
 
@@ -491,7 +492,7 @@ public sealed partial class MainForm
             if (!lease.OrderId.Equals(orderId, StringComparison.OrdinalIgnoreCase) || lease.Slot != worker.Slot || lease.ProfileId != worker.ProfileId)
                 return (false, order.Remaining, "Loss claim did not match this account/order.");
             LossCommitResult result;
-            try { result = LossAccounting.Commit(order, claimId, worker.ProfileId, worker.Slot, SaveLossOrders); }
+            try { result = LossAccounting.Commit(order, claimId, worker.ProfileId, worker.Slot, SaveLossOrders,attackId); }
             catch (Exception ex) { return (false, order.Remaining, "Loss was not saved; count and claim retained. " + ex.Message); }
             if (!result.Ok) return (false, result.Remaining, result.Message);
             _lossClaims.Remove(claimId);

@@ -3,8 +3,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[2],'utf8');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
- let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem||options.switchMedicalAfterFirst?1:20,remaining=2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
- let levelChoiceDone=false,apiWaited=false,depleted=false;let serverRecovered=false;let targetWaits=0;let expandAt=0;let hospitalRace=0,forcedHeal=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
+ let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem||options.switchMedicalAfterFirst?1:(options.stock??20),remaining=options.losses??2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
+ let lossChecks=0;let levelChoiceDone=false,apiWaited=false,depleted=false;let serverRecovered=false;let targetWaits=0;let expandAt=0;let hospitalRace=0,forcedHeal=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
  const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[],medicalPlanModes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
@@ -41,7 +41,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   if(scene==='blocked')return node('body','You cannot attack while in hospital.');
   if(scene==='items'&&options.itemsTabDelayMs&&clock-attackPageAt<options.itemsTabDelayMs)return node('body','Items loading');
   if(scene==='fight'){
-   const pillow=button('',()=>{counts.pillow++;counts.pillowTimes.push(clock);if(++fightHits>=(options.pillowHits||1)){hospital=true;scene=options.leveling?(options.continueEnded?'ended':'victory'):'loss'}}, {},);
+   const pillow=button('',()=>{counts.pillow++;counts.pillowTimes.push(clock);if(++fightHits>=(options.pillowHits||1)){hospital=true;scene=options.lossContinueEnded&&(!options.lossContinueAfter||counts.join>options.lossContinueAfter)?'ended':options.leveling?(options.continueEnded?'ended':'victory'):'loss'}}, {},);
    Object.defineProperty(pillow,'disabled',{get:()=>clock-fightJoinAt<(options.pillowDisabledMs||0)});
    pillow.children=[node('img','',{src:'/images/items/440/large.png',alt:'Equipped weapon',title:'Pillow'}),node('span','Pillow')];for(const c of pillow.children)c.parentElement=pillow;
    let weapon=pillow;
@@ -130,6 +130,12 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const store=m=>({getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)});
  const window={chrome:{webview:{postMessage:raw=>{
   const m=JSON.parse(raw);messages.push(m);
+  if(m.type==='tc-loss-terminal'){
+   lossChecks++;assert.equal(m.claimId,activeLease);assert.equal(h.getState().stage,'loss-verify');assert(Number.isFinite(m.fightStartedAt));
+   if(options.lossReceiptMissing||options.lossReceiptDelayed&&lossChecks===1){replies.push(()=>h.onLossTerminal({kind:'pending',claimId:m.claimId,retryAt:clock+5000,message:'API receipt pending'}));return;}
+   if(options.lossNonLoss){replies.push(()=>h.onLossTerminal({kind:'paused',claimId:m.claimId,message:'Official result Interrupted. Not a loss.'}));return;}
+   activeLease='';replies.push(()=>h.onLossTerminal({kind:'verified',claimId:m.claimId,ok:true,remaining:--remaining,message:'Verified Lost'}));return;
+  }
   if(m.type==='tc-level-skip'){assert.equal(m.claimId,activeLease);activeLease='';remaining--;return;}
   if(m.type==='tc-level-claim'){
    if(options.apiWaitOnce&&!apiWaited){apiWaited=true;replies.push(()=>h.onLevelReply({kind:'api-wait',requestId:m.requestId,waitUntil:new Date(clock+5000).toISOString(),message:'Torn rate limit wait'}));return;}
@@ -395,6 +401,26 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   const supplies=fixture(false,false,false,{leveling:true,smartMedical:true,collapsed:true,headerOnly:true,...opts});
   for(let i=0;i<1800&&supplies.h.getState().stage!=='complete';i++)await supplies.step(250);
   assert.equal(supplies.h.getState().stage,'complete',JSON.stringify(opts)+supplies.h.getState().status);assert.equal(supplies.counts.medicine,2);assert.equal(supplies.counts.wrong,0);
+ }
+ for(const extra of [{},{lossReceiptDelayed:true}]){
+  const endedLoss=fixture(false,false,false,{smartMedical:true,lossContinueEnded:true,pillowHits:2,...extra});
+  for(let i=0;i<1800&&endedLoss.h.getState().stage!=='complete';i++)await endedLoss.step(250);
+  assert.equal(endedLoss.h.getState().stage,'complete',endedLoss.h.getState().status);
+  assert.equal(endedLoss.counts.pillow,4,'Clicked a weapon after Continue');assert.equal(endedLoss.counts.wrong,0);
+  assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-commit').length,0,'Continue blindly committed as loss');
+  assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-terminal').length,extra.lossReceiptDelayed?3:2);
+ }
+ const longOrder=fixture(false,false,false,{smartMedical:true,lossContinueEnded:true,lossContinueAfter:23,losses:30,stock:100,pillowHits:2});
+ for(let i=0;i<16000&&longOrder.h.getState().stage!=='complete';i++)await longOrder.step(250);
+ assert.equal(longOrder.h.getState().stage,'complete',longOrder.h.getState().status);
+ assert.equal(longOrder.counts.join,30);assert.equal(longOrder.counts.pillow,60);assert.equal(longOrder.counts.wrong,0);assert.equal(longOrder.counts.medicine,30);
+ assert.equal(longOrder.messages.filter(m=>m.type==='tc-loss-commit').length,23);assert.equal(longOrder.messages.filter(m=>m.type==='tc-loss-terminal').length,7);
+ for(const extra of [{lossReceiptMissing:true},{lossNonLoss:true}]){
+  const endedLoss=fixture(false,false,false,{smartMedical:true,lossContinueEnded:true,...extra});
+  for(let i=0;i<1800&&endedLoss.h.getState().stage!=='paused';i++)await endedLoss.step(250);
+  assert.equal(endedLoss.h.getState().stage,'paused');assert.equal(endedLoss.counts.pillow,1);assert.equal(endedLoss.counts.wrong,0);
+  assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-commit').length,0);assert.equal(endedLoss.counts.medicine,0,'Unverified result triggered healing');
+  if(extra.lossReceiptMissing){assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-terminal').length,6);assert(endedLoss.h.resume());await endedLoss.step(250);assert.equal(endedLoss.h.getState().stage,'loss-verify');assert.equal(endedLoss.counts.pillow,1);}
  }
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
