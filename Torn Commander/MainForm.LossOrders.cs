@@ -2,6 +2,34 @@ using System.Text.Json;
 namespace TornCommander;
 public sealed partial class MainForm
 {
+    private readonly HashSet<string> _closingLossOrders=new();
+    private object LossLedgerDashboard(){var totals=LossSettlement.Totals(_lossOrders);return new{
+        delivered=totals.Delivered,cash=totals.Cash,xanax=totals.Xanax,unrecorded=totals.Unrecorded,active=totals.Active,totalOrders=totals.TotalOrders,
+        rows=_lossOrders.OrderByDescending(x=>x.ClosedUtc??x.CreatedAt.ToUniversalTime()).Take(100).Select(x=>new{id=x.Id,buyer=x.BuyerName,delivered=x.CompletedTotal,requested=x.RequestedLosses,status=x.Status,cash=x.CashReceived,xanax=x.XanaxReceived,created=x.CreatedAt,closed=x.ClosedUtc}).ToList()
+    };}
+    private async Task SettleDashboardLossOrderAsync(JsonElement request,bool close){
+        if(ReadWorkerString(request,"profileId")!=CurrentProfileId)throw new InvalidDataException("Profile changed. Review the selected order.");
+        string id=ReadWorkerString(request,"orderId");
+        var order=_lossOrders.FirstOrDefault(x=>x.Id==id)??throw new InvalidDataException("Order no longer exists.");
+        if(SelectedLossOrder()?.Id!=id)throw new InvalidDataException("Selected order changed; review it before saving.");
+        long? cash=request.TryGetProperty("cash",out var c)&&c.ValueKind!=JsonValueKind.Null?c.GetInt64():null;
+        int? xanax=request.TryGetProperty("xanax",out var x)&&x.ValueKind!=JsonValueKind.Null?x.GetInt32():null;
+        if(cash is <0 or >1000000000000000||xanax is <0 or >1000000)throw new InvalidDataException("Check the cash and whole Xanax payment totals.");
+        if(!_closingLossOrders.Add(id))throw new InvalidOperationException("This order is already being saved.");
+        try{
+            if(close){
+                foreach(var accountA in new[]{true,false}){
+                    var worker=accountA?_lossWorkerA:_lossWorkerB;
+                    if(worker!=null&&_medicalSessions.TryGetValue(worker,out var medical)&&!medical.Leveling&&medical.Order==id)
+                        await StopLossWorkerAsync(accountA);
+                }
+                if(order.CompletedTotal!=request.GetProperty("expectedDelivered").GetInt32())throw new InvalidDataException("Delivered count changed while stopping. Workers are stopped; review the current count and close again.");
+            }
+            LossSettlement.Save(order,close,ReadWorkerString(request,"outcome")=="cancel",cash,xanax,SaveLossOrders);
+            RebindLossOrders();SelectLossOrder(id);UpdateModernDashboard();
+            FlashStatus(close?"Order closed at "+order.CompletedTotal+"/"+order.RequestedLosses+". Delivered losses and payout history retained.":"Actual payout totals saved. Saving again replaces these totals; it does not add another payment.");
+        }finally{_closingLossOrders.Remove(id);}
+    }
     private void CreateDashboardLossOrder(JsonElement request)
     {
         if(request.GetProperty("profileId").GetString()!=CurrentProfileId)throw new InvalidDataException("Profile changed. Review the order and try again.");
@@ -32,6 +60,7 @@ public sealed partial class MainForm
         if(_lossWorkerA?.IsArmed==true||_lossWorkerB?.IsArmed==true)throw new InvalidDataException("Stop the workers before deleting an order.");
         SelectDashboardLossOrder(request);
         var order=SelectedLossOrder();if(order is null)return;
+        if(LossSettlement.HasHistory(order))throw new InvalidOperationException("This order has delivery/payment history. Use Cancel remaining losses or Close at delivered total to preserve your statistics.");
         if(MessageBox.Show($"Delete loss order for {order.BuyerName}?", "Loss Desk", MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
         var next=_lossOrders.Where(x=>x.Id!=order.Id).ToList();Storage.SaveAtomic(Storage.LossOrdersPath,next);_lossOrders=next;
         RebindLossOrders();UpdateModernDashboard();

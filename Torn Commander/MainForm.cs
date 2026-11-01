@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.86";
+        Text = "Torn Commander v0.6.87";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -284,7 +284,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.86 — {target.Name}";
+        Text = $"Torn Commander v0.6.87 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -395,7 +395,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.86 — {name}";
+        Text = $"Torn Commander v0.6.87 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -408,7 +408,7 @@ public sealed partial class MainForm : Form
             return;
         }
         var doomed = CurrentProfile;
-        var attachedOrders = _lossOrders.Count(x => !x.Status.Equals("Complete", StringComparison.OrdinalIgnoreCase) &&
+        var attachedOrders = _lossOrders.Count(x => !x.IsClosed &&
             (x.ProfileAId.Equals(doomed.Id, StringComparison.OrdinalIgnoreCase) || x.ProfileBId.Equals(doomed.Id, StringComparison.OrdinalIgnoreCase)));
         if (attachedOrders > 0)
         {
@@ -460,7 +460,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.86 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.87 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1028,13 +1028,14 @@ public sealed partial class MainForm : Form
                 if (hit is not null) return hit;
             }
         }
-        return _lossOrders.FirstOrDefault(x => x.Status != "Complete" && x.Remaining > 0);
+        return _lossOrders.FirstOrDefault(x => !x.IsClosed && x.Remaining > 0);
     }
 
     private async Task NextLossActionAsync(bool accountA)
     {
         var order = SelectedLossOrder();
         if (order is null) { MessageBox.Show("Create or select an order first.", "Loss Desk"); return; }
+        if(order.IsClosed||_closingLossOrders.Contains(order.Id)){FlashStatus("This order is closed or closing.");return;}
         if (order.Status == "Paused") { MessageBox.Show("This order is paused. Resume it first.", "Loss Desk"); return; }
         if (order.Remaining <= 0) { MessageBox.Show("This contract is fulfilled. No further attack is needed; recovery can be handled separately.", "Loss Desk"); return; }
         var profileId = accountA ? order.ProfileAId : order.ProfileBId;
@@ -1065,6 +1066,7 @@ public sealed partial class MainForm : Form
     {
         var order = SelectedLossOrder();
         if (order is null) return;
+        if(order.IsClosed||_closingLossOrders.Contains(order.Id)){FlashStatus("This order is closed or closing.");return;}
         if (order.Status == "Paused") { FlashStatus("Order is paused."); return; }
         if (order.Remaining <= 0) { FlashStatus("Order is already at the requested total."); return; }
         var previous = (order.CompletedA, order.CompletedB, order.NextA, order.NextB, order.Status);
@@ -1085,6 +1087,7 @@ public sealed partial class MainForm : Form
     {
         var order = SelectedLossOrder();
         if (order is null) return;
+        if(order.IsClosed){FlashStatus("Closed orders remain in sales history. Create another order to continue.");return;}
         if (order.Remaining <= 0)
         {
             LossAccounting.NormalizeCompletion(order); SaveLossOrders(); RebindLossOrders();
@@ -1098,6 +1101,7 @@ public sealed partial class MainForm : Form
     {
         var order = SelectedLossOrder();
         if (order is null) return;
+        if(order.IsClosed){FlashStatus("This order is already closed.");return;}
         if (order.Remaining > 0)
         {
             FlashStatus($"Cannot mark fulfilled: {order.Remaining} confirmed losses still remain."); return;
@@ -1112,8 +1116,10 @@ public sealed partial class MainForm : Form
 
     private void DeleteLossOrder()
     {
+        if(_lossWorkerA?.IsArmed==true||_lossWorkerB?.IsArmed==true){FlashStatus("Stop workers before deleting an empty order.");return;}
         var order = SelectedLossOrder();
         if (order is null) return;
+        if(LossSettlement.HasHistory(order)){FlashStatus("Keep delivery/payment history: use the Loss Desk cancel/close controls.");return;}
         if (MessageBox.Show($"Delete loss order {order.Id}?", "Loss Desk", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
         _lossOrders.Remove(order); SaveLossOrders(); RebindLossOrders();
     }
@@ -1286,7 +1292,7 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.86");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.87");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
@@ -1514,7 +1520,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.86 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.87 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -2958,7 +2964,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.86; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.87; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);

@@ -243,3 +243,26 @@ assert(nodes.levelWorker.textContent.includes('Current medical cooldown 360.0m /
 assert(nodes.levelWorker.textContent.includes('Added by this session 140.0m'),'Session cost confused with current cooldown');
 assert.equal(nodes.levelAcceptUps.value,'false');nodes.levelAcceptUps.value='true';assert(nodes.levelAutoResumeMedical.checked);context.saveLeveling();assert.equal(levelingMessage.data.autoResumeMedical,true);assert.equal(levelingMessage.data.acceptLevelUps,true);
 console.log('LEVELING MEDICAL STATUS PASSED: current balance versus session additions, capacity and auto-resume payload.');
+
+let settlementMessage,settlementAlerts=0;
+context.send=(cmd,data)=>settlementMessage={cmd,data};context.alert=()=>settlementAlerts++;
+const partialLoss={id:'partial-five',buyer:'Buyer',target:'123',completed:5,requested:20,remaining:15,gross:1500000,status:'Active',closed:false,cash:null,xanax:null};
+context.S={profileId:'main',loss:partialLoss};nodes.lossOrderSelect.value='partial-five';
+context.renderLossStatus({loss:partialLoss,lossLedger:{delivered:11,cash:1500000,xanax:3,active:1,unrecorded:2,rows:[{buyer:'Buyer',delivered:5,requested:20,status:'Closed partial',cash:1500000,xanax:3},{buyer:'Other',delivered:6,requested:20,status:'Cancelled',cash:null,xanax:null}]}});
+assert.equal(nodes.lossTotalDelivered.textContent,'11');assert.equal(nodes.lossTotalXanax.textContent,'3');assert(nodes.lossSalesHistory.innerHTML.includes('Payment unrecorded'));
+assert.equal(nodes.lossClosePartial.textContent,'Close at 5 delivered');assert(!nodes.lossClosePartial.disabled);
+nodes.lossPaidCash.value='1500000';nodes.lossPaidXanax.value='2';
+context.renderLossStatus({loss:{...partialLoss,completed:6,remaining:14}});
+assert.equal(nodes.lossPaidCash.value,'1500000','Worker refresh erased payout draft');assert.equal(nodes.lossPaidXanax.value,'2');
+context.saveLossSettlement('complete');assert.equal(settlementMessage.cmd,'lossCloseOrder');assert.equal(settlementMessage.data.expectedDelivered,5);assert.equal(settlementMessage.data.cash,1500000);assert.equal(settlementMessage.data.xanax,2);assert.equal(settlementMessage.data.profileId,'main');
+context.saveLossSettlement('cancel');assert.equal(settlementMessage.data.outcome,'cancel');
+context.saveLossSettlement('payment');assert.equal(settlementMessage.cmd,'lossPayout');
+nodes.lossPaidCash.value='';nodes.lossPaidXanax.value='';context.saveLossSettlement('complete');assert.equal(settlementMessage.data.cash,null);assert.equal(settlementMessage.data.xanax,null);
+context.saveLossSettlement('payment');assert.equal(settlementAlerts,1,'Blank payment treated as received');
+nodes.lossPaidCash.value='0';nodes.lossPaidXanax.value='0';context.saveLossSettlement('payment');assert.equal(settlementMessage.data.cash,0);
+nodes.lossPaidXanax.value='1.5';context.saveLossSettlement('payment');assert.equal(settlementAlerts,2,'Fractional item payment accepted');
+context.renderLossStatus({loss:{...partialLoss,closed:true,status:'Closed partial',cash:1500000,xanax:2,payoutUpdated:'fixture'}});
+assert(nodes.lossClosePartial.disabled&&nodes.lossCancelOrder.disabled&&!nodes.lossSavePayout.disabled,'Closed order cannot correct payout or can restart closure');
+context.renderLossStatus({loss:{...partialLoss,id:'other-order',cash:null,xanax:null}});
+assert.equal(nodes.lossPaidCash.value,'');assert.equal(nodes.lossPaidXanax.value,'','Payout leaked between orders');
+console.log('LOSS SALES UI PASSED: partial/cancel controls, mixed payout payloads, explicit zero/unknown, invalid quantities, draft retention, history and order isolation.');

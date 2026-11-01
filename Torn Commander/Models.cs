@@ -225,6 +225,12 @@ public sealed class MarketScanResult
 
 public sealed class LossOrder
 {
+    public DateTime? ClosedUtc {get;set;}
+    public long? CashReceived {get;set;}
+    public int? XanaxReceived {get;set;}
+    public DateTime? PayoutUpdatedUtc {get;set;}
+    public bool IsClosed => ClosedUtc.HasValue || Status is "Complete" or "Cancelled" or "Closed partial";
+
     public List<LossCommitReceipt> CommitReceipts { get; set; } = new();
     public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
     public DateTime CreatedAt { get; set; } = DateTime.Now;

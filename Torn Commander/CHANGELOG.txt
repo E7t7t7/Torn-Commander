@@ -1,3 +1,12 @@
+v0.6.87
+- Loss Desk: Close at delivered total and Cancel remaining losses stop this order's workers, retain original requested/delivered counts and prevent further manual or automatic claims on closed orders.
+- Save actual payout totals in cash, whole Xanax items, or both. Entries replace totals, so repeated saves do not double count. Blank means unrecorded; zero is an explicit recorded value.
+- Sales totals and recent history combine saved local orders across accounts. Show losses delivered, cash received, Xanax received and payment coverage without treating quotes as receipts or converting Xanax to speculative cash values.
+- Old orders preserve progress; past payments remain unknown until recorded. Closing at 5/20 preserves 5/20 and does not fabricate the other 15 losses.
+- Delivery/payment history is protected from Delete; use cancel/close instead. Payout and closure writes roll back on storage failure.
+- Validation: partial/cancelled/full orders, mixed payments, correction/repeated-save behavior, restart/migration, save rollback, closed-order accounting protection and dashboard draft retention.
+- Payout recording is local/manual. Commander does not collect cash/items or mark external Loss X-change contracts settled.
+
 v0.6.86
 - Loss cycle recognizes an ended combat page with a single Continue control before attempting any more weapon actions.
 - When result text is missing, verify the worker account and an official outgoing Lost receipt for the reserved target/fight time before counting. No Continue-only result guessing.

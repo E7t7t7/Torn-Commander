@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderLossAccounting'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('LossAccounting.cs','AtomicJsonFile.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
+foreach($file in @('LossAccounting.cs','LossSettlement.cs','AtomicJsonFile.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
 $models=Get-Content (Join-Path $PSScriptRoot 'Models.cs') -Raw
 $loss=[regex]::Match($models,'(?s)public sealed class LossOrder\s*\{.*?(?=\r?\npublic sealed class TornSnapshot)').Value
 if(!$loss){throw 'Production LossOrder model not found.'}
@@ -54,6 +54,34 @@ Check(LossAccounting.Commit(apiOrder,"api-first","one","A",()=>{},12345).Ok,"ver
 Check(apiOrder.CommitReceipts[0].AttackId==12345,"official attack ID lost");
 Check(!LossAccounting.Commit(apiOrder,"api-second","one","A",()=>{},12345).Ok&&apiOrder.CompletedTotal==1,"official attack counted twice");
 Check(LossAccounting.Commit(apiOrder,"api-first","one","A",()=>{},12345).Duplicate,"same claim receipt replay failed");
+var partialSale=new LossOrder{RequestedLosses=20,CompletedA=3,CompletedB=2,PayPerLoss=300000,ProfileAId="one",ProfileBId="two"};
+LossSettlement.Save(partialSale,true,false,1500000,2,()=>{});
+Check(partialSale.IsClosed&&partialSale.Status=="Closed partial"&&partialSale.CompletedTotal==5&&partialSale.RequestedLosses==20&&partialSale.Remaining==15,"partial settlement fabricated deliveries");
+Check(!LossAccounting.NormalizeCompletion(partialSale)&&partialSale.Status=="Closed partial","partial closure normalized away");
+Check(!LossAccounting.Commit(partialSale,"late","one","A",()=>{}).Ok&&partialSale.CompletedTotal==5,"closed order accepted late fight");
+LossSettlement.Save(partialSale,false,false,1400000,3,()=>{});
+LossSettlement.Save(partialSale,false,false,1400000,3,()=>{});
+Check(partialSale.CashReceived==1400000&&partialSale.XanaxReceived==3,"repeated payout save double counted");
+var restoredSale=JsonSerializer.Deserialize<LossOrder>(JsonSerializer.Serialize(partialSale))!;
+Check(restoredSale.IsClosed&&restoredSale.CompletedTotal==5&&restoredSale.XanaxReceived==3,"settlement lost after restart");
+var cancelledSale=new LossOrder{RequestedLosses=20,CompletedA=2};
+LossSettlement.Save(cancelledSale,true,true,null,null,()=>{});
+Check(cancelledSale.Status=="Cancelled"&&cancelledSale.CompletedTotal==2&&cancelledSale.CashReceived==null,"cancel assumed payout or deleted deliveries");
+var legacySale=JsonSerializer.Deserialize<LossOrder>("{\"RequestedLosses\":20,\"CompletedA\":4,\"Status\":\"Active\"}")!;
+Check(legacySale.CashReceived==null&&legacySale.XanaxReceived==null&&!legacySale.IsClosed,"legacy payments invented");
+var totals=LossSettlement.Totals(new[]{partialSale,cancelledSale,legacySale});
+Check(totals.Delivered==11&&totals.Cash==1400000&&totals.Xanax==3&&totals.Unrecorded==2&&totals.Active==1,"sales totals combined quote with payout or lost cancelled work");
+LossSettlement.Save(cancelledSale,false,false,0,null,()=>{});
+Check(cancelledSale.CashReceived==0&&cancelledSale.XanaxReceived==0&&LossSettlement.HasHistory(cancelledSale),"explicit zero payment mistaken for unknown");
+var failureSale=new LossOrder{RequestedLosses=20,CompletedA=5};
+try{LossSettlement.Save(failureSale,true,false,123,4,()=>throw new IOException("fixture"));throw new Exception("expected failed settlement");}catch(IOException){}
+Check(!failureSale.IsClosed&&failureSale.CashReceived==null&&failureSale.XanaxReceived==null&&failureSale.Status=="Active"&&failureSale.CompletedTotal==5,"failed settlement changed history");
+try{LossSettlement.Save(failureSale,false,false,-1,0,()=>{});throw new Exception("negative payout accepted");}catch(InvalidDataException){}
+try{LossSettlement.Save(failureSale,false,false,null,null,()=>{});throw new Exception("blank payout accepted as paid");}catch(InvalidDataException){}
+var fullSale=new LossOrder{RequestedLosses=5,CompletedA=5,Status="Complete"};
+LossSettlement.Save(fullSale,false,false,1000000,0,()=>{});
+Check(fullSale.Status=="Complete"&&fullSale.CashReceived==1000000,"completed order cannot record payment");
+Console.WriteLine("LOSS SETTLEMENT PASSED: 5/20 partial closure, cancellation, cash/Xanax totals, corrections, zero/unknown payments, late claims, migration, restart and save rollback.");
 Console.WriteLine("LOSS ACCOUNTING PASSED: receipt replay, profiles, restart, quota, failed-save rollback, atomic preservation and legacy orders.");
 '@
 Set-Content -LiteralPath (Join-Path $project 'Program.cs') -Value $prog -Encoding UTF8

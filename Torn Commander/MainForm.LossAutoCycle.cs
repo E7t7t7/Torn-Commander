@@ -216,6 +216,7 @@ public sealed partial class MainForm
             MessageBox.Show("Create or select a Loss Desk order first.", "Loss Auto Cycle");
             return false;
         }
+        if(order.IsClosed||_closingLossOrders.Contains(order.Id)){FlashStatus("This order is closed or closing. Create/select an active order.");return false;}
         if (order.Status == "Paused")
         {
             MessageBox.Show("The selected order is paused. Resume the order first.", "Loss Auto Cycle");
@@ -427,11 +428,12 @@ public sealed partial class MainForm
         if(!_modernDashboardReady||_modernDashboard.CoreWebView2 is null)return;
         var order=SelectedLossOrder();
         var data=new{
+            lossLedger=LossLedgerDashboard(),
             medical=MedicalDashboard(),
             leveling=LevelingDashboard(),
             lossAttackDelayMs = Math.Clamp(_settings.LossAttackDelayMs, 500, 5000),
             workers=new{a=_lossWorkerA?.LastStatus??"Not initialized",b=_lossWorkerB?.LastStatus??"Not initialized"},
-            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,status=order.Status}
+            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,closed=order.IsClosed,cash=order.CashReceived,xanax=order.XanaxReceived,payoutUpdated=order.PayoutUpdatedUtc,status=order.Status}
         };
         _modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossStatus",data}));
     }
@@ -440,6 +442,7 @@ public sealed partial class MainForm
     {
         var order = _lossOrders.FirstOrDefault(x => x.Id.Equals(orderId, StringComparison.OrdinalIgnoreCase));
         if (order is null) return (false, "", "Order no longer exists.");
+        if(order.IsClosed||_closingLossOrders.Contains(order.Id))return(false,"","Order closed or closing; no new fight permitted.");
         if (order.Status == "Paused") return (false, "", "Order is paused.");
         if (order.Status == "Complete" || order.Remaining <= 0) return (false, "", "Order complete — no remaining losses.");
 
@@ -485,6 +488,7 @@ public sealed partial class MainForm
         if (order is null) return (false, 0, "Order no longer exists.");
         var replay = LossAccounting.Replay(order, claimId, worker.ProfileId, worker.Slot);
         if (replay is not null) return (replay.Ok, replay.Remaining, replay.Message);
+        if(order.IsClosed||_closingLossOrders.Contains(order.Id))return(false,order.Remaining,"Order closed or closing; no new loss counted.");
         lock (_lossClaimGate)
         {
             PruneLossClaimsLocked();
