@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#19132f">
+<title>Nocturne Candleworks — Weekly Giveaway</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% 28%,#4b267d,#201541 58%,#101125);color:#fff;min-height:100vh}
+main{max-width:540px;margin:auto;padding:28px 14px 34px;text-align:center}
+.eyebrow{color:#e9c887;font-size:11px;letter-spacing:2.4px;font-weight:800;text-transform:uppercase}
+h1{font-size:clamp(25px,6.7vw,38px);line-height:1.05;margin:9px 0 7px;font-weight:950}
+.sub{font-size:13px;color:#c0b5df;margin:0 0 15px}
+svg{width:100%;max-width:460px;display:block;margin:auto;filter:drop-shadow(0 9px 17px #0007)}
+#rotor{transform-origin:200px 200px}
+#spin{border:2px solid #fff0b4;background:linear-gradient(#ffe59b,#f3ad31);color:#271334;border-radius:14px;display:block;width:100%;max-width:370px;padding:15px;margin:10px auto;font-size:18px;font-weight:950;box-shadow:0 4px 0 #a0652d;cursor:pointer}
+#spin:disabled{opacity:.65}
+.status{min-height:78px;display:flex;flex-direction:column;justify-content:center;gap:7px}
+#status{color:#c4b8e0;letter-spacing:1.5px;text-transform:uppercase;font-size:11px;font-weight:900}
+#selected{color:#ffdf87;font-size:clamp(22px,5vw,30px);font-weight:950;overflow-wrap:anywhere}
+.history{margin-top:29px;padding:18px;text-align:left;border:1px solid #65538a;background:#12152dbb;border-radius:16px}
+.hhead{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h2{font-size:18px;margin:0}
+.small{font-size:11px;color:#a99dcb}
+ol{padding:0;margin:15px 0 10px;list-style:none}
+li{display:flex;align-items:center;gap:12px;border-top:1px solid #ffffff19;padding:10px 2px;font-size:14px}
+.number{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#684ca0;color:#fff1aa;font-weight:900;flex-shrink:0}
+.person{font-weight:750;word-break:break-word;flex:1}
+.date{font-size:11px;color:#c6b7df;white-space:nowrap}
+button.secondary{border:1px solid #957fc7;background:#49336e;color:#fff;border-radius:11px;padding:12px 16px;font-weight:800;cursor:pointer}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:15px}
+.actions button{flex:1;white-space:nowrap}
+.helper{font-size:11px;color:#baaed5;margin:12px 0 0;line-height:1.45}
+#notice{font-size:12px;color:#e6cf90;min-height:18px;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">Nocturne Candleworks presents</div>
+<h1>WEEKLY GIVEAWAY</h1>
+<p class="sub">10 contestants · 1 lucky winner</p>
+<svg viewBox="0 0 400 405" role="img" aria-label="Ten entry spinning giveaway wheel">
+<defs><linearGradient id="rim" x2="1" y2="1"><stop stop-color="#fff0ac"/><stop offset=".5" stop-color="#e7a63c"/><stop offset="1" stop-color="#a05b16"/></linearGradient></defs>
+<circle cx="200" cy="200" r="191" fill="url(#rim)" stroke="#ffefb2" stroke-width="3"/>
+<circle cx="200" cy="200" r="182" fill="#28173e"/>
+<g id="rotor"><g id="segments"></g><circle cx="200" cy="200" r="29" fill="#f1b945" stroke="#fff5b8" stroke-width="4"/><text x="200" y="212" text-anchor="middle" font-size="35" fill="#7c4615">★</text></g>
+<g id="bulbs"></g>
+<path d="M179 4 L221 4 L200 52 Z" fill="#ee2a49" stroke="#ffe2a3" stroke-width="4" stroke-linejoin="round"/>
+</svg>
+<div class="status" aria-live="polite"><span id="status">Ready to draw</span><span id="selected">Who's the lucky winner?</span></div>
+<button id="spin" type="button">🎰 SPIN THE WHEEL</button>
+<section class="history">
+  <div class="hhead"><h2>🏆 Last 10 Winners</h2><span class="small" id="count">1 recorded</span></div>
+  <ol id="winners"></ol>
+  <div class="actions">
+    <button class="secondary" id="copy" type="button">🔗 Copy results link</button>
+    <button class="secondary" id="share" type="button">Share results</button>
+  </div>
+  <div id="notice" role="status"></div>
+  <p class="helper">This link includes your latest 10 recorded winners so others see the same results. Spins are saved on this device; sharing a new result requires copying or sharing the updated link. GitHub hosts the page but doesn't automatically record spins.</p>
+</section>
+</main>
+<script>
+(()=>{
+const names=['Ftopayrespects','DumpsterDolphin','Kelodan','Jmggg','Nine-s0ls','Iludolah','Tron1x','_Slayer','Pauler13','ScruffDaddy'];
+const colors=['#f15b5b','#ff9e30','#eebd33','#ffde49','#4bd05e','#0db9bf','#3089ed','#6352e6','#af43ca','#da499e'];
+const $=id=>document.getElementById(id),NS='http://www.w3.org/2000/svg';
+const make=(tag,attrs,parent)=>{let e=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))e.setAttribute(k,v);parent.appendChild(e);return e};
+const polar=(r,a)=>[200+r*Math.cos(a*Math.PI/180),200+r*Math.sin(a*Math.PI/180)];
+names.forEach((name,i)=>{
+let a=-108+36*i,b=a+36,[x1,y1]=polar(178,a),[x2,y2]=polar(178,b);
+make('path',{d:'M200 200 L'+x1+' '+y1+' A178 178 0 0 1 '+x2+' '+y2+' Z',fill:colors[i],stroke:'#fff','stroke-opacity':'.28','stroke-width':'1.7'},$('segments'));
+let [x,y]=polar(119,-90+36*i),g=make('g',{transform:'translate('+x+' '+y+') rotate('+(36*i)+')'},$('segments'));
+let t=make('text',{x:'0',y:'0','text-anchor':'middle','dominant-baseline':'middle','font-family':'Arial,sans-serif','font-size':name.length>13?'12':name.length>10?'13.5':name.length>8?'15.5':'18',fill:'#fff',stroke:'#1d112b','stroke-width':'3.5','paint-order':'stroke fill','font-weight':'900'},g);t.textContent=name;
+});
+for(let i=0;i<36;i++){let [x,y]=polar(186,10*i);make('circle',{cx:x,cy:y,r:'2.7',fill:'#fff0ae'},$('bulbs'))}
+const first=[{name:'Jmggg',date:'Nov 2, 2026'}],valid=a=>Array.isArray(a)?a.filter(r=>r&&names.includes(r.name)&&typeof r.date==='string'&&r.date.length<48).slice(0,10):[];
+let history=first;
+let q=new URLSearchParams(location.search);
+try{if(q.has('r')){const code=q.get('r');if(code.length<4500){const found=valid(JSON.parse(atob(code)));history=found;}}else{const saved=JSON.parse(localStorage.getItem('nocturne_winners_v1'));if(Array.isArray(saved))history=valid(saved)}}catch(e){}
+let angle=0,spinning=false;
+function render(){
+ $('winners').replaceChildren();
+ $('count').textContent=history.length+' recorded';
+ history.forEach((r,i)=>{const li=document.createElement('li');const count=document.createElement('span');count.className='number';count.textContent=i+1;const name=document.createElement('span');name.className='person';name.textContent=r.name;const date=document.createElement('span');date.className='date';date.textContent=r.date;li.append(count,name,date);$('winners').append(li)});
+ if(!history.length){const li=document.createElement('li');li.textContent='No winners recorded yet.';$('winners').append(li)}
+}
+function url(){let u=new URL(location.href);u.searchParams.set('r',btoa(JSON.stringify(history)));return u.toString()}
+function update(){try{localStorage.setItem('nocturne_winners_v1',JSON.stringify(history));history.replaceState?.()}catch(e){}try{window.history.replaceState(null,'',url())}catch(e){}render()}
+function drawRandom(max){if(window.crypto&&crypto.getRandomValues){let arr=new Uint32Array(1),limit=4294967296-(4294967296%max),n;do{crypto.getRandomValues(arr);n=arr[0]}while(n>=limit);return n%max}return Math.floor(Math.random()*max)}
+$('spin').addEventListener('click',()=>{
+if(spinning)return;spinning=true;$('spin').disabled=true;$('spin').textContent='⏳ SPINNING…';
+$('status').textContent='Drawing this week’s winner';$('selected').textContent='Good luck everyone!';
+const idx=drawRandom(10),mod=(angle%360+360)%360,target=(360-36*idx)%360,advance=(target-mod+360)%360;
+angle+=2520+advance;
+const rotor=$('rotor');rotor.style.transition='none';rotor.getBoundingClientRect();rotor.style.transition='transform 6.3s cubic-bezier(.09,.72,.08,1)';rotor.style.transform='rotate('+angle+'deg)';
+let done=false;
+const finish=()=>{if(done)return;done=true;spinning=false;$('status').textContent='🏆 WINNER 🏆';$('selected').textContent=names[idx];$('spin').disabled=false;$('spin').textContent='🔄 SPIN AGAIN';history.unshift({name:names[idx],date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});history=history.slice(0,10);update();$('notice').textContent='New draw added. Copy the results link to share it.'};
+rotor.addEventListener('transitionend',e=>{if(e.propertyName==='transform')finish()},{once:true});
+setTimeout(finish,6800);
+});
+$('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(url());$('notice').textContent='Results link copied!'}catch(e){window.prompt('Copy this link:',url())}});
+$('share').addEventListener('click',async()=>{let link=url();if(navigator.share){try{await navigator.share({title:'Nocturne Candleworks — Weekly Giveaway',text:'Latest giveaway winners',url:link});return}catch(e){}}try{await navigator.clipboard.writeText(link);$('notice').textContent='Results link copied!'}catch(e){window.prompt('Copy results link:',link)}});
+render();
+})();
+</script>
+</body></html>
