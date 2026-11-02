@@ -87,7 +87,7 @@ function render(){
  if(!history.length){const li=document.createElement('li');li.textContent='No winners recorded yet.';$('winners').append(li)}
 }
 function url(){let u=new URL(location.href);u.searchParams.set('r',btoa(JSON.stringify(history)));return u.toString()}
-function update(){try{localStorage.setItem('nocturne_winners_v1',JSON.stringify(history));history.replaceState?.()}catch(e){}try{window.history.replaceState(null,'',url())}catch(e){}render()}
+function update(){try{localStorage.setItem('nocturne_winners_v1',JSON.stringify(history));}catch(e){}try{window.history.replaceState(null,'',url())}catch(e){}render()}
 function drawRandom(max){if(window.crypto&&crypto.getRandomValues){let arr=new Uint32Array(1),limit=4294967296-(4294967296%max),n;do{crypto.getRandomValues(arr);n=arr[0]}while(n>=limit);return n%max}return Math.floor(Math.random()*max)}
 $('spin').addEventListener('click',()=>{
 if(spinning)return;spinning=true;$('spin').disabled=true;$('spin').textContent='⏳ SPINNING…';
