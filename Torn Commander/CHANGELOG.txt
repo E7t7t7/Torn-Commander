@@ -1,3 +1,13 @@
+v0.6.88
+- Sales totals now load independently of the main dashboard and refresh when Loss Desk opens. Added Refresh totals, explicit load failure text, and separate quoted cash for delivered losses.
+- Legacy deliveries are counted from saved orders; received cash/Xanax says Unrecorded when no payout records exist. Quotes are never silently treated as received payments.
+- Added an original Loss X-change companion, automatically loaded alongside the author's enabled script. Browse loss listings gain Claim in Commander.
+- Claim opens a local account/count chooser: first account, second account, or both. Builds a ready order from visible buyer/count/cash-quote fields and displays the named Start A/B assignments.
+- Repeat claims select an existing active listing order. Own, escape, sold-out and malformed cards are excluded. Profile and Torn page origin are checked before native import.
+- This is a local Commander claim, not a remote reservation. The companion sends no provider mutations, does not read credentials and does not start fights automatically.
+- The author's restricted script remains installed from its author; none of its source is redistributed.
+- Validation: independent ledger message/startup path; 750-delivery legacy fixture; account selection/order validation, duplicate claims, quota/escape refusal, companion DOM parsing and acknowledgements; loss/medical/accounting regression suites and Release build. No live contract or fights used.
+
 v0.6.87
 - Loss Desk: Close at delivered total and Cancel remaining losses stop this order's workers, retain original requested/delivered counts and prevent further manual or automatic claims on closed orders.
 - Save actual payout totals in cash, whole Xanax items, or both. Entries replace totals, so repeated saves do not double count. Blank means unrecorded; zero is an explicit recorded value.

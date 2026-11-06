@@ -1,6 +1,7 @@
 // Offline full-cycle fixture. No real browser, API, account, fights or medicine.
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[2],'utf8');
+require('./TEST_LOSSX_COMPANION.js');
 function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options={}){
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem||options.switchMedicalAfterFirst?1:(options.stock??20),remaining=options.losses??2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;

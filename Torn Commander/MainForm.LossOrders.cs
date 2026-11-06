@@ -3,8 +3,14 @@ namespace TornCommander;
 public sealed partial class MainForm
 {
     private readonly HashSet<string> _closingLossOrders=new();
+    private string LossProfileLabel(string id)=>_settings.Profiles.FirstOrDefault(x=>x.Id==id)?.Name??id;
+    private void RefreshLossLedger(){
+        if(_modernDashboard?.CoreWebView2==null)return;
+        try{_modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossLedger",data=LossLedgerDashboard()}));}
+        catch{_modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossLedger",data=new{error="Sales totals could not be read. Saved orders were kept; try Refresh totals."}}));}
+    }
     private object LossLedgerDashboard(){var totals=LossSettlement.Totals(_lossOrders);return new{
-        delivered=totals.Delivered,cash=totals.Cash,xanax=totals.Xanax,unrecorded=totals.Unrecorded,active=totals.Active,totalOrders=totals.TotalOrders,
+        quotedCash=totals.QuotedCash,recorded=_lossOrders.Count(x=>x.CashReceived.HasValue||x.XanaxReceived.HasValue),delivered=totals.Delivered,cash=totals.Cash,xanax=totals.Xanax,unrecorded=totals.Unrecorded,active=totals.Active,totalOrders=totals.TotalOrders,
         rows=_lossOrders.OrderByDescending(x=>x.ClosedUtc??x.CreatedAt.ToUniversalTime()).Take(100).Select(x=>new{id=x.Id,buyer=x.BuyerName,delivered=x.CompletedTotal,requested=x.RequestedLosses,status=x.Status,cash=x.CashReceived,xanax=x.XanaxReceived,created=x.CreatedAt,closed=x.ClosedUtc}).ToList()
     };}
     private async Task SettleDashboardLossOrderAsync(JsonElement request,bool close){

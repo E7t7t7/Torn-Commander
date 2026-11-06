@@ -266,3 +266,15 @@ assert(nodes.lossClosePartial.disabled&&nodes.lossCancelOrder.disabled&&!nodes.l
 context.renderLossStatus({loss:{...partialLoss,id:'other-order',cash:null,xanax:null}});
 assert.equal(nodes.lossPaidCash.value,'');assert.equal(nodes.lossPaidXanax.value,'','Payout leaked between orders');
 console.log('LOSS SALES UI PASSED: partial/cancel controls, mixed payout payloads, explicit zero/unknown, invalid quantities, draft retention, history and order isolation.');
+
+const ledgerRequests=[];context.send=(cmd,data)=>ledgerRequests.push({cmd,data});
+let ledgerReceiver;context.window={chrome:{webview:{addEventListener:(kind,fn)=>{ledgerReceiver=fn;}}}};
+vm.runInContext(script.slice(script.lastIndexOf("if(window.chrome?.webview)")),context);
+assert(ledgerRequests.some(x=>x.cmd==='lossLedgerRefresh'),'Initial independent sales refresh missing');
+ledgerReceiver({data:{type:'lossLedger',data:{delivered:750,cash:0,xanax:0,recorded:0,quotedCash:225000000,active:1,unrecorded:45,rows:[]}}});
+assert.equal(nodes.lossTotalDelivered.textContent,'750');assert.equal(nodes.lossTotalCash.textContent,'Unrecorded');assert(nodes.lossQuotedCash.textContent.includes('225000000'),'Delivered cash quotes lost');
+assert(nodes.lossLedgerCoverage.textContent.includes('45'),'Unknown payments not explained');
+context.renderLossSales({loss:{id:'solo-wife',accountA:'Wife',accountB:null},lossLedger:{delivered:750,cash:1000000,xanax:2,recorded:1,quotedCash:225000000,rows:[]}});
+assert(nodes.lossAssignments.textContent.includes('Wife')&&nodes.lossAssignments.textContent.includes('solo'));
+assert.equal(nodes.lossTotalXanax.textContent,'2');
+console.log('INDEPENDENT LOSS TOTALS PASSED: dedicated startup refresh/message handling, 750 legacy deliveries, unknown payments versus cash quotes and named account assignment.');

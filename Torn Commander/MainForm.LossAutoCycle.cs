@@ -433,7 +433,7 @@ public sealed partial class MainForm
             leveling=LevelingDashboard(),
             lossAttackDelayMs = Math.Clamp(_settings.LossAttackDelayMs, 500, 5000),
             workers=new{a=_lossWorkerA?.LastStatus??"Not initialized",b=_lossWorkerB?.LastStatus??"Not initialized"},
-            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,closed=order.IsClosed,cash=order.CashReceived,xanax=order.XanaxReceived,payoutUpdated=order.PayoutUpdatedUtc,status=order.Status}
+            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,accountA=LossProfileLabel(order.ProfileAId),accountB=string.IsNullOrEmpty(order.ProfileBId)?null:LossProfileLabel(order.ProfileBId),closed=order.IsClosed,cash=order.CashReceived,xanax=order.XanaxReceived,payoutUpdated=order.PayoutUpdatedUtc,status=order.Status}
         };
         _modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossStatus",data}));
     }

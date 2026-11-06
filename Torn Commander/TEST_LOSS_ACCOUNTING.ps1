@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderLossAccounting'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
-foreach($file in @('LossAccounting.cs','LossSettlement.cs','AtomicJsonFile.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
+foreach($file in @('LossAccounting.cs','LossExchangeImport.cs','LossSettlement.cs','AtomicJsonFile.cs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project}
 $models=Get-Content (Join-Path $PSScriptRoot 'Models.cs') -Raw
 $loss=[regex]::Match($models,'(?s)public sealed class LossOrder\s*\{.*?(?=\r?\npublic sealed class TornSnapshot)').Value
 if(!$loss){throw 'Production LossOrder model not found.'}
@@ -81,6 +81,22 @@ try{LossSettlement.Save(failureSale,false,false,null,null,()=>{});throw new Exce
 var fullSale=new LossOrder{RequestedLosses=5,CompletedA=5,Status="Complete"};
 LossSettlement.Save(fullSale,false,false,1000000,0,()=>{});
 Check(fullSale.Status=="Complete"&&fullSale.CashReceived==1000000,"completed order cannot record payment");
+using(var listingDoc=JsonDocument.Parse("{\"actionType\":\"loss\",\"targetId\":123,\"buyer\":\"Fixture\",\"remaining\":20,\"pay\":300000}")){
+ var listing=LossExchangeListing.Parse(listingDoc.RootElement);
+ var solo=listing.Create(5,"wife","");var dual=listing.Create(20,"main","wife");
+ Check(solo.ProfileAId=="wife"&&solo.ProfileBId==""&&solo.RequestedLosses==5&&solo.PayPerLoss==300000,"solo import incorrect");
+ Check(dual.ProfileBId=="wife"&&dual.RequestedLosses==20&&dual.SourceService=="Loss X-change","dual import incorrect");
+ Check(listing.Existing(new[]{dual})==dual,"repeat claim duplicates active order");
+ LossSettlement.Save(dual,true,true,null,null,()=>{});
+ Check(listing.Existing(new[]{dual})==null,"closed order blocks a new listing");
+ try{listing.Create(21,"main","wife");throw new Exception("overclaim");}catch(InvalidDataException){}
+ try{listing.Create(5,"main","main");throw new Exception("same account");}catch(InvalidDataException){}
+}
+using(var escapeDoc=JsonDocument.Parse("{\"actionType\":\"escape\"}")){
+ try{LossExchangeListing.Parse(escapeDoc.RootElement);throw new Exception("escape imported as loss");}catch(InvalidDataException){}
+}
+Check(LossSettlement.Totals(new[]{partialSale}).QuotedCash==1500000,"quoted cash lost or treated as actual payment");
+Console.WriteLine("LOSS X-CHANGE IMPORT PASSED: validated listing, solo/dual, duplicate claim, quota and escape exclusion.");
 Console.WriteLine("LOSS SETTLEMENT PASSED: 5/20 partial closure, cancellation, cash/Xanax totals, corrections, zero/unknown payments, late claims, migration, restart and save rollback.");
 Console.WriteLine("LOSS ACCOUNTING PASSED: receipt replay, profiles, restart, quota, failed-save rollback, atomic preservation and legacy orders.");
 '@

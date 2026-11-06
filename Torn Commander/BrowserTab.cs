@@ -11,6 +11,7 @@ internal sealed class BrowserTab : IDisposable
     public TabPage Page { get; }
     public WebView2 WebView { get; }
     public string InitialUrl { get; }
+    public Func<BrowserTab,JsonElement,Task>? LossExchangeImport {get;set;}
 
     private readonly AppSettings _settings;
     private readonly Action<string> _openNewTab;
@@ -65,6 +66,14 @@ internal sealed class BrowserTab : IDisposable
             {
                 var message = e.TryGetWebMessageAsString();
                 if (string.IsNullOrWhiteSpace(message)) return;
+                if(message.StartsWith("{",StringComparison.Ordinal)){
+                    using var doc=JsonDocument.Parse(message);
+                    if(doc.RootElement.TryGetProperty("type",out var type)&&type.GetString()=="tc-lossx-import"){
+                        if(Uri.TryCreate(e.Source,UriKind.Absolute,out var source)&&source.Scheme=="https"&&source.Host=="www.torn.com"&&Uri.TryCreate(core.Source,UriKind.Absolute,out var current)&&Uri.Compare(source,current,UriComponents.HttpRequestUrl,UriFormat.UriEscaped,StringComparison.Ordinal)==0&&LossExchangeImport!=null)
+                            await LossExchangeImport(this,doc.RootElement.Clone());
+                        return;
+                    }
+                }
                 if (await TryHandleCommanderBridgeAsync(core, message)) return;
                 _status(message);
             }
@@ -244,7 +253,9 @@ internal sealed class BrowserTab : IDisposable
     private async Task InjectLocalScriptsAsync()
     {
         Directory.CreateDirectory(Storage.UserScriptsPath);
-        foreach (var name in _settings.EnabledScripts.ToList())
+        var enabled=_settings.EnabledScripts.ToList();
+        if(enabled.Contains("Loss_X-change.user.js",StringComparer.OrdinalIgnoreCase)&&!enabled.Contains("Torn_LossX_Commander.user.js",StringComparer.OrdinalIgnoreCase))enabled.Add("Torn_LossX_Commander.user.js");
+        foreach (var name in enabled)
         {
             try
             {

@@ -225,6 +225,7 @@ public sealed class MarketScanResult
 
 public sealed class LossOrder
 {
+    public string SourceService {get;set;}="Direct";
     public DateTime? ClosedUtc {get;set;}
     public long? CashReceived {get;set;}
     public int? XanaxReceived {get;set;}
