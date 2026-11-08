@@ -12,7 +12,7 @@ public static class LossAccounting
 {
     public static bool NormalizeCompletion(LossOrder order)
     {
-        if(order.ClosedUtc.HasValue)return false;
+        if(order.ClosedUtc.HasValue||order.SourceService=="FFScouter")return false;
         if (order.RequestedLosses <= 0 || order.CompletedTotal < order.RequestedLosses) return false;
         bool changed = order.Status != "Complete" || order.NextA != "Done" || order.NextB != "Done";
         order.Status = "Complete"; order.NextA = "Done"; order.NextB = "Done";
@@ -36,6 +36,12 @@ public static class LossAccounting
         if (string.IsNullOrWhiteSpace(claimId) || slot is not ("A" or "B") ||
             !(slot == "A" ? order.ProfileAId : order.ProfileBId).Equals(profileId, StringComparison.OrdinalIgnoreCase))
             return new(false, order.Remaining, "Invalid worker or claim.");
+        if(order.SourceService=="FFScouter"&&attackId<=0)return new(false,order.Remaining,"FFScouter deliveries require an official attack receipt.");
+        if(order.SourceService=="FFScouter"&&attackId>0&&order.RemoteAttackIds.Contains(attackId)){
+            var known=new LossCommitReceipt{ClaimId=claimId,ProfileId=profileId,Slot=slot,AttackId=attackId};order.CommitReceipts.Add(known);
+            try{save();}catch{order.CommitReceipts.Remove(known);throw;}
+            return new(true,order.Remaining,"Provider already counted this verified attack; receipt linked without adding a delivery.",true);
+        }
         if (order.IsClosed || order.Remaining <= 0)
             return new(false, order.Remaining, "Requested total was already reached; no loss counted.");
         var previous = (order.CompletedA, order.CompletedB, order.NextA, order.NextB, order.Status);

@@ -21,6 +21,7 @@ internal static class TornRoutes
     public const string Forums = "https://www.torn.com/forums.php";
     public const string FullAccessApiKey = "https://www.torn.com/preferences.php#tab=api?step=addNewKey&title=Torn%20Commander%20Full%20Access&type=4";
 
+    public static string Attack(int playerId)=>playerId>0?$"https://www.torn.com/page.php?sid=attack&user2ID={playerId}":throw new InvalidDataException("Missing Torn target player ID.");
     public static string ItemMarketFor(int itemId)
         => $"https://www.torn.com/page.php?sid=ItemMarket#/market/view=search&itemID={itemId}";
 

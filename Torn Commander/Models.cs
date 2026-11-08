@@ -226,6 +226,11 @@ public sealed class MarketScanResult
 public sealed class LossOrder
 {
     public string SourceService {get;set;}="Direct";
+    public long RemoteClaimId{get;set;}public string RemoteOrderNumber{get;set;}="";public string RemoteProfileId{get;set;}="";
+    public int RemoteOwner{get;set;}public int RemoteDelivered{get;set;}public List<long> RemoteAttackIds{get;set;}=new();
+    public string RemoteState{get;set;}="";public long RemoteDeadline{get;set;}public DateTime RemoteObservedUtc{get;set;}
+    public long? RemotePaidCash{get;set;}
+
     public DateTime? ClosedUtc {get;set;}
     public long? CashReceived {get;set;}
     public int? XanaxReceived {get;set;}
@@ -247,7 +252,7 @@ public sealed class LossOrder
     public string NextB { get; set; } = "Attack";
     public string Status { get; set; } = "Active";
     public string Notes { get; set; } = "";
-    public int CompletedTotal => CompletedA + CompletedB;
+    public int CompletedTotal => SourceService=="FFScouter"?Math.Max(RemoteDelivered,RemoteAttackIds.Concat(CommitReceipts.Where(x=>x.AttackId>0).Select(x=>x.AttackId)).Distinct().Count()):CompletedA + CompletedB;
     public int Remaining => Math.Max(0, RequestedLosses - CompletedTotal);
     public long Gross => CompletedTotal * PayPerLoss;
 }

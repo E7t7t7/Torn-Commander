@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.88. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.89. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -169,3 +169,7 @@ Save a fighting weapon slot (primary, secondary or melee), attack interval, ener
 Automatic medical planning uses fresh worker-visible personal stocks and the account’s saved Smart Medical item permissions/reserves/bonuses. Drugs, faction supplies and blood bags are excluded from the leveling planner. Item use requires one-use account/session authorization and verified quantity, cooldown and life changes. Cached medical/attack responses trigger bounded verification waits without repeating a consumed item or starting another fight. Pause/Resume retains pending operations. Manual checks and result verification remain available when automation is stopped.
 
 Target lists and FF estimates do not guarantee wins, and exact XP is not fabricated. Queues and counters stay profile-local and separate from loss contracts. Source links/imports do not imply access to private FFScouter endpoints. Read [Torn’s scripting rules](https://www.torn.com/rules.php) before using game-interaction automation. See `Guides/LEVELING.txt` for setup and limitations. No real account fights or medical items are consumed during automated development tests.
+
+## FFScouter seller integration
+
+See [FFScouter integration and phone handoff](FFSCOUTER_INTEGRATION.md) for setup, account ownership, home execution, accounting rules and validation limits. FFContractor remains an independent mobile repository.

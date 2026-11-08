@@ -134,6 +134,8 @@ jobs:
           node 'Torn Commander/TEST_LOSS_CYCLE.js' 'Torn Commander/BundledScripts/Torn_Loss_AutoCycle.js'
           if ($LASTEXITCODE -ne 0) { throw 'Full loss cycle regression failed.' }
           & 'Torn Commander/TEST_LOSS_ACCOUNTING.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Loss accounting failed.' }
+          & 'Torn Commander/TEST_FF_SELLER.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Loss accounting test failed; release withheld.' }
       - name: Check item history and restock intelligence
         shell: pwsh

@@ -628,6 +628,9 @@
         pauseState(state, 'Verification screen detected. Auto-cycle paused; resolve it manually before resuming.', state.stage !== 'fight');
         return;
       }
+      if(state.externalDeadline>0&&now()>=state.externalDeadline&&['claim','attack-open','fight'].includes(state.stage)&&!levelingContinueControl()&&detectFightResult(state)!=='loss'){
+        pauseState(state,'External claim deadline reached. No further attack authorized; refresh seller status.',false);return;
+      }
       if(levelingChoice(state))return;
       if(isItemsPage()&&/^TORN\s*[-\u2013\u2014]\s*50[0-4]\s*Error$/i.test(clean(document.title))){
         if(state.medicalDispatched){pauseState(state,'Torn returned a server error after an item dispatch. Resume only after the page recovers; no item will be repeated.',true);return;}
@@ -745,6 +748,7 @@
         if(state.mode==='level'&&levelingContinueControl()){levelCommit(state,true);return;}
         if(state.mode==='level'&&levelingLeaveControl(true)){state.stage='level-finish';state.levelFinishAt=now();state.status='Finishing choices are visible. Preparing Leave.';save(state);return;}
         const outcome = detectFightResult(state);
+        if (outcome === 'loss'&&state.requireOfficialLoss){lossTerminalCheck(state);return;}
         if (outcome === 'loss') {
           state.stage = 'commit-wait';
           state.commitAttempts = 1;
@@ -978,7 +982,7 @@
       const token = 'sess_' + now() + '_' + Math.random().toString(36).slice(2);
       sessionStorage.setItem(SESSION_KEY, token);
       const state = {
-        mode:config.mode==='level'?'level':'loss',acceptLevelUps:config.acceptLevelUps===true,weaponSlot:String(config.weaponSlot||'weapon_primary'),
+        requireOfficialLoss:config.requireOfficialLoss===true,externalDeadline:Number(config.externalDeadline)||0,mode:config.mode==='level'?'level':'loss',acceptLevelUps:config.acceptLevelUps===true,weaponSlot:String(config.weaponSlot||'weapon_primary'),
         profileId: String(config.profileId || ''),
         slot: String(config.slot || ''),
         orderId: String(config.orderId || ''),
@@ -999,6 +1003,7 @@
       save(state);
       return true;
     },
+    setExternalDeadline(milliseconds){const state=load();if(!state||!Number.isFinite(Number(milliseconds)))return false;state.externalDeadline=Math.max(0,Number(milliseconds));save(state);return true;},
     setAttackDelay(milliseconds) {
       const value=Number(milliseconds);
       if(!Number.isFinite(value)||value<500||value>5000)return false;

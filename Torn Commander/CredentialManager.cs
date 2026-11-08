@@ -77,6 +77,10 @@ internal static class CredentialManager
     public static void SaveScouterKey(string profile,string key){key=key.Trim();if(key.Length!=16||!key.All(char.IsLetterOrDigit))throw new ArgumentException("FFScouter keys must be 16 letters/numbers.");Write(ScouterTarget(profile),key);}
     public static void ForgetScouterKey(string profile)=>CredDelete(ScouterTarget(profile),CredTypeGeneric,0);
 
+    private static string SellerTarget(string profile)=>"TornCommander:"+new string(profile.Where(c=>char.IsLetterOrDigit(c)||c is '-' or '_').ToArray())+":FFScouterSellerKey";
+    public static string? LoadSellerKey(string profile)=>Read(SellerTarget(profile));
+    public static void SaveSellerKey(string profile,string key){if(!System.Text.RegularExpressions.Regex.IsMatch(key,"^[A-Za-z0-9]{16}$"))throw new ArgumentException("Use a 16-character FFScouter seller key.");Write(SellerTarget(profile),key);}
+    public static void ForgetSellerKey(string profile)=>CredDelete(SellerTarget(profile),CredTypeGeneric,0);
     private static void Write(string target, string value)
     {
         var bytes = Encoding.Unicode.GetBytes(value);

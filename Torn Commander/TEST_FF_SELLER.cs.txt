@@ -1,0 +1,81 @@
+using System.Net;
+using System.Text.Json;
+using System.Reflection;
+using TornCommander;
+void Check(bool ok,string why){if(!ok)throw new Exception(why);}
+var now=DateTime.UtcNow;long unix=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+FFSellerClaim Row(string json,FFSellerClaim? previous=null){using var d=JsonDocument.Parse(json);return FFSellerData.Merge(d.RootElement,previous);}
+var original=Row($$"""{"id":42,"order_number":"ORDER-A","target_player_id":3003,"state":"active","slots_claimed":3,"slots_delivered":1,"price_per_loss":350000,"earnings":350000,"claimed_at":{{unix}},"expires_at":{{unix+900}},"idle_deadline_at":{{unix+300}}} """);
+var reduced=Row("""{"id":42,"state":"active","slots_delivered":2} """,original);
+Check(reduced.Target==3003&&reduced.OrderNumber=="ORDER-A"&&reduced.Claimed==3,"reduced refresh lost target/order");
+Check(TornRoutes.Attack(reduced.Target)=="https://www.torn.com/page.php?sid=attack&user2ID=3003","claim ID/order used as target");
+Check(!Row("""{"id":42,"state":"expired"}""",original).Live(now),"expired executable");
+Check(!Row("""{"id":42,"state":"fulfilled"}""",original).Live(now),"completed executable");
+Check(!original.Live(now.AddMinutes(6)),"idle deadline ignored");
+var paid=Row("""{"id":42,"payment_status":"resolved","paid_at":1234} """,reduced);
+Check(paid.Paid,"authoritative paid status missing");
+Check(!Row("""{"id":42,"payment_review_required":true} """,paid).Paid,"review treated as paid");
+Check(!Row("""{"id":42,"payment_status":null,"paid_at":null} """,paid).Paid,"explicit payment reversal ignored");
+var state=new FFSellerState{Player=10,Cap=10,SessionLimit=4,Contracts=new(){new("ORDER-A",8,350000)}};
+Check(FFSellerData.ClaimCount(state,"ORDER-A",0,true,now)==4,"max exceeds personal limit");
+state.Claims[42]=original;
+try{FFSellerData.ClaimCount(state,"ORDER-A",1,false,now);throw new Exception("active claim accepted");}catch(InvalidOperationException){}
+using(var d=JsonDocument.Parse("{}")){try{FFSellerData.Contracts("{}");throw new Exception("invalid contract schema accepted");}catch(KeyNotFoundException){}}
+var other=new FFSellerState{Player=11};
+FFSellerData.MergeClaims(state,"""{"claims":[]} """);
+Check(state.Claims.ContainsKey(42)&&other.Claims.Count==0,"history window removed/mixed accounts");
+Check(JsonSerializer.Deserialize<FFSellerState>(JsonSerializer.Serialize(state))!.Claims[42].Target==3003,"restart lost target");
+try{FFSellerData.VerifyOwner(10,11);throw new Exception("wrong owner accepted");}catch(InvalidDataException){}
+var sellerTarget=typeof(CredentialManager).GetMethod("SellerTarget",BindingFlags.NonPublic|BindingFlags.Static)!;
+var tornTarget=typeof(CredentialManager).GetMethod("TargetFor",BindingFlags.NonPublic|BindingFlags.Static)!;
+Check(!Equals(sellerTarget.Invoke(null,new object[]{"main"}),sellerTarget.Invoke(null,new object[]{"wife"})),"seller keys cross profiles");
+Check(!Equals(sellerTarget.Invoke(null,new object[]{"main"}),tornTarget.Invoke(null,new object[]{"main"})),"seller key reused Torn credential");
+var order=new LossOrder{SourceService="FFScouter",RemoteOwner=10,RemoteProfileId="main",RemoteState="active",RemoteDeadline=unix+300,RemoteObservedUtc=now,ProfileAId="main",ProfileBId="",RequestedLosses=3,RemoteDelivered=1,RemoteAttackIds=new(){90}};
+Check(FFSellerData.CanExecute(order,state,"main",now),"own live claim refused");
+Check(!FFSellerData.CanExecute(order,state,"wife",now),"remote claim assigned to another account");
+Check(!FFSellerData.CanExecute(order,other,"main",now),"remote owner mismatch");
+Check(!FFSellerData.CanExecute(order,state,"main",now.AddMinutes(6)),"expired/stale remote order executable");
+var ack=LossAccounting.Commit(order,"slot","main","A",()=>{},90);
+Check(ack.Ok&&ack.Duplicate&&order.CompletedTotal==1,"provider/local duplicate delivered count");
+Check(LossAccounting.Commit(order,"new-slot","main","A",()=>{},91).Ok&&order.CompletedTotal==2,"new official local attack missing");
+order.RemoteDelivered=2;order.RemoteAttackIds.Add(91);
+Check(order.CompletedTotal==2,"phone/PC reconciliation counted twice");
+order.RemotePaidCash=700000;order.CashReceived=9999999;
+Check(LossSettlement.Totals(new[]{order}).Cash==700000,"manual/provider payment double counted");
+var home=new FFSellerState{Enabled=true,AutoRun=false,ArmedAt=now.AddSeconds(-1),Claims=new(){[42]=original}};
+Check(FFSellerData.AutoCandidate(home,now)==null,"Home execution enabled without consent");
+home.AutoRun=true;Check(FFSellerData.AutoCandidate(home,now)?.Id==42,"New phone claim not discovered");
+home.AutoHandled.Add(42);Check(FFSellerData.AutoCandidate(home,now)==null,"Handled claim restarted");
+home.AutoHandled.Clear();home.ArmedAt=now.AddMinutes(1);Check(FFSellerData.AutoCandidate(home,now)==null,"Pre-arm claim auto-started");
+Check(!LossAccounting.Commit(order,"manual","main","A",()=>{}).Ok,"External delivery accepted without receipt");
+var mutations=new FFSellerState{Player=10,Cap=10,SessionLimit=4,Contracts=new(){new("ORDER-A",8,350000)}};
+int posts=0,saves=0;
+Task<string> Reserve(string route,object? body){posts++;Check(route=="losses/seller/claim","bad reservation endpoint");using var d=JsonDocument.Parse(JsonSerializer.Serialize(body));Check(d.RootElement.GetProperty("slots").GetInt32()==3,"unbounded zero slots");
+return Task.FromResult(JsonSerializer.Serialize(new { claim=new {id=99,order_number="ORDER-A",target_player_id=3003,slots_claimed=3,expires_at=unix+900,idle_deadline_at=unix+300} }));}
+await FFSellerOperations.Execute(mutations,Reserve,()=>saves++,"claim","ORDER-A",3);
+Check(posts==1&&saves==2&&mutations.Pending==""&&mutations.Claims[99].Target==3003,"confirmed reservation not persisted");
+try{await FFSellerOperations.Execute(mutations,Reserve,()=>{},"claim","ORDER-A",3);throw new Exception("duplicate reservation");}catch(InvalidOperationException){}
+Check(posts==1,"duplicate request reached API");
+await FFSellerOperations.Execute(mutations,(route,body)=>Task.FromResult("""{"claim":{"id":99,"state":"settling","slots_claimed":3,"slots_delivered":1}}"""),()=>{},"complete","ORDER-A",0,99);
+Check(mutations.Claims[99].State=="settling"&&mutations.Claims[99].Target==3003,"partial completion lost identity");
+var interrupted=new FFSellerState{Cap=10,SessionLimit=4,Contracts=new(){new("ORDER-A",8,350000)}};
+await Interrupted();
+async Task Interrupted(){try{await FFSellerOperations.Execute(interrupted,(route,body)=>throw new FFSellerException("timeout",true),()=>{},"claim","ORDER-A",3);throw new Exception("timeout not propagated");}catch(FFSellerException){}}
+var restarted=JsonSerializer.Deserialize<FFSellerState>(JsonSerializer.Serialize(interrupted))!;
+try{await FFSellerOperations.Execute(restarted,Reserve,()=>{},"claim","ORDER-A",3);throw new Exception("uncertain POST repeated");}catch(InvalidOperationException){}
+Check(posts==1&&restarted.Pending=="claim","pending guard lost on restart");
+var persistence=new FFSellerState{Cap=10,SessionLimit=4,Contracts=new(){new("ORDER-A",8,350000)}};
+try{await FFSellerOperations.Execute(persistence,Reserve,()=>throw new IOException("disk"),"claim","ORDER-A",3);throw new Exception("disk error ignored");}catch(IOException){}
+Check(posts==1,"POST sent without durable intent");
+var handler=new Handler();var clock=DateTime.UtcNow.AddYears(1);
+var client=new FFSellerClient(new HttpClient(handler),()=>clock,d=>{clock+=d;return Task.CompletedTask;});
+await client.Send("0123456789ABCDEF","losses/seller/contracts");
+Check(handler.Calls==1&&handler.Host=="ffscouter.com","seller credential sent elsewhere");
+handler.Bad=true;
+try{await client.Send("0123456789ABCDEF","losses/seller/claim",new{order_number="ORDER-A",slots=1});throw new Exception("network failure ignored");}catch(FFSellerException e){Check(e.Uncertain,"mutation uncertainty lost");}
+Check(handler.Calls==2,"network POST automatically retried");
+Console.WriteLine("FF SELLER PASSED: official schema/targets, owner/credential isolation, one active claim/caps, durable reservation/completion, interrupted response/restart, duplicate deliveries/payments, expiry and native HTTP host restriction.");
+class Handler:HttpMessageHandler{
+ public int Calls;public string Host="";public bool Bad;
+ protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct){Calls++;Host=request.RequestUri!.Host;if(Bad)throw new HttpRequestException("synthetic timeout");return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("{\"contracts\":[],\"max_claim_slots\":10}")});}
+}

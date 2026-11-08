@@ -184,7 +184,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  }}}};
  const context={window,document,location,URL,Date:Clock,Math,console,localStorage:store(local),sessionStorage:store(session),getComputedStyle:()=>({visibility:'visible',display:'block'}),setInterval:fn=>{interval=fn},setTimeout:()=>{}};
  vm.createContext(context);vm.runInContext(source,context);h=window.TornCommanderLossCycle;
- h.start({acceptLevelUps:!!options.acceptLevelUps,mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
+ h.start({requireOfficialLoss:!!options.requireOfficialLoss,externalDeadline:options.expiredExternal?clock-1:0,acceptLevelUps:!!options.acceptLevelUps,mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
  return {h,counts,messages,async step(milliseconds=1000){h.pump();while(replies.length)replies.shift()();clock+=milliseconds;await Promise.resolve()}};
 }
 (async()=>{
@@ -423,6 +423,15 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-commit').length,0);assert.equal(endedLoss.counts.medicine,0,'Unverified result triggered healing');
   if(extra.lossReceiptMissing){assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-terminal').length,6);assert(endedLoss.h.resume());await endedLoss.step(250);assert.equal(endedLoss.h.getState().stage,'loss-verify');assert.equal(endedLoss.counts.pillow,1);}
  }
+ const external=fixture(false,false,false,{smartMedical:true,requireOfficialLoss:true});
+ for(let i=0;i<1500&&external.h.getState().stage!=='complete';i++)await external.step(250);
+ assert.equal(external.h.getState().stage,'complete',external.h.getState().status);
+ assert.equal(external.messages.filter(m=>m.type==='tc-loss-terminal').length,2);
+ assert.equal(external.messages.filter(m=>m.type==='tc-loss-commit').length,0,'External visible loss bypassed official receipt');
+ const expiredExternal=fixture(false,false,false,{requireOfficialLoss:true,expiredExternal:true});
+ for(let i=0;i<30&&expiredExternal.h.getState().stage!=='paused';i++)await expiredExternal.step(250);
+ assert.equal(expiredExternal.h.getState().stage,'paused');assert.equal(expiredExternal.counts.join,0,'Expired provider claim attacked');
+ console.log('EXTERNAL CLAIM WORKER PASSED: official receipts required for every loss and expired deadline prevents new fights.');
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');

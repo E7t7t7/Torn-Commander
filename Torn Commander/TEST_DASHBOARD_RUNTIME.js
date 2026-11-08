@@ -278,3 +278,15 @@ context.renderLossSales({loss:{id:'solo-wife',accountA:'Wife',accountB:null},los
 assert(nodes.lossAssignments.textContent.includes('Wife')&&nodes.lossAssignments.textContent.includes('solo'));
 assert.equal(nodes.lossTotalXanax.textContent,'2');
 console.log('INDEPENDENT LOSS TOTALS PASSED: dedicated startup refresh/message handling, 750 legacy deliveries, unknown payments versus cash quotes and named account assignment.');
+
+const ffFixture={profileId:'one',configured:true,player:10,enabled:true,autoRun:false,autoFinish:false,sessionLimit:3,totals:{paid:700000,losses:2},contracts:[{orderNumber:'ORDER-A',available:3,price:350000}],claims:[{id:42,orderNumber:'ORDER-A',target:3003,state:'active',live:true,delivered:2,claimed:3,earnings:700000}]};
+context.renderFF(ffFixture);
+assert.equal((nodes.ffSellerStats.innerHTML.match(/class="card span3"/g)||[]).length,8,'Not eight stat boxes');
+assert(nodes.ffSellerClaims.innerHTML.includes('Torn target 3003')&&nodes.ffSellerClaims.innerHTML.includes('data-claim="42"'));
+nodes.ffSellerKey.value='UNSAVED-DRAFT';nodes.ffSellerLimit.value=5;
+context.renderFF(ffFixture);assert.equal(nodes.ffSellerKey.value,'UNSAVED-DRAFT');assert.equal(nodes.ffSellerLimit.value,5);
+context.renderFF({profileId:'two',totals:{},contracts:[],claims:[]});
+assert.equal(nodes.ffSellerKey.value,'');assert(!nodes.ffSellerClaims.innerHTML.includes('3003'),'Other profile claim leaked');
+context.S.profileId='two';nodes.ffSellerAuto.checked=true;nodes.ffSellerLimit.value=4;
+context.ffSettings();assert(ledgerRequests.some(x=>x.cmd==='ffSettings'&&x.data.profileId==='two'&&x.data.limit===4&&x.data.autoRun),'Account-specific arming payload missing');
+console.log('FF SELLER UI PASSED: eight figures, true target/claim distinction, unsaved drafts, profile clearing and opt-in home settings.');

@@ -208,23 +208,24 @@ public sealed partial class MainForm
         finally { _lossStartBusy = false; }
     }
 
-    private async Task<bool> StartLossWorkerCoreAsync(bool accountA)
+    private async Task<bool> StartLossWorkerCoreAsync(bool accountA,bool unattended=false)
     {
+        void StartMessage(string message,string title="Loss Auto Cycle"){if(unattended)FlashStatus(message);else MessageBox.Show(message,title);}
         var order = SelectedLossOrder();
         if (order is null)
         {
-            MessageBox.Show("Create or select a Loss Desk order first.", "Loss Auto Cycle");
+            StartMessage("Create or select a Loss Desk order first.", "Loss Auto Cycle");
             return false;
         }
         if(order.IsClosed||_closingLossOrders.Contains(order.Id)){FlashStatus("This order is closed or closing. Create/select an active order.");return false;}
         if (order.Status == "Paused")
         {
-            MessageBox.Show("The selected order is paused. Resume the order first.", "Loss Auto Cycle");
+            StartMessage("The selected order is paused. Resume the order first.", "Loss Auto Cycle");
             return false;
         }
         if (order.Remaining <= 0)
         {
-            MessageBox.Show("The selected order has no losses remaining.", "Loss Auto Cycle");
+            StartMessage("The selected order has no losses remaining.", "Loss Auto Cycle");
             return false;
         }
 
@@ -233,13 +234,13 @@ public sealed partial class MainForm
         var current = accountA ? _lossWorkerA : _lossWorkerB;
         if (current?.IsArmed == true || (other?.IsArmed == true && other.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("This profile already has an active worker. Resume it or stop it before starting a new cycle.", "Loss Desk");
+            StartMessage("This profile already has an active worker. Resume it or stop it before starting a new cycle.", "Loss Desk");
             return false;
         }
         var key = CredentialManager.LoadApiKey(profileId);
         if (string.IsNullOrWhiteSpace(key))
         {
-            MessageBox.Show($"Profile {(accountA ? "A" : "B")} does not have a saved Torn API key yet. Switch to that profile once and save/test its key in Settings.", "Loss Auto Cycle");
+            StartMessage($"Profile {(accountA ? "A" : "B")} does not have a saved Torn API key yet. Switch to that profile once and save/test its key in Settings.", "Loss Auto Cycle");
             return false;
         }
 
@@ -250,20 +251,21 @@ public sealed partial class MainForm
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Could not identify the account from Torn API:\n\n" + ex.Message, "Loss Auto Cycle");
+            StartMessage("Could not identify the account from Torn API:\n\n" + ex.Message, "Loss Auto Cycle");
             return false;
         }
         if (string.IsNullOrWhiteSpace(profileSnapshot.PlayerName) || profileSnapshot.PlayerId is null)
         {
-            MessageBox.Show("The saved API key did not return the profile name/player ID. Auto-cycle did not start.", "Loss Auto Cycle");
+            StartMessage("The saved API key did not return the profile name/player ID. Auto-cycle did not start.", "Loss Auto Cycle");
             return false;
         }
         if (profileSnapshot.PlayerId.Value.ToString() == order.TargetPlayerId)
         {
-            MessageBox.Show("The loss-selling target cannot be the same account as the selected worker profile.", "Loss Auto Cycle");
+            StartMessage("The loss-selling target cannot be the same account as the selected worker profile.", "Loss Auto Cycle");
             return false;
         }
 
+        if(order.SourceService=="FFScouter"&&(!FFExecutable(order,profileId)||profileSnapshot.PlayerId!=order.RemoteOwner)){StartMessage("Refresh the owning FFScouter claim/account before starting.");return false;}
         var worker = await InitializeLossWorkerAsync(accountA, profileId);
         ReleaseClaimsForWorker(worker);
         order.Status = "Auto cycling";
@@ -272,6 +274,7 @@ public sealed partial class MainForm
 
         await worker.StartAsync(new
         {
+            requireOfficialLoss=order.SourceService=="FFScouter",externalDeadline=order.SourceService=="FFScouter"?order.RemoteDeadline*1000:0,
             profileId,
             slot = accountA ? "A" : "B",
             orderId = order.Id,
@@ -386,6 +389,7 @@ public sealed partial class MainForm
         {
             var requestId = ReadWorkerString(root, "requestId");
             var orderId = ReadWorkerString(root, "orderId");
+            if(!await FFBeforeClaimAsync(worker,orderId)){await worker.ReplyClaimAsync(requestId,false,"","Waiting for the owning FFScouter claim/delivery receipt; no new attack authorized.");return;}
             var result = RequestLossClaim(worker, orderId);
             await worker.ReplyClaimAsync(requestId, result.Ok, result.ClaimId, result.Message);
             return;
@@ -416,6 +420,7 @@ public sealed partial class MainForm
             if (order is not null && order.Remaining <= 0 &&
                 (worker.Slot == "A" ? order.ProfileAId : order.ProfileBId).Equals(worker.ProfileId, StringComparison.OrdinalIgnoreCase))
             {
+                worker.MarkFinished();
                 if (LossAccounting.NormalizeCompletion(order)) SaveLossOrders();
                 RebindLossOrders();
                 FlashStatus($"Loss order {order.Id} completed after final recovery. Gross tracked: ${order.Gross:N0}.");
@@ -428,12 +433,13 @@ public sealed partial class MainForm
         if(!_modernDashboardReady||_modernDashboard.CoreWebView2 is null)return;
         var order=SelectedLossOrder();
         var data=new{
+            ffSeller=FFDashboard(),
             lossLedger=LossLedgerDashboard(),
             medical=MedicalDashboard(),
             leveling=LevelingDashboard(),
             lossAttackDelayMs = Math.Clamp(_settings.LossAttackDelayMs, 500, 5000),
             workers=new{a=_lossWorkerA?.LastStatus??"Not initialized",b=_lossWorkerB?.LastStatus??"Not initialized"},
-            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,accountA=LossProfileLabel(order.ProfileAId),accountB=string.IsNullOrEmpty(order.ProfileBId)?null:LossProfileLabel(order.ProfileBId),closed=order.IsClosed,cash=order.CashReceived,xanax=order.XanaxReceived,payoutUpdated=order.PayoutUpdatedUtc,status=order.Status}
+            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,accountA=LossProfileLabel(order.ProfileAId),accountB=string.IsNullOrEmpty(order.ProfileBId)?null:LossProfileLabel(order.ProfileBId),source=order.SourceService,closed=order.IsClosed,cash=order.SourceService=="FFScouter"?order.RemotePaidCash:order.CashReceived,xanax=order.XanaxReceived,payoutUpdated=order.PayoutUpdatedUtc,status=order.Status}
         };
         _modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossStatus",data}));
     }
@@ -488,7 +494,7 @@ public sealed partial class MainForm
         if (order is null) return (false, 0, "Order no longer exists.");
         var replay = LossAccounting.Replay(order, claimId, worker.ProfileId, worker.Slot);
         if (replay is not null) return (replay.Ok, replay.Remaining, replay.Message);
-        if(order.IsClosed||_closingLossOrders.Contains(order.Id))return(false,order.Remaining,"Order closed or closing; no new loss counted.");
+        if((order.IsClosed&&!(order.SourceService=="FFScouter"&&order.RemoteAttackIds.Contains(attackId)))||_closingLossOrders.Contains(order.Id))return(false,order.Remaining,"Order closed or closing; no new loss counted.");
         lock (_lossClaimGate)
         {
             PruneLossClaimsLocked();

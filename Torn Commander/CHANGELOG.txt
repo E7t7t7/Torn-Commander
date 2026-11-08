@@ -1,3 +1,14 @@
+v0.6.89
+- Integrated FFScouter's official seller API into the existing Loss Desk, alongside unchanged manual and Loss X-change workflows. Real confirmed reservations, bounded Claim Max, one-active-claim guard, explicit remote completion and unused-slot release.
+- Separate Windows Credential Manager seller credentials per profile, verified against FFScouter account/balance and that profile's independent Torn identity. Seller and estimator/Torn keys are not interchangeable.
+- Durable request intent precedes mutations. Interrupted or malformed outcomes block resubmission pending reconciliation. Native HTTP uses documented routes, global pacing, rate-limit waits and sanitized errors.
+- Persistent claim history retains target IDs across reduced refreshes and the API's seven-day history window. Existing order ledger links remote owner/claim/order identities, attack receipts and authoritative payments without duplicate deliveries or manual cash double counting.
+- Eight seller dashboard figures distinguish earned, outstanding and confirmed payments. Payment-review flags and explicit null reversals remain unconfirmed. Manual cash/Xanax accounting for other providers remains available.
+- Optional per-profile home execution polls every 30 seconds and starts NEW phone/API claims once after explicitly arming. Existing claims require Start. PC must be running, awake and signed in; no phone/PC cloud service required. Optional remote auto-completion waits for provider-confirmed full delivery.
+- Existing isolated A/B workers and medical optimizer reused; external claims cannot be assigned to the other player. Every external loss requires an official Torn attack receipt; expiry blocks new attacks. No drugs or Xanax healing added.
+- Optional FFContractor standalone userscript installer added; native seller tools do not require it. Both repositories retain independent update channels.
+- Validation: mocked seller schema/ownership/caps/claim and completion requests, interrupted response/restart, durable intent failure, target navigation, payouts and attack deduplication; dashboard account clearing/eight figures/arming; complete existing loss/medical/accounting suites; external receipt/deadline fixtures; Release build. No live claim, completion, fight or medicine used. iPhone and live end-to-end handoff remain unverified.
+
 v0.6.88
 - Sales totals now load independently of the main dashboard and refresh when Loss Desk opens. Added Refresh totals, explicit load failure text, and separate quoted cash for delivered losses.
 - Legacy deliveries are counted from saved orders; received cash/Xanax says Unrecorded when no payout records exist. Quotes are never silently treated as received payments.

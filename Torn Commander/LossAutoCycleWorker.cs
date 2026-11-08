@@ -115,6 +115,7 @@ internal sealed class LossAutoCycleWorker : IDisposable
     }
     public void MarkFinished()=>IsArmed=false;
     public async Task ReplyLevelingAsync(object payload){await EnsureReadyAsync();await _webView.CoreWebView2.ExecuteScriptAsync("window.TornCommanderLossCycle?.onLevelReply("+DashboardJson.Serialize(payload)+");");}
+    public async Task SetExternalDeadlineAsync(long milliseconds)=>await InvokeAsync("setExternalDeadline",milliseconds);
     public async Task SetAttackDelayAsync(int milliseconds) => await InvokeAsync("setAttackDelay", milliseconds);
 
     public async Task PauseAsync() => await InvokeNoArgAsync("pause");

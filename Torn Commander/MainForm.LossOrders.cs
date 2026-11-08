@@ -10,16 +10,18 @@ public sealed partial class MainForm
         catch{_modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossLedger",data=new{error="Sales totals could not be read. Saved orders were kept; try Refresh totals."}}));}
     }
     private object LossLedgerDashboard(){var totals=LossSettlement.Totals(_lossOrders);return new{
-        quotedCash=totals.QuotedCash,recorded=_lossOrders.Count(x=>x.CashReceived.HasValue||x.XanaxReceived.HasValue),delivered=totals.Delivered,cash=totals.Cash,xanax=totals.Xanax,unrecorded=totals.Unrecorded,active=totals.Active,totalOrders=totals.TotalOrders,
-        rows=_lossOrders.OrderByDescending(x=>x.ClosedUtc??x.CreatedAt.ToUniversalTime()).Take(100).Select(x=>new{id=x.Id,buyer=x.BuyerName,delivered=x.CompletedTotal,requested=x.RequestedLosses,status=x.Status,cash=x.CashReceived,xanax=x.XanaxReceived,created=x.CreatedAt,closed=x.ClosedUtc}).ToList()
+        quotedCash=totals.QuotedCash,recorded=_lossOrders.Count(LossSettlement.PaymentKnown),delivered=totals.Delivered,cash=totals.Cash,xanax=totals.Xanax,unrecorded=totals.Unrecorded,active=totals.Active,totalOrders=totals.TotalOrders,
+        rows=_lossOrders.OrderByDescending(x=>x.ClosedUtc??x.CreatedAt.ToUniversalTime()).Take(100).Select(x=>new{id=x.Id,buyer=x.BuyerName,delivered=x.CompletedTotal,requested=x.RequestedLosses,status=x.Status,cash=x.SourceService=="FFScouter"?x.RemotePaidCash:x.CashReceived,xanax=x.XanaxReceived,created=x.CreatedAt,closed=x.ClosedUtc}).ToList()
     };}
     private async Task SettleDashboardLossOrderAsync(JsonElement request,bool close){
         if(ReadWorkerString(request,"profileId")!=CurrentProfileId)throw new InvalidDataException("Profile changed. Review the selected order.");
         string id=ReadWorkerString(request,"orderId");
         var order=_lossOrders.FirstOrDefault(x=>x.Id==id)??throw new InvalidDataException("Order no longer exists.");
         if(SelectedLossOrder()?.Id!=id)throw new InvalidDataException("Selected order changed; review it before saving.");
+        if(order.SourceService=="FFScouter"&&!close)throw new InvalidOperationException("FFScouter payment status comes from its seller API; sync it in the FFScouter panel.");
         long? cash=request.TryGetProperty("cash",out var c)&&c.ValueKind!=JsonValueKind.Null?c.GetInt64():null;
         int? xanax=request.TryGetProperty("xanax",out var x)&&x.ValueKind!=JsonValueKind.Null?x.GetInt32():null;
+        if(order.SourceService=="FFScouter"){cash=null;xanax=null;}
         if(cash is <0 or >1000000000000000||xanax is <0 or >1000000)throw new InvalidDataException("Check the cash and whole Xanax payment totals.");
         if(!_closingLossOrders.Add(id))throw new InvalidOperationException("This order is already being saved.");
         try{

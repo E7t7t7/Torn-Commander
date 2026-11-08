@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.88";
+        Text = "Torn Commander v0.6.89";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -284,7 +284,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.88 — {target.Name}";
+        Text = $"Torn Commander v0.6.89 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -395,7 +395,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.88 — {name}";
+        Text = $"Torn Commander v0.6.89 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -460,7 +460,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.88 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.89 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1186,6 +1186,7 @@ public sealed partial class MainForm : Form
         AddRemoteScriptTool(p, "Lazy Crimes", "Lazy_Crimes.user.js", "Crimes 2.0 quality-of-life controls.", "https://update.greasyfork.org/scripts/540604/Lazy%20Crimes.user.js", "https://greasyfork.org/en/scripts/540604-lazy-crimes");
         AddRemoteScriptTool(p, "Torn Racing Guide", "Torn_Racing_Guide.user.js", "Track/car overlay and racing progression helper.", "https://update.greasyfork.org/scripts/569449/Torn%20Racing%20Guide.user.js", "https://greasyfork.org/en/scripts/569449-torn-racing-guide");
         AddRemoteScriptTool(p, "Simple Cracking Helper", "Torn_Cracking_Helper.user.js", "Cracking password helper for your later NNB phase.", "https://update.greasyfork.org/scripts/544469/torn-crack.user.js", "https://greasyfork.org/en/scripts/544469-torn-crack");
+        AddRemoteScriptTool(p, "FFContractor (optional mobile-style interface)", "FFContractor.user.js", "Standalone FFScouter seller panel. Native Loss Desk integration is also available.", "https://raw.githubusercontent.com/E7t7t7/FFContractor/main/FFContractor.user.js", "https://github.com/E7t7t7/FFContractor");
         AddRemoteScriptTool(p, "Loss X-change", "Loss_X-change.user.js", "Loss-selling contracts, contributions and invoices. Downloaded from the author on demand; not redistributed in Commander.", "https://update.greasyfork.org/scripts/595106/Loss%20X-change.user.js", "https://greasyfork.org/en/scripts/595106-loss-x-change");
 
         var packRow = new FlowLayoutPanel { AutoSize = true, BackColor = PanelBg, WrapContents = true };
@@ -1292,7 +1293,7 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.88");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.89");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
@@ -1520,7 +1521,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.88 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.89 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -1609,6 +1610,7 @@ public sealed partial class MainForm : Form
             TickCompanyCollection();
             TickItemMonitor();
             TickFactionActivity();
+            TickFFSeller();
         };
     }
 
@@ -2966,7 +2968,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.88; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.89; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);
