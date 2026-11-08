@@ -1,3 +1,11 @@
+v0.6.90
+- FFScouter Loss Desk now gives numbered refresh/select/reserve/start steps, a next-action message and an explicit no-contracts state.
+- Reservation buttons explain their purpose and stay disabled until a fresh, selected contract is claimable within provider and personal limits. Maximum reservation displays the bounded count. Stale, busy, pending and already-active states explain what to do.
+- Active claims appear first with Start losses on this account; target navigation is labeled Open target only. Completed/expired history no longer offers unusable target lookup buttons.
+- Phone-to-PC settings are labeled optional and explain that they are unnecessary for desktop reservation/start.
+- Fixed initial read-only seller state request before the dashboard profile arrives.
+- Validation: dashboard fixtures cover empty/available/stale lists, selection/count/cap, existing claims, pending/busy state, history actions and correct reservation payload. Release build and existing provider/worker regressions. No live claims, attacks or medicine used.
+
 v0.6.89
 - Integrated FFScouter's official seller API into the existing Loss Desk, alongside unchanged manual and Loss X-change workflows. Real confirmed reservations, bounded Claim Max, one-active-claim guard, explicit remote completion and unused-slot release.
 - Separate Windows Credential Manager seller credentials per profile, verified against FFScouter account/balance and that profile's independent Torn identity. Seller and estimator/Torn keys are not interchangeable.

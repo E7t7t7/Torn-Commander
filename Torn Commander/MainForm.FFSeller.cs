@@ -93,8 +93,8 @@ public sealed partial class MainForm {
   try{if(!await StartLossWorkerCoreAsync(slotA,unattended))throw new InvalidOperationException("Worker did not start. Review this account and use Start explicitly.");}finally{_lossStartBusy=false;if(previous!=null)SelectLossOrder(previous);}
  }
  private async Task HandleFFAction(string action,JsonElement root){
-  string profile=ReadWorkerString(root,"profileId");if(profile!=CurrentProfileId)throw new InvalidOperationException("Selected profile changed.");
   if(action=="ffState"){PushFF();return;}
+  string profile=ReadWorkerString(root,"profileId");if(profile!=CurrentProfileId)throw new InvalidOperationException("Selected profile changed.");
   if(!_ffBusy.Add(profile))throw new InvalidOperationException("A seller operation is already running.");
   var s=FFFor(profile);bool keySaved=false;
   try{

@@ -290,3 +290,13 @@ assert.equal(nodes.ffSellerKey.value,'');assert(!nodes.ffSellerClaims.innerHTML.
 context.S.profileId='two';nodes.ffSellerAuto.checked=true;nodes.ffSellerLimit.value=4;
 context.ffSettings();assert(ledgerRequests.some(x=>x.cmd==='ffSettings'&&x.data.profileId==='two'&&x.data.limit===4&&x.data.autoRun),'Account-specific arming payload missing');
 console.log('FF SELLER UI PASSED: eight figures, true target/claim distinction, unsaved drafts, profile clearing and opt-in home settings.');
+const actionable={...ffFixture,lastSync:new Date().toISOString(),cap:30,sessionLimit:10,claims:[],contracts:[{orderNumber:'ORDER-A',available:24,price:350000}]};
+context.renderFF({...actionable,contracts:[]});assert(nodes.ffSellerReserve.disabled&&nodes.ffSellerMax.disabled);assert(nodes.ffSellerAvailability.textContent.includes('no claimable contracts'));
+context.renderFF(actionable);nodes.ffSellerContract.value='';context.updateFFActions();assert(nodes.ffSellerReserve.disabled&&nodes.ffSellerNext.textContent.includes('step 2'));
+nodes.ffSellerContract.value='ORDER-A';nodes.ffSellerCount.value=5;context.updateFFActions();assert(!nodes.ffSellerReserve.disabled&&!nodes.ffSellerMax.disabled);assert(nodes.ffSellerMax.textContent.includes('10 losses'));
+context.ffReserve(false);assert(ledgerRequests.some(x=>x.cmd==='ffClaim'&&x.data.order==='ORDER-A'&&x.data.count===5));
+nodes.ffSellerCount.value=11;context.updateFFActions();assert(nodes.ffSellerReserve.disabled&&!nodes.ffSellerMax.disabled,'Specified count and maximum confused');
+for(const patch of [{busy:true},{pending:'claim'},{lastSync:'2000-01-01T00:00:00Z'},{claims:[{state:'active',expiresAt:Date.now()/1000+300}]}]){context.renderFF({...actionable,...patch});assert(nodes.ffSellerReserve.disabled&&nodes.ffSellerMax.disabled,'Blocked reservation enabled');}
+context.renderFF({...actionable,claims:[{id:42,state:'fulfilled',claimed:24,delivered:24,target:0}]});assert(!nodes.ffSellerClaims.innerHTML.includes('data-ff-action'),'Historical claim shows unusable buttons');
+assert(nodes.ffSellerClaims.innerHTML.includes('Previous contract'));
+console.log('SELLER GUIDANCE PASSED: numbered steps, empty/stale/blocked states, count versus max, bounded limits, payload and historical action hiding.');
