@@ -74,6 +74,19 @@ Check(handler.Calls==1&&handler.Host=="ffscouter.com","seller credential sent el
 handler.Bad=true;
 try{await client.Send("0123456789ABCDEF","losses/seller/claim",new{order_number="ORDER-A",slots=1});throw new Exception("network failure ignored");}catch(FFSellerException e){Check(e.Uncertain,"mutation uncertainty lost");}
 Check(handler.Calls==2,"network POST automatically retried");
+int reads=0;
+Task<string> MedicalRead(string route,CancellationToken ct){reads++;Check(route=="user?selections=profile,cooldowns,perks","Medical selections split or unsupported");return Task.FromResult("""{"profile":{"id":10,"name":"Fixture"},"cooldowns":{"medical":123},"perks":{}}""");}
+await MedicalSnapshotReader.ReadAsync(MedicalRead,10,true,CancellationToken.None);Check(reads==1,"Medical verification used multiple queue slots");
+try{await MedicalSnapshotReader.ReadAsync(MedicalRead,11,true,CancellationToken.None);throw new Exception("Medical account mismatch accepted");}catch(InvalidDataException){}
+int identityReads=0;
+await MedicalSnapshotReader.ReadIdentityAsync((route,ct)=>{identityReads++;Check(route=="user/profile","Worker startup fetched unrelated datasets");return Task.FromResult("""{"profile":{"id":10,"name":"Fixture"}}""");},CancellationToken.None);
+Check(identityReads==1,"Worker identity performed a full sync");
+try{await MedicalSnapshotReader.ReadAsync((route,ct)=>Task.FromResult("""{"profile":{"id":10},"cooldowns":{}}"""),10,false,CancellationToken.None);throw new Exception("Partial medical snapshot accepted");}catch(KeyNotFoundException){}
+using(var stop=new CancellationTokenSource()){
+ stop.Cancel();
+ try{await MedicalSnapshotReader.ReadAsync(async(route,ct)=>{await Task.Delay(10000,ct);return "{}";},10,false,stop.Token);throw new Exception("Medical queue cancellation ignored");}catch(OperationCanceledException){}
+}
+Console.WriteLine("WORKER READS PASSED: one identity request, one combined medical request, exact owner, incomplete snapshot rejection and cancellable queue wait.");
 Console.WriteLine("FF SELLER PASSED: official schema/targets, owner/credential isolation, one active claim/caps, durable reservation/completion, interrupted response/restart, duplicate deliveries/payments, expiry and native HTTP host restriction.");
 class Handler:HttpMessageHandler{
  public int Calls;public string Host="";public bool Bad;

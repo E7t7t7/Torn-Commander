@@ -120,6 +120,13 @@ internal sealed class LossAutoCycleWorker : IDisposable
 
     public async Task PauseAsync() => await InvokeNoArgAsync("pause");
     public async Task ResumeAsync() => await InvokeNoArgAsync("resume");
+    public async Task<bool> ResumeIfAsync(Func<bool> allowed){
+        await EnsureReadyAsync();
+        if(!allowed())return false;
+        var reply=await _webView.CoreWebView2.ExecuteScriptAsync("window.TornCommanderLossCycle?.resume()");
+        return reply=="true";
+    }
+
     public async Task StopAsync() { await InvokeNoArgAsync("stop"); IsArmed = false; }
     public async Task ResetAsync() => await InvokeNoArgAsync("reset");
 

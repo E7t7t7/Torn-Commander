@@ -41,3 +41,13 @@ Mobile tests simulate DOM mounting/remounting, visible viewports, drag persisten
 
 ## Maintenance
 Commander and FFContractor remain distinct repositories and release channels. No credentials, browser sessions, personal profiles or payout histories are committed. Torn Intel, travel, graffiti, stock/item intelligence, profile switching, updater and rollback modules are retained.
+
+
+## v0.6.92 responsiveness and worker controls
+Active claims show the attached worker and its status, with Pause and Resume beside Open target. Pause does not require a seller refresh or release the remote claim. Resume validates the same claim/session and refuses expired claims or an outstanding native medical check. If a later Pause occurs while Resume is waiting, that queued Resume is cancelled.
+
+Start uses the fresh saved claim or that claim's detail endpoint instead of refreshing both full seller lists every time. An existing refresh is shared when fresh state is needed. A known target opens directly without another seller API request. The claim-card DOM remains intact on unchanged heartbeats.
+
+Worker startup formerly requested seven fast-sync datasets just to obtain player identity; one fresh user/profile response now suffices. Medical profile/cooldown/perk reads now use the documented v2 multi-selection route (user?selections=profile,cooldowns,perks, with perks only when due). One request occupies one global API queue slot. Its total queue/request wait is cancelled after 35 seconds so the browser's 45-second wait does not expire first. Global provider/API pacing is preserved.
+
+These savings are verified in production-service mock tests, not a live timing benchmark. Identity, state and receipt checks are preserved. A slow/rate-limited API can still pause the worker; Resume rechecks rather than repeating medicine blindly.

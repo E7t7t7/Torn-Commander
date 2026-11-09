@@ -1,3 +1,12 @@
+v0.6.92
+- Added per-claim Pause and Resume beside Open target. These operate on the original owning worker/session; Pause remains available during seller refresh and does not release remote slots. Resume rechecks expiry, ownership and medical activity, and a later Pause cancels a queued resume.
+- Start no longer downloads all available contracts and history again unnecessarily. Shares an in-flight refresh, uses a recent verified claim or refreshes only that claim's details. Open target uses the saved validated Torn target without another seller request.
+- Worker startup previously requested seven unrelated datasets merely to identify the player. It now uses one fresh user/profile identity request, keeping the same owner/self-target checks.
+- Medical reads previously queued separate profile, cooldown and sometimes perks requests; combined documented v2 selections now obtain one coherent fresh snapshot in one queue slot. Total queue/request wait is bounded at 35 seconds, ahead of the browser's 45-second deadline. Timeout/rate-limit messages explain the pause rather than silently allowing another item.
+- Seller UI shows actual loading phases and attached worker status. Unchanged claim cards are retained across heartbeats, preserving click targets and reducing DOM churn.
+- Provider pacing and official attack/medical receipt checks remain unchanged. No drug fallback or blind consumption retry added.
+- Validation: production read service fixtures prove one identity/medical request, exact owner, partial-data rejection and queue cancellation; dashboard claim-button dispatch/stable DOM fixtures; existing provider, loss-loop, medical/accounting regressions and Release build. No live fights, claims or medical use. Improvements are based on verified request paths; no live end-to-end timing claim is made.
+
 v0.6.91
 - Added City Scanner to the main sidebar: Open City Map, Scan City, Show on map and Clear highlights.
 - Reads canvas markers from the currently open Torn map, plus a legacy image-marker fallback; lists separate copies of the same item without inventing prices or daily availability.

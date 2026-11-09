@@ -247,7 +247,12 @@ public sealed partial class MainForm
         TornSnapshot profileSnapshot;
         try
         {
-            profileSnapshot = await _api.FetchFastSnapshotAsync(key);
+            if(order.SourceService=="FFScouter")FFActivity(profileId,"Checking Torn account identity before opening the worker…");
+            using var identityDeadline=new CancellationTokenSource(TimeSpan.FromSeconds(35));
+            var identityJson=await MedicalSnapshotReader.ReadIdentityAsync((route,ct)=>_api.FetchEndpointAsync(route,key,ct,fresh:true),identityDeadline.Token);
+            using var identity=JsonDocument.Parse(identityJson);
+            var player=identity.RootElement.GetProperty("profile");
+            profileSnapshot=new TornSnapshot{PlayerId=player.GetProperty("id").GetInt32(),PlayerName=player.GetProperty("name").GetString()??""};
         }
         catch (Exception ex)
         {
@@ -266,6 +271,7 @@ public sealed partial class MainForm
         }
 
         if(order.SourceService=="FFScouter"&&(!FFExecutable(order,profileId)||profileSnapshot.PlayerId!=order.RemoteOwner)){StartMessage("Refresh the owning FFScouter claim/account before starting.");return false;}
+        if(order.SourceService=="FFScouter")FFActivity(profileId,"Opening the isolated worker browser…");
         var worker = await InitializeLossWorkerAsync(accountA, profileId);
         ReleaseClaimsForWorker(worker);
         order.Status = "Auto cycling";

@@ -30,18 +30,19 @@ public sealed partial class MainForm
     }
     private async Task<MedicalObservation> ReadMedicalObservationAsync(LossAutoCycleWorker worker,MedicalSession session,Dictionary<int,int> inventory){
         var key=CredentialManager.LoadApiKey(worker.ProfileId);if(string.IsNullOrWhiteSpace(key))throw new InvalidDataException("This profile needs a Torn API key.");
-        using var profile=JsonDocument.Parse(await _api.FetchEndpointAsync("user/profile",key,fresh:true));var p=profile.RootElement.GetProperty("profile");
+        var settings=MedicalSettings(worker.ProfileId);
+        bool refreshPerks=settings.AutoDetect&&DateTime.UtcNow-session.PerksAt>TimeSpan.FromMinutes(5);
+        using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(35));
+        var json=await MedicalSnapshotReader.ReadAsync((route,ct)=>_api.FetchEndpointAsync(route,key,ct,fresh:true),session.Player,refreshPerks,deadline.Token);
+        using var profile=JsonDocument.Parse(json);var p=profile.RootElement.GetProperty("profile");
         if(p.GetProperty("id").GetInt32()!=session.Player)throw new InvalidDataException("API account changed; no medical action allowed.");
         var status=p.GetProperty("status");var state=status.GetProperty("state").GetString();DateTime until=DateTime.UtcNow;
         if(string.Equals(state,"Hospital",StringComparison.OrdinalIgnoreCase)){
             until=DateTimeOffset.FromUnixTimeSeconds(status.GetProperty("until").GetInt64()).UtcDateTime;
             var description=status.ToString();if(description.Contains("radiation",StringComparison.OrdinalIgnoreCase)||description.Contains("poison",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Nonstandard hospitalization; review manually. No medical or drug fallback used.");
         }else if(!string.Equals(state,"Okay",StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Account is not in a verified Hospital/Okay state.");
-        using var cooldown=JsonDocument.Parse(await _api.FetchEndpointAsync("user/cooldowns",key,fresh:true));int seconds=cooldown.RootElement.GetProperty("cooldowns").GetProperty("medical").GetInt32();
-        var settings=MedicalSettings(worker.ProfileId);
-        if(settings.AutoDetect&&DateTime.UtcNow-session.PerksAt>TimeSpan.FromMinutes(5)){
-            session.Perks=await _api.FetchEndpointAsync("user/perks",key);session.PerksAt=DateTime.UtcNow;
-        }
+        int seconds=profile.RootElement.GetProperty("cooldowns").GetProperty("medical").GetInt32();
+        if(refreshPerks){session.Perks=JsonSerializer.Serialize(new{perks=profile.RootElement.GetProperty("perks")});session.PerksAt=DateTime.UtcNow;}
         var mods=SmartMedicalOptimizer.Modifiers(session.Perks,settings);session.ModifierNote=mods.Status;
         // Manual mode still cannot assert blood eligibility; auto detection must prove it.
         var observed=new MedicalObservation(worker.ProfileId,session.Player,DateTime.UtcNow,until,seconds,mods.Maximum,mods.Bonus,mods.Iv,mods.Status,inventory,session.Leveling?p.GetProperty("life").GetProperty("current").GetInt32():0,session.Leveling?p.GetProperty("life").GetProperty("maximum").GetInt32():0);
@@ -123,7 +124,7 @@ public sealed partial class MainForm
                 try{IntelStore.Snapshot(worker.ProfileId,"medical-session",s.Id,DateTime.UtcNow,new{session=s.Id,slot=worker.Slot,itemId=s.Item.Id,used=s.ItemsUsed,cooldownSeconds=s.CooldownUsed,savedSeconds=s.Saved,verified=true});}catch{s.Note+=" Local audit storage unavailable; live verification succeeded.";}
                 await worker.ReplyMedicalAsync(rid,new{state="Verified",token=s.Pending});
             }
-        }catch(Exception ex){s.Note=ex is InvalidDataException?ex.Message:"Medical read/verification failed. Check API permissions and visible inventory; no item retry or drug fallback.";try{IntelStore.Snapshot(worker.ProfileId,"medical-failure",s.Id,DateTime.UtcNow,new{session=s.Id,slot=worker.Slot,stage=type,reason=s.Note,verified=false});}catch{}await worker.ReplyMedicalAsync(rid,new{state="Paused",reason=s.Note});}
+        }catch(Exception ex){s.Note=ex is OperationCanceledException?"Medical API queue/request timed out before the browser deadline. Wait for other syncs to finish, then Resume; no item retry or drug fallback.":ex is TornApiCooldownException?"Torn API is rate-limited. Wait for the API cooldown before Resume; no item retry.":ex is InvalidDataException?ex.Message:"Medical read/verification failed. Check API permissions and visible inventory; no item retry or drug fallback.";try{IntelStore.Snapshot(worker.ProfileId,"medical-failure",s.Id,DateTime.UtcNow,new{session=s.Id,slot=worker.Slot,stage=type,reason=s.Note,verified=false});}catch{}await worker.ReplyMedicalAsync(rid,new{state="Paused",reason=s.Note});}
         finally{s.Busy=false;UpdateLossDashboardStatus();}
     }
     private object MedicalDashboard()=>new{

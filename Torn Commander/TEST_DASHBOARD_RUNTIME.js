@@ -305,3 +305,16 @@ context.renderCity({profileId:'one',scan:{note:'Highlighted',items:[{id:67,index
 assert(nodes.cityRows.innerHTML.includes('First Aid Kit')&&nodes.cityRows.innerHTML.includes('Show on map'));
 context.renderCity({profileId:'two',scan:null});assert(!nodes.cityRows.innerHTML.includes('First Aid Kit'),'City items leaked to another profile');
 console.log('CITY DASHBOARD PASSED: marker list and account clearing.');
+
+const attached={...actionable,busy:true,activity:'Refreshing claim progress…',claims:[{id:42,orderNumber:'ORDER-A',target:3003,state:'active',live:true,claimed:10,delivered:7,worker:{slot:'A',status:'paused: Medical API timeout',paused:true}}]};
+context.renderFF(attached);
+assert(nodes.ffSellerClaims.innerHTML.includes('data-ff-action="ffPause"')&&nodes.ffSellerClaims.innerHTML.includes('data-ff-action="ffResume"'));
+assert(!nodes.ffSellerClaims.innerHTML.includes('data-ff-action="ffStart"'),'Running claim invites duplicate Start');
+assert(nodes.ffSellerClaims.innerHTML.includes('Open target only')&&nodes.ffSellerClaims.innerHTML.includes('Medical API timeout'));
+nodes.ffSellerClaims.onclick({target:{closest:()=>({dataset:{ffAction:'ffPause',claim:'42'}})}});
+nodes.ffSellerClaims.onclick({target:{closest:()=>({dataset:{ffAction:'ffResume',claim:'42'}})}});
+assert(ledgerRequests.some(x=>x.cmd==='ffPause'&&x.data.claimId===42)&&ledgerRequests.some(x=>x.cmd==='ffResume'&&x.data.claimId===42),'Claim controls lose identity');
+nodes.ffSellerClaims.innerHTML='PRESERVE_BUTTON_DURING_HEARTBEAT';
+context.renderFF(attached);assert.equal(nodes.ffSellerClaims.innerHTML,'PRESERVE_BUTTON_DURING_HEARTBEAT','Heartbeat replaced unchanged worker buttons');
+assert(nodes.ffSellerNext.textContent.includes('Refreshing claim progress'),'Loading phase not explained');
+console.log('SELLER WORKER CONTROLS PASSED: pause/resume beside target while refreshing, correct claim payload, no duplicate Start and stable heartbeat DOM.');

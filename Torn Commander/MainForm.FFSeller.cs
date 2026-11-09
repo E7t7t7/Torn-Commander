@@ -5,9 +5,17 @@ public sealed partial class MainForm {
  private readonly Dictionary<string,FFSellerState> _ffStates=new();
  private readonly HashSet<string> _ffBusy=new();
  private readonly Dictionary<string,DateTime> _ffPollAt=new();
+ private readonly Dictionary<string,Task> _ffSyncTasks=new();
+ private readonly HashSet<string> _ffControlBusy=new();
+ private readonly Dictionary<string,int> _ffControlEpoch=new();
+ private readonly Dictionary<string,string> _ffActivity=new();
+ private void FFActivity(string profile,string message){_ffActivity[profile]=message;PushFF();}
+ private LossAutoCycleWorker? FFWorker(string profile,long claimId)=>new[]{_lossWorkerA,_lossWorkerB}.FirstOrDefault(w=>w?.IsArmed==true&&w.ProfileId==profile&&_medicalSessions.TryGetValue(w,out var m)&&_lossOrders.Any(o=>o.Id==m.Order&&o.SourceService=="FFScouter"&&o.RemoteProfileId==profile&&o.RemoteClaimId==claimId));
+ private object? FFWorkerView(string profile,long claimId){var w=FFWorker(profile,claimId);return w==null?null:new{slot=w.Slot,status=w.LastStatus,paused=w.LastStatus.StartsWith("paused:",StringComparison.OrdinalIgnoreCase)};}
+
  private FFSellerState FFFor(string profile){if(!_ffStates.TryGetValue(profile,out var s)){s=IntelStore.Load(profile,"ff-seller",new FFSellerState());_ffStates[profile]=s;}return s;}
  private void SaveFF(string profile)=>IntelStore.Save(profile,"ff-seller",FFFor(profile));
- private object FFDashboard(){var s=FFFor(CurrentProfileId);return new{profileId=CurrentProfileId,configured=!string.IsNullOrEmpty(CredentialManager.LoadSellerKey(CurrentProfileId)),busy=_ffBusy.Contains(CurrentProfileId),s.Player,s.Enabled,s.AutoRun,s.AutoFinish,s.SessionLimit,s.Cap,s.LastSync,s.Note,s.Pending,totals=FFSellerData.Totals(s),contracts=s.Contracts,claims=s.Claims.Values.OrderByDescending(x=>x.ClaimedAt).Take(100).Select(c=>new{c.Id,c.OrderNumber,c.Target,c.State,c.Claimed,c.Delivered,c.Price,c.Earnings,c.PaymentStatus,c.Paid,c.Review,c.ExpiresAt,c.IdleDeadline,live=c.Live(DateTime.UtcNow)}).ToList()};}
+ private object FFDashboard(){var s=FFFor(CurrentProfileId);return new{profileId=CurrentProfileId,configured=!string.IsNullOrEmpty(CredentialManager.LoadSellerKey(CurrentProfileId)),busy=_ffBusy.Contains(CurrentProfileId),activity=_ffActivity.GetValueOrDefault(CurrentProfileId),controlBusy=_ffControlBusy.Contains(CurrentProfileId),s.Player,s.Enabled,s.AutoRun,s.AutoFinish,s.SessionLimit,s.Cap,s.LastSync,s.Note,s.Pending,totals=FFSellerData.Totals(s),contracts=s.Contracts,claims=s.Claims.Values.OrderByDescending(x=>x.ClaimedAt).Take(100).Select(c=>new{c.Id,c.OrderNumber,c.Target,c.State,c.Claimed,c.Delivered,c.Price,c.Earnings,c.PaymentStatus,c.Paid,c.Review,c.ExpiresAt,c.IdleDeadline,live=c.Live(DateTime.UtcNow),worker=FFWorkerView(CurrentProfileId,c.Id)}).ToList()};}
  private void PushFF(bool keySaved=false){if(_modernDashboard?.CoreWebView2!=null)_modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="ffSeller",data=FFDashboard(),keySaved}));}
  private async Task<string> FFSellerKeyAsync(string profile){
   var s=FFFor(profile);var key=CredentialManager.LoadSellerKey(profile)??throw new InvalidOperationException("Connect this profile's FFScouter seller key first.");
@@ -36,8 +44,15 @@ public sealed partial class MainForm {
   SaveLossOrders();RebindLossOrders();
  }
  private async Task SyncFFCore(string profile){
+  if(_ffSyncTasks.TryGetValue(profile,out var existing)){await existing;return;}
+  var task=SyncFFCoreImpl(profile);_ffSyncTasks[profile]=task;
+  try{await task;}finally{if(_ffSyncTasks.GetValueOrDefault(profile)==task)_ffSyncTasks.Remove(profile);}
+ }
+ private async Task SyncFFCoreImpl(string profile){
   var s=FFFor(profile);var key=await FFSellerKeyAsync(profile);
+  FFActivity(profile,"Refreshing available contracts (provider requests are paced)…");
   var contractJson=await _ffSeller.Send(key,"losses/seller/contracts");
+  FFActivity(profile,"Refreshing claim progress and payments…");
   var claimJson=await _ffSeller.Send(key,"losses/seller/claims");
   var contracts=FFSellerData.Contracts(contractJson);FFSellerData.MergeClaims(s,claimJson);s.Contracts=contracts.Contracts;s.Cap=contracts.Cap;s.LastSync=DateTime.UtcNow;
   if(s.Pending=="claim"&&s.Claims.Values.Any(c=>c.OrderNumber==s.PendingOrder&&!s.PendingKnownIds.Contains(c.Id)&&c.ClaimedAt>=new DateTimeOffset(s.PendingAt).ToUnixTimeSeconds()-5))s.Pending="";
@@ -92,10 +107,51 @@ public sealed partial class MainForm {
   var previous=SelectedLossOrder()?.Id;SelectLossOrder(o.Id);_lossStartBusy=true;
   try{if(!await StartLossWorkerCoreAsync(slotA,unattended))throw new InvalidOperationException("Worker did not start. Review this account and use Start explicitly.");}finally{_lossStartBusy=false;if(previous!=null)SelectLossOrder(previous);}
  }
+ private async Task PrepareFFExecution(string profile,long id){
+  var s=FFFor(profile);
+  bool refreshing=_ffSyncTasks.TryGetValue(profile,out var sync);
+  if(refreshing&&DateTime.UtcNow-s.LastSync>TimeSpan.FromSeconds(15))await sync!;
+  else if(!refreshing&&_ffBusy.Contains(profile))throw new InvalidOperationException("A seller reservation/completion is running. Wait for its result before starting or resuming.");
+  if(s.Pending!="")throw new InvalidOperationException("Reconcile the previous seller request before starting or resuming.");
+  var c=s.Claims.GetValueOrDefault(id)??throw new InvalidDataException("Unknown owning claim.");
+  if(!c.Live(DateTime.UtcNow))throw new InvalidOperationException("Claim ended or expired. No worker resumed.");
+  await FFSellerKeyAsync(profile);
+  if(DateTime.UtcNow-s.LastSync>TimeSpan.FromSeconds(15)){FFActivity(profile,"Checking this claim before starting/resuming…");await FFDetail(profile,c);}
+ }
+ private async Task HandleFFControl(string action,string profile,long id){
+  var s=FFFor(profile);
+  if(action=="ffPause"){
+   _ffControlEpoch[profile]=_ffControlEpoch.GetValueOrDefault(profile)+1;
+   var w=FFWorker(profile,id)??throw new InvalidOperationException("No running worker is linked to this claim.");
+   await w.PauseAsync();s.Note="Paused this claim's worker. No remote slots released.";PushFF();UpdateLossDashboardStatus();return;
+  }
+  if(!_ffControlBusy.Add(profile))throw new InvalidOperationException("A worker start/resume is already running.");
+  int epoch=_ffControlEpoch.GetValueOrDefault(profile);
+  try{
+   FFActivity(profile,action=="ffResume"?"Checking this claim before resuming…":"Preparing this account's loss worker…");
+   await PrepareFFExecution(profile,id);
+   if(epoch!=_ffControlEpoch.GetValueOrDefault(profile)){s.Note="Paused; the queued resume/start was cancelled.";return;}
+   if(action=="ffResume"){
+    var w=FFWorker(profile,id)??throw new InvalidOperationException("No paused worker remains. Use Start for a stopped worker.");
+    var order=_lossOrders.Single(o=>o.SourceService=="FFScouter"&&o.RemoteProfileId==profile&&o.RemoteClaimId==id);
+    if(!FFExecutable(order,profile))throw new InvalidOperationException("Claim is no longer executable. No worker resumed.");
+    if(_medicalSessions.TryGetValue(w,out var med)&&med.Busy)throw new InvalidOperationException("Medical verification is still running. Wait for its result before resuming; no item will be repeated.");
+    if(!await w.ResumeIfAsync(()=>epoch==_ffControlEpoch.GetValueOrDefault(profile)&&ReferenceEquals(FFWorker(profile,id),w)&&FFExecutable(order,profile)))throw new InvalidOperationException("Resume cancelled because this worker or claim changed.");
+    s.Note="Resume requested for the existing worker/session; pending medical use is rechecked, never repeated blindly.";
+   }else await StartFFOrder(profile,s.Claims[id]);
+  }catch(Exception ex){s.Note=ex is InvalidOperationException or InvalidDataException or FFSellerException?ex.Message:"Worker control failed. No new attack or item was authorized.";}
+  finally{_ffControlBusy.Remove(profile);_ffActivity.Remove(profile);PushFF();UpdateLossDashboardStatus();}
+ }
  private async Task HandleFFAction(string action,JsonElement root){
   if(action=="ffState"){PushFF();return;}
   string profile=ReadWorkerString(root,"profileId");if(profile!=CurrentProfileId)throw new InvalidOperationException("Selected profile changed.");
-  if(!_ffBusy.Add(profile))throw new InvalidOperationException("A seller operation is already running.");
+  if(action is "ffPause" or "ffResume" or "ffStart"){await HandleFFControl(action,profile,root.GetProperty("claimId").GetInt64());return;}
+  if(action=="ffTarget"){
+   var targetClaim=FFFor(profile).Claims.GetValueOrDefault(root.GetProperty("claimId").GetInt64())??throw new InvalidDataException("Unknown claim.");
+   if(targetClaim.Target>0){await AddBrowserTabAsync(TornRoutes.Attack(targetClaim.Target));return;}
+  }
+  if(_ffControlBusy.Contains(profile))throw new InvalidOperationException("A worker start/resume is already running.");
+  if(!_ffBusy.Add(profile))throw new InvalidOperationException("Seller refresh is running. Pause and Open target remain available; wait briefly before another seller change.");
   var s=FFFor(profile);bool keySaved=false;
   try{
    if(action=="ffConnect"){
@@ -131,7 +187,6 @@ public sealed partial class MainForm {
    }else{
     long id=root.GetProperty("claimId").GetInt64();var c=s.Claims.GetValueOrDefault(id)??throw new InvalidDataException("Claim not in this account's saved history.");
     if(action=="ffTarget"){await FFDetail(profile,c);c=s.Claims[id];if(c.Target<=0)throw new InvalidDataException("No Torn target ID available. Claim ID/order number are not attack targets.");await AddBrowserTabAsync(TornRoutes.Attack(c.Target));}
-    else if(action=="ffStart"){await SyncFFCore(profile);await StartFFOrder(profile,s.Claims[id]);}
     else if(action=="ffComplete"){
      if(MessageBox.Show(this,"Mark claim "+id+" complete and release unused slots? This does not confirm payment.","FFScouter completion",MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
      foreach(var a in new[]{true,false}){var w=a?_lossWorkerA:_lossWorkerB;if(w!=null&&_medicalSessions.TryGetValue(w,out var med)&&_lossOrders.Any(o=>o.Id==med.Order&&o.RemoteProfileId==profile&&o.RemoteClaimId==id))await StopLossWorkerAsync(a);}
@@ -139,15 +194,15 @@ public sealed partial class MainForm {
     }
    }
   }catch(Exception ex){s.Note=ex is InvalidOperationException or InvalidDataException or FFSellerException?ex.Message:"Seller operation failed. Saved orders retained; refresh to reconcile before retrying.";SaveFF(profile);}
-  finally{_ffBusy.Remove(profile);PushFF(keySaved);RefreshLossLedger();UpdateLossDashboardStatus();}
+  finally{_ffBusy.Remove(profile);_ffActivity.Remove(profile);PushFF(keySaved);RefreshLossLedger();UpdateLossDashboardStatus();}
  }
  private async void TickFFSeller(){
   foreach(var p in _settings.Profiles.ToList()){
-   var s=FFFor(p.Id);if(!s.Enabled||_ffBusy.Contains(p.Id)||_ffPollAt.GetValueOrDefault(p.Id)>DateTime.UtcNow)continue;
+   var s=FFFor(p.Id);if(!s.Enabled||_ffControlBusy.Contains(p.Id)||_ffBusy.Contains(p.Id)||_ffPollAt.GetValueOrDefault(p.Id)>DateTime.UtcNow)continue;
    _ffPollAt[p.Id]=DateTime.UtcNow.AddSeconds(30);_ffBusy.Add(p.Id);
    try{
     await SyncFFCore(p.Id);
-    if(s.Pending==""){
+    if(s.Pending==""&&!_ffControlBusy.Contains(p.Id)){
      var finish=s.Claims.Values.FirstOrDefault(c=>c.State=="active"&&c.Claimed>0&&c.Delivered>=c.Claimed);
      if(s.AutoFinish&&finish!=null){
       await FFDetail(p.Id,finish);var o=_lossOrders.Single(x=>x.RemoteOwner==s.Player&&x.RemoteClaimId==finish.Id&&x.SourceService=="FFScouter");
@@ -160,7 +215,7 @@ public sealed partial class MainForm {
      }
     }
    }catch(Exception ex){s.Note=ex is InvalidOperationException or InvalidDataException or FFSellerException?ex.Message:"Seller sync failed. No new automatic attack authorized.";try{SaveFF(p.Id);}catch{}}
-   finally{_ffBusy.Remove(p.Id);PushFF();RefreshLossLedger();}
+   finally{_ffBusy.Remove(p.Id);_ffActivity.Remove(p.Id);PushFF();RefreshLossLedger();}
    return; // One profile per timer turn; requests remain globally paced.
   }
  }
