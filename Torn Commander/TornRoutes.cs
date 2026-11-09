@@ -2,6 +2,7 @@ namespace TornCommander;
 
 internal static class TornRoutes
 {
+    public const string City = "https://www.torn.com/city.php#map";
     public const string Home = "https://www.torn.com/";
     public const string Crimes = "https://www.torn.com/page.php?sid=crimes";
     // Current Crimes 2.0 deep links use page.php + the crime hash route.

@@ -300,3 +300,8 @@ for(const patch of [{busy:true},{pending:'claim'},{lastSync:'2000-01-01T00:00:00
 context.renderFF({...actionable,claims:[{id:42,state:'fulfilled',claimed:24,delivered:24,target:0}]});assert(!nodes.ffSellerClaims.innerHTML.includes('data-ff-action'),'Historical claim shows unusable buttons');
 assert(nodes.ffSellerClaims.innerHTML.includes('Previous contract'));
 console.log('SELLER GUIDANCE PASSED: numbered steps, empty/stale/blocked states, count versus max, bounded limits, payload and historical action hiding.');
+
+context.renderCity({profileId:'one',scan:{note:'Highlighted',items:[{id:67,index:0,name:'First Aid Kit'}]}});
+assert(nodes.cityRows.innerHTML.includes('First Aid Kit')&&nodes.cityRows.innerHTML.includes('Show on map'));
+context.renderCity({profileId:'two',scan:null});assert(!nodes.cityRows.innerHTML.includes('First Aid Kit'),'City items leaked to another profile');
+console.log('CITY DASHBOARD PASSED: marker list and account clearing.');

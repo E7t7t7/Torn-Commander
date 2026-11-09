@@ -1,3 +1,11 @@
+v0.6.91
+- Added City Scanner to the main sidebar: Open City Map, Scan City, Show on map and Clear highlights.
+- Reads canvas markers from the currently open Torn map, plus a legacy image-marker fallback; lists separate copies of the same item without inventing prices or daily availability.
+- Passive map rings do not intercept pickup clicks. Each pickup is manual; no collect-all, background polling, hidden requests, CAPTCHA bypass or automatic collection events.
+- Scan/focus checks the selected profile and current game tab. Stale or collected markers require a rescan. Empty/loading/wrong-page states explain the limitation; nothing is labeled collected without a game receipt.
+- Reference: Torn scripting rules https://www.torn.com/rules.php ; current canvas data shape checked against TornPDA's public city-map implementation, not assumed from old DOM-only examples.
+- Validation: offline canvas/image fixtures, duplicate quantities, URL/origin restrictions, loading/empty pages, stale marker focus, clear/reinjection, account UI clearing and explicit no-network/no-collection assertion. Release build passed with existing WindowsBase/DPI warnings. Live map pickup behavior is not tested.
+
 v0.6.90
 - FFScouter Loss Desk now gives numbered refresh/select/reserve/start steps, a next-action message and an explicit no-contracts state.
 - Reservation buttons explain their purpose and stay disabled until a fresh, selected contract is claimable within provider and personal limits. Maximum reservation displays the bounded count. Stale, busy, pending and already-active states explain what to do.
