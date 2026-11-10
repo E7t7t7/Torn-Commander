@@ -1,3 +1,9 @@
+v0.6.98 - Preserve partially completed orders during fast-batch upgrade
+- The first visible-batch receipt now preserves the existing conservative tracked count, including earlier official receipts not yet represented in provider hit details.
+- Prevents an upgraded partially completed claim from accidentally gaining an extra local slot when provider history is delayed.
+- Regression fixture verifies one provider delivery plus one unresolved old local receipt leaves only one slot of a three-loss claim. Existing batch, finance and worker checks remain applicable.
+- No live claims, fights, payments or medical items used.
+
 v0.6.97 - Fast FFScouter batches, energy reservations and dual start
 - New Start / resume both accounts button and account chooser uses two separate active claims. Existing workers resume their sessions; failures report per account without duplicating a claim.
 - Energy claim accepts server revalidation when displayed availability goes stale, coalesces an existing refresh, selects a sole available contract and reports actual stacked energy / 25, provider/personal caps, available slots and energy left.

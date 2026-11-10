@@ -37,7 +37,7 @@ public static class LossAccounting
             return new(false,order.Remaining,"Visible loss did not match an active owning claim.");
         var receipt=new LossCommitReceipt{ClaimId=claimId,ProfileId=profile,Slot=slot,VisibleOnly=true,FightStartedUtc=started,FightEndedUtc=ended};
         var previousBaseline=order.LocalBatchBaseline;
-        order.LocalBatchBaseline??=order.CompletedTotal;
+        order.LocalBatchBaseline??=order.TrackedTotal;
         order.LocalBatchClaims.Add(claimId);
         order.CommitReceipts.Add(receipt);try{save();}catch{order.CommitReceipts.Remove(receipt);order.LocalBatchClaims.Remove(claimId);order.LocalBatchBaseline=previousBaseline;throw;}
         return new(true,order.Remaining,"Visible loss tracked locally. Provider confirmation and payout remain separate.");

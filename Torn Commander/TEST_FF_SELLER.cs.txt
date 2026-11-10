@@ -166,6 +166,10 @@ var failedSave=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",Pr
 try{LossAccounting.CommitVisible(failedSave,"save-failure","main","A",now,now,()=>throw new IOException("fixture"));}catch(IOException){}
 Check(failedSave.LocalBatchClaims.Count==0&&failedSave.LocalBatchBaseline==null&&failedSave.CommitReceipts.Count==0,"Failed persistence spent a loss slot.");
 Console.WriteLine("ASYNC PROGRESS PASSED: all thirty run while provider summaries catch up, no duplicate progress, restart and failed-save rollback.");
+var upgrading=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",ProfileAId="main",RequestedLosses=3,RemoteDelivered=1,CommitReceipts=[new(){AttackId=987,ProfileId="main"}]};
+Check(upgrading.TrackedTotal==2,"Legacy unresolved overlap was lost.");
+Check(LossAccounting.CommitVisible(upgrading,"new-mode","main","A",now,now.AddSeconds(1),()=>{}).Ok&&upgrading.Remaining==0,"Upgrade reset earlier unresolved local progress and allowed an extra attack.");
+Console.WriteLine("LEGACY BATCH UPGRADE PASSED: existing official receipts and unknown remote overlap preserve the conservative remaining quota.");
 class Handler:HttpMessageHandler{
  public int Calls;public string Host="";public bool Bad;
  protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct){Calls++;Host=request.RequestUri!.Host;if(Bad)throw new HttpRequestException("synthetic timeout");return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("{\"contracts\":[],\"max_claim_slots\":10}")});}
