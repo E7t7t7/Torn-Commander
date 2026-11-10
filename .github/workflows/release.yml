@@ -169,6 +169,11 @@ jobs:
         run: |
           & 'Torn Commander/TEST_PROGRESSION.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Progression regression failed; release withheld.' }
+      - name: Check finance ledger and Private Island calculations
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_FINANCE.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Finance regression failed; release withheld.' }
       - name: Package tracked source only
         id: package
         shell: pwsh

@@ -1,3 +1,12 @@
+v0.6.96 - Finance and Private Island planner
+- New profile-isolated Finance / Island tab: official wallet, vault, Cayman, bank principal/interest/maturity, faction credit and net-worth snapshots; 15-minute opt-in monitoring and actual daily history charts.
+- Persistent classified income/spending ledger with cash and Xanax kept separate, transfers excluded, immutable imported source amounts, manual entry, review, filtering and private JSON export.
+- Recent 100 official logs inspected when full-key permissions allow. Dynamic explicit money fields are retained; ambiguous receipts require classification. Unsupported/older logs remain a stated coverage gap, not fabricated history.
+- Editable island/upgrades budget, protected reserve and daily income/spending scenario. Observed savings change is separate from profit and available only with adequate observations.
+- Local earning guidance uses actual expense/income concentration, bank lock-up and existing travel/trading/growth tools without paid AI. Existing single-owner Loss Desk paid figures and completed trade margins are cross-checks, not duplicate ledger income; shared direct orders are excluded.
+- Tests: finance fixtures, dashboard runtime and Windows build. No real transfers, claims, trades or item use. Provider/account rendering still needs live confirmation; automatic comprehensive transaction categorization is not claimed.
+- API schema reference: https://www.torn.com/swagger/openapi.json (user/money, user/networth, standalone user/log; full-key logs).
+
 v0.6.95
 - Added Reserve on both accounts: choose two connected seller profiles, use each account's current energy or a count per account, and review both proposed reservations.
 - Requires distinct verified owners and separate keys; preflights both before any POST. Provider, personal and combined available-slot limits apply. Rechecks the second account after the first reservation and may reduce its count if availability falls.

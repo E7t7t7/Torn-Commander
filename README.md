@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.95. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.96. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -181,3 +181,6 @@ v0.6.93: after Scan City, press Collect next item for one original pickup action
 v0.6.94: FFScouter claim limits follow the provider by default (0 = automatic), with an optional lower override. Reserve using current energy reads the owning account, computes floor(energy / 25) and caps the result by provider allowance, slots and the optional override before asking to reserve. Example: 775 energy and a 30-loss allowance reserves at most 30.
 
 v0.6.95: Reserve on both accounts selects two independently connected seller profiles, defaults to current energy per account, previews both counts and makes two separate reservations. Requires separate seller keys and distinct owners; partial success is retained and never automatically repeated or rolled back.
+
+
+v0.6.96: Finance / Island adds private account balance history, a classified cash/Xanax ledger, an editable island goal, reserve and daily savings scenario, plus local earning guidance. Sync uses official user/money, user/networth and the latest 100 user/log entries (full key needed for logs). Ambiguous cash receipts require review; older/unsupported transactions need manual entries. Transfers and bank principal are not profit. Loss Desk settlements and trading margins are separate cross-checks to prevent double counting. No paid AI service is used.

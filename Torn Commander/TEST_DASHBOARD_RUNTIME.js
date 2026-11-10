@@ -347,3 +347,12 @@ nodes.ffSellerContract.value='BOTH';context.updateFFActions();assert(!nodes.ffSe
 context.ffReserveBoth();assert(ledgerRequests.some(x=>x.cmd==='ffClaimBoth'&&x.data.order==='BOTH'),'Both-account chooser command missing');
 context.renderFF({...actionable,batchBusy:true});assert(nodes.ffSellerBoth.disabled,'Duplicate batch chooser enabled');
 console.log('DUAL RESERVATION UI PASSED: chooser command and duplicate batch guard.');
+
+
+context.S.profileId='one';
+context.renderFinance({profileId:'one',goal:500000000,reserve:10000000,dailyIncome:20000000,dailySpending:3000000,summary:{income:20000000,spending:3000000,net:17000000,percent:25,savings:125000000,remaining:375000000,scenarioDays:23},balance:{wallet:125000000,vault:0,cayman:0,bank:0,bankProfit:0,at:new Date().toISOString()},entries:[{id:'receipt',at:new Date().toISOString(),amount:20000000,currency:'cash',kind:'review',category:'Other',source:'Torn log',note:'Receipt <test>'}],advice:['Compare travel'],losses:{cash:20000000,xanax:5,delivered:60}});
+assert(nodes.finCards.innerHTML.includes('17000000')&&nodes.finGoalStatus.textContent.includes('23 days'),'Finance cash flow or goal missing');
+assert(nodes.finReconcile.textContent.includes('5 Xanax')&&nodes.finEntries.innerHTML.includes('Save classification'),'Finance source evidence/review missing');
+context.renderFinance({profileId:'two',goal:500000000,reserve:0,dailyIncome:0,dailySpending:0,summary:{},entries:[],advice:[]});
+assert(!nodes.finEntries.innerHTML.includes('receipt')&&nodes.finAmount.value===''&&nodes.finBalances.textContent.includes('No saved balances'),'Finance data leaked across profiles');
+console.log('FINANCE UI PASSED: savings, scenario, cash flow, source reconciliation, classification and profile clearing.');

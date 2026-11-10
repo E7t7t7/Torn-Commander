@@ -1,0 +1,39 @@
+using System.Text.Json;
+using TornCommander;
+void Check(bool value,string message){if(!value)throw new Exception(message);}
+var now=new DateTime(2026,11,10,12,0,0,DateTimeKind.Utc);
+var balance=FinanceData.Balance("""{"money":{"wallet":20000000,"vault":40000000,"cayman_bank":30000000,"city_bank":{"amount":100000000,"profit":4000000,"until":1795000000},"faction":{"money":999999999}},"networth":{"total":900000000}}""",now);
+Check(balance.CashSavings==190000000&&balance.Accessible==60000000,"Principal or faction balance counted incorrectly.");
+var j=new FinanceJournal{Balances=[balance]};
+var summary=FinanceData.Summary(j,now);
+Check(summary.Savings==180000000&&summary.Remaining==320000000&&summary.ScenarioDays==16,"Island forecast math failed.");
+Check(summary.ObservedDaily==null,"One observation fabricated an actual earning rate.");
+var json=JsonSerializer.Serialize(new{log=new[]{
+ new{id="one",timestamp=new DateTimeOffset(now).ToUnixTimeSeconds(),details=new{title="Money receive"},data=new{money=20000000}},
+ new{id="two",timestamp=new DateTimeOffset(now).ToUnixTimeSeconds(),details=new{title="Vault deposit"},data=new{money=100000000}},
+ new{id="three",timestamp=new DateTimeOffset(now).ToUnixTimeSeconds(),details=new{title="Job pay"},data=new{money=5000}}}});
+var rows=FinanceData.Logs(json,now);FinanceData.Merge(j,rows);FinanceData.Merge(j,rows);
+Check(j.Entries.Count==3,"Duplicate imported receipts counted.");
+summary=FinanceData.Summary(j,now);
+Check(summary.Income==5000&&summary.Review==1&&summary.Spending==0,"Unknown receipt or transfer counted as income.");
+j.Entries[0].Kind="income";j.Entries[0].Category="Loss sales";FinanceData.Merge(j,rows);
+Check(j.Entries[0].Kind=="income","Classification overwritten by later import.");
+j.Entries.Add(new(){At=now,Kind="expense",Amount=3000000,Category="Training / drugs"});
+j.Entries.Add(new(){At=now,Kind="income",Amount=5,Currency="xanax",Category="Loss sales"});
+j.Entries.Add(new(){At=now.AddDays(-31),Kind="income",Amount=999999999});
+summary=FinanceData.Summary(j,now);
+Check(summary.Net==17005000&&summary.XanaxIncome==5&&summary.Income==20005000,"Cash, Xanax or reporting period mixed.");
+j.DailySpending=20000000;Check(FinanceData.Summary(j,now).ScenarioDays==null,"Zero net savings promised a purchase date.");
+j.Balances.Add(new(){At=now.AddDays(-2),Wallet=170000000});
+j.Balances.Add(new(){At=now.AddDays(-1),Wallet=180000000});
+Check(FinanceData.Summary(j,now).ObservedDaily==10000000,"Observed savings slope failed.");
+var other=JsonSerializer.Deserialize<FinanceJournal>(JsonSerializer.Serialize(new FinanceJournal()))!;
+Check(other.Entries.Count==0&&other.Balances.Count==0,"New profile inherited another ledger.");
+var restart=JsonSerializer.Deserialize<FinanceJournal>(JsonSerializer.Serialize(j))!;
+Check(restart.Entries.Count==j.Entries.Count&&restart.Balances.Count==3,"Restart lost history.");
+foreach(var e in new[]{new FinanceEntry{At=now,Amount=-1},new FinanceEntry{At=now.AddDays(1),Amount=1},new FinanceEntry{At=now,Amount=1.5m},new FinanceEntry{At=now,Amount=1,Currency="points"}}){
+ bool blocked=false;try{FinanceData.Validate(e,now);}catch(InvalidDataException){blocked=true;}Check(blocked,"Invalid financial entry accepted.");
+}
+Check(FinanceData.Advice(j,summary,now).Any(x=>x.Contains("Training / drugs")),"Advice missed actual largest expense.");
+Check(FinanceData.Balance("""{"money":{"wallet":1,"vault":0,"cayman_bank":0,"city_bank":null,"faction":null}}""",now).Faction==null,"Missing bank/faction fabricated.");
+Console.WriteLine("FINANCE PASSED: balance ownership boundaries, principal, transfers, receipt deduplication, review, cash/Xanax isolation, scenario/observed math, persistence, date ranges and recommendations.");
