@@ -51,3 +51,13 @@ Start uses the fresh saved claim or that claim's detail endpoint instead of refr
 Worker startup formerly requested seven fast-sync datasets just to obtain player identity; one fresh user/profile response now suffices. Medical profile/cooldown/perk reads now use the documented v2 multi-selection route (user?selections=profile,cooldowns,perks, with perks only when due). One request occupies one global API queue slot. Its total queue/request wait is cancelled after 35 seconds so the browser's 45-second wait does not expire first. Global provider/API pacing is preserved.
 
 These savings are verified in production-service mock tests, not a live timing benchmark. Identity, state and receipt checks are preserved. A slow/rate-limited API can still pause the worker; Resume rechecks rather than repeating medicine blindly.
+
+
+## v0.6.94–v0.6.95 reservation choices
+The default cap follows the provider's reported allowance; zero in the optional lower-limit field means automatic. Legacy unmarked ten-loss defaults migrate to automatic. Old deliberate ten-loss limits cannot be distinguished from that default; explicitly save ten again if desired.
+
+Reserve using current energy reads the selected player's fresh profile and bars, verifies the player against the connected seller owner, and takes the minimum of floor(energy / 25), provider allowance, available slots and any lower override. It shows a confirmation before the POST; future refills are not included. 775 energy with a 30-loss allowance yields at most 30.
+
+Reserve on both accounts opens a native chooser for two independently connected seller profiles. It defaults to energy per account or accepts a count per account. Both accounts are checked before either claim is posted. The preview accounts for shared slots; the second account is refreshed after the first succeeds and its approved count can be reduced if fewer slots remain.
+
+These are two sequential remote reservations, not one dual-owner claim or an atomic server transaction. Confirmed first-account claims remain saved if the second fails or times out. No automatic resubmission or rollback is performed; inspect the per-account result before trying again. Existing explicitly armed auto-run settings still apply independently.

@@ -101,6 +101,23 @@ using(var stop=new CancellationTokenSource()){
  try{await MedicalSnapshotReader.ReadAsync(async(route,ct)=>{await Task.Delay(10000,ct);return "{}";},10,false,stop.Token);throw new Exception("Medical queue cancellation ignored");}catch(OperationCanceledException){}
 }
 Console.WriteLine("WORKER READS PASSED: one identity request, one combined medical request, exact owner, incomplete snapshot rejection and cancellable queue wait.");
+FFSellerState BatchState(int owner,int available=100)=>new(){Player=owner,Cap=30,Contracts=new(){new("BOTH",available,350000)}};
+var batchA=BatchState(10,40);var batchB=BatchState(11,40);
+var allocation=FFSellerBatch.Plan(batchA,batchB,"BOTH",31,31,DateTime.UtcNow);Check(allocation.First==30&&allocation.Second==10,"Dual plan exceeds shared slots");
+try{FFSellerBatch.Plan(batchA,batchA,"BOTH",30,30,DateTime.UtcNow);throw new Exception("Same seller shared across profiles");}catch(InvalidDataException){}
+int batchCalls=0;
+var pair=await FFSellerBatch.Reserve("main","wife",BatchState(10),BatchState(11),"BOTH",30,15,()=>Task.FromResult(BatchState(11,4)),(profile,count)=>{batchCalls++;return Task.FromResult((profile=="main"?1001L:1002L,count));});
+Check(pair.Confirmed.Count==2&&pair.Confirmed[0].Count==30&&pair.Confirmed[1].Count==4&&batchCalls==2,"Second claim ignores updated slots or wrong accounts");
+batchCalls=0;
+pair=await FFSellerBatch.Reserve("main","wife",BatchState(10),BatchState(11),"BOTH",30,15,()=>Task.FromResult(BatchState(11)),(profile,count)=>{batchCalls++;if(profile=="wife")throw new FFSellerException("Synthetic second timeout",true);return Task.FromResult((1001L,count));});
+Check(pair.Confirmed.Count==1&&pair.FailedProfile=="wife"&&batchCalls==2,"Partial success lost or uncertain second request repeated");
+batchCalls=0;
+pair=await FFSellerBatch.Reserve("main","wife",BatchState(10),BatchState(11),"BOTH",30,15,()=>Task.FromResult(BatchState(11)),(profile,count)=>{batchCalls++;throw new FFSellerException("Synthetic first timeout",true);});
+Check(pair.Confirmed.Count==0&&pair.FailedProfile=="main"&&batchCalls==1,"Uncertain first request continued to second account");
+var activeB=BatchState(11);activeB.Claims[42]=original;batchCalls=0;
+try{await FFSellerBatch.Reserve("main","wife",BatchState(10),activeB,"BOTH",30,15,()=>Task.FromResult(activeB),(profile,count)=>{batchCalls++;return Task.FromResult((1001L,count));});throw new Exception("Active second claim accepted");}catch(InvalidOperationException){}
+Check(batchCalls==0,"First claim posted before second preflight");
+Console.WriteLine("DUAL RESERVATION PASSED: distinct owners, combined availability, both preflights, reduced second slots and first/second uncertain failures without retry.");
 Console.WriteLine("FF SELLER PASSED: official schema/targets, owner/credential isolation, one active claim/caps, durable reservation/completion, interrupted response/restart, duplicate deliveries/payments, expiry and native HTTP host restriction.");
 class Handler:HttpMessageHandler{
  public int Calls;public string Host="";public bool Bad;

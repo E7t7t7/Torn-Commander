@@ -1,3 +1,10 @@
+v0.6.95
+- Added Reserve on both accounts: choose two connected seller profiles, use each account's current energy or a count per account, and review both proposed reservations.
+- Requires distinct verified owners and separate keys; preflights both before any POST. Provider, personal and combined available-slot limits apply. Rechecks the second account after the first reservation and may reduce its count if availability falls.
+- Reservations are independent and sequential through FFScouter's API, not an atomic transaction. A partial/uncertain failure is reported with actual confirmed claim IDs/counts; no automatic retry, rollback or duplicate shared claim.
+- Reuses existing durable mutation guards, local orders and owning-account workers. Reserving does not start workers unless that account's existing auto-run mode was explicitly armed.
+- Validation: dual-account plan/owner/active-claim restrictions, total slot allocation, second availability changes, first/second failure paths and UI payload; Release build and existing suites. No live remote claims used.
+
 v0.6.94
 - Added Reserve using current energy: one fresh selected-account profile/bars read, verified seller/player identity, floor(energy / 25), capped by FFScouter allowance, available slots and any explicit lower cap. Shows the calculation before confirming the real reservation. Does not assume future refills or start a worker automatically.
 - Energy fixtures cover 775 -> 30 under a 30 limit, 749 -> 29, exactly/less than 25, availability and personal-cap bounds; the third UI action is independent of the manual count field.

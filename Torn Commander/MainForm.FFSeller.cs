@@ -2,6 +2,7 @@ using System.Text.Json;
 namespace TornCommander;
 public sealed partial class MainForm {
  private readonly FFSellerClient _ffSeller=new();
+ private bool _ffBatchBusy;
  private readonly Dictionary<string,FFSellerState> _ffStates=new();
  private readonly HashSet<string> _ffBusy=new();
  private readonly Dictionary<string,DateTime> _ffPollAt=new();
@@ -15,7 +16,7 @@ public sealed partial class MainForm {
 
  private FFSellerState FFFor(string profile){if(!_ffStates.TryGetValue(profile,out var s)){s=IntelStore.Load(profile,"ff-seller",new FFSellerState());_ffStates[profile]=s;if(FFSellerData.MigrateLimit(s))IntelStore.Save(profile,"ff-seller",s);}return s;}
  private void SaveFF(string profile)=>IntelStore.Save(profile,"ff-seller",FFFor(profile));
- private object FFDashboard(){var s=FFFor(CurrentProfileId);return new{profileId=CurrentProfileId,configured=!string.IsNullOrEmpty(CredentialManager.LoadSellerKey(CurrentProfileId)),busy=_ffBusy.Contains(CurrentProfileId),activity=_ffActivity.GetValueOrDefault(CurrentProfileId),controlBusy=_ffControlBusy.Contains(CurrentProfileId),s.Player,s.Enabled,s.AutoRun,s.AutoFinish,s.SessionLimit,s.Cap,s.LastSync,s.Note,s.Pending,totals=FFSellerData.Totals(s),contracts=s.Contracts,claims=s.Claims.Values.OrderByDescending(x=>x.ClaimedAt).Take(100).Select(c=>new{c.Id,c.OrderNumber,c.Target,c.State,c.Claimed,c.Delivered,c.Price,c.Earnings,c.PaymentStatus,c.Paid,c.Review,c.ExpiresAt,c.IdleDeadline,live=c.Live(DateTime.UtcNow),worker=FFWorkerView(CurrentProfileId,c.Id)}).ToList()};}
+ private object FFDashboard(){var s=FFFor(CurrentProfileId);return new{profileId=CurrentProfileId,configured=!string.IsNullOrEmpty(CredentialManager.LoadSellerKey(CurrentProfileId)),busy=_ffBusy.Contains(CurrentProfileId),batchBusy=_ffBatchBusy,activity=_ffActivity.GetValueOrDefault(CurrentProfileId),controlBusy=_ffControlBusy.Contains(CurrentProfileId),s.Player,s.Enabled,s.AutoRun,s.AutoFinish,s.SessionLimit,s.Cap,s.LastSync,s.Note,s.Pending,totals=FFSellerData.Totals(s),contracts=s.Contracts,claims=s.Claims.Values.OrderByDescending(x=>x.ClaimedAt).Take(100).Select(c=>new{c.Id,c.OrderNumber,c.Target,c.State,c.Claimed,c.Delivered,c.Price,c.Earnings,c.PaymentStatus,c.Paid,c.Review,c.ExpiresAt,c.IdleDeadline,live=c.Live(DateTime.UtcNow),worker=FFWorkerView(CurrentProfileId,c.Id)}).ToList()};}
  private void PushFF(bool keySaved=false){if(_modernDashboard?.CoreWebView2!=null)_modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="ffSeller",data=FFDashboard(),keySaved}));}
  private async Task<string> FFSellerKeyAsync(string profile){
   var s=FFFor(profile);var key=CredentialManager.LoadSellerKey(profile)??throw new InvalidOperationException("Connect this profile's FFScouter seller key first.");
@@ -142,9 +143,17 @@ public sealed partial class MainForm {
   }catch(Exception ex){s.Note=ex is InvalidOperationException or InvalidDataException or FFSellerException?ex.Message:"Worker control failed. No new attack or item was authorized.";}
   finally{_ffControlBusy.Remove(profile);_ffActivity.Remove(profile);PushFF();UpdateLossDashboardStatus();}
  }
+ private async Task<int> FFEnergy(string profile){
+  var key=CredentialManager.LoadApiKey(profile)??throw new InvalidOperationException("Save this account's Torn API key first.");
+  using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(35));
+  using var doc=JsonDocument.Parse(await _api.FetchEndpointAsync("user?selections=profile,bars",key,deadline.Token,fresh:true));
+  FFSellerData.VerifyOwner(FFFor(profile).Player,doc.RootElement.GetProperty("profile").GetProperty("id").GetInt32());
+  return doc.RootElement.GetProperty("bars").GetProperty("energy").GetProperty("current").GetInt32();
+ }
  private async Task HandleFFAction(string action,JsonElement root){
   if(action=="ffState"){PushFF();return;}
   string profile=ReadWorkerString(root,"profileId");if(profile!=CurrentProfileId)throw new InvalidOperationException("Selected profile changed.");
+  if(action=="ffClaimBoth"){await ReserveFFBoth(root);return;}
   if(action is "ffPause" or "ffResume" or "ffStart"){await HandleFFControl(action,profile,root.GetProperty("claimId").GetInt64());return;}
   if(action=="ffTarget"){
    var targetClaim=FFFor(profile).Claims.GetValueOrDefault(root.GetProperty("claimId").GetInt64())??throw new InvalidDataException("Unknown claim.");
@@ -184,11 +193,7 @@ public sealed partial class MainForm {
     await SyncFFCore(profile);string order=ReadWorkerString(root,"order");int count;string energyNote="";
     if(action=="ffClaimEnergy"){
      FFActivity(profile,"Reading this account's current energy…");
-     var tornKey=CredentialManager.LoadApiKey(profile)??throw new InvalidOperationException("Save this account's Torn API key first.");
-     using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(35));
-     using var energyDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user?selections=profile,bars",tornKey,deadline.Token,fresh:true));
-     FFSellerData.VerifyOwner(s.Player,energyDoc.RootElement.GetProperty("profile").GetProperty("id").GetInt32());
-     int energy=energyDoc.RootElement.GetProperty("bars").GetProperty("energy").GetProperty("current").GetInt32();
+     int energy=await FFEnergy(profile);
      count=FFSellerData.EnergyClaimCount(s,order,energy,DateTime.UtcNow);
      energyNote="Current energy: "+energy+" / 25 = "+(energy/25)+" possible losses; provider, availability and optional limits reduce this to "+count+".\n\n";
     }else count=FFSellerData.ClaimCount(s,order,root.GetProperty("count").GetInt32(),root.GetProperty("max").GetBoolean(),DateTime.UtcNow);

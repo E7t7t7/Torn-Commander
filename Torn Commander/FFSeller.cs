@@ -145,3 +145,33 @@ public static class FFSellerOperations {
   }catch(FFSellerException ex)when(!ex.Uncertain){s.Pending="";persist();throw;}
  }
 }
+
+public sealed record FFSellerBatchClaim(string Profile,long ClaimId,int Count);
+public sealed record FFSellerBatchResult(List<FFSellerBatchClaim> Confirmed,string FailedProfile,string Error);
+public static class FFSellerBatch{
+ public static (int First,int Second) Plan(FFSellerState a,FFSellerState b,string order,int wantedA,int wantedB,DateTime now){
+  if(a.Player<=0||b.Player<=0||a.Player==b.Player)throw new InvalidDataException("Choose two different verified seller accounts.");
+  int first=Math.Min(wantedA,FFSellerData.ClaimCount(a,order,0,true,now));
+  int second=Math.Min(wantedB,FFSellerData.ClaimCount(b,order,0,true,now));
+  int available=Math.Min(a.Contracts.Single(x=>x.OrderNumber==order).Available,b.Contracts.Single(x=>x.OrderNumber==order).Available);
+  second=Math.Min(second,Math.Max(0,available-first));
+  if(first<=0||second<=0)throw new InvalidDataException("Not enough energy/slots for a claim on both accounts. Reduce the first count or reserve separately.");
+  return(first,second);
+ }
+ public static async Task<FFSellerBatchResult> Reserve(string profileA,string profileB,FFSellerState a,FFSellerState b,string order,int wantedA,int wantedB,Func<Task<FFSellerState>> refreshSecond,Func<string,int,Task<(long Id,int Count)>> reserve){
+  if(profileA==profileB)throw new InvalidDataException("Choose different local profiles.");
+  var plan=Plan(a,b,order,wantedA,wantedB,DateTime.UtcNow);int ownerB=b.Player;
+  var confirmed=new List<FFSellerBatchClaim>();string step=profileA;
+  try{
+   var first=await reserve(profileA,plan.First);
+   if(first.Id<=0||first.Count<=0||first.Count>plan.First)throw new InvalidDataException("First claim response is unconfirmed. Review the provider before retrying.");
+   confirmed.Add(new(profileA,first.Id,first.Count));step=profileB;
+   var fresh=await refreshSecond();FFSellerData.VerifyOwner(ownerB,fresh.Player);
+   int count=Math.Min(plan.Second,FFSellerData.ClaimCount(fresh,order,0,true,DateTime.UtcNow));
+   var second=await reserve(profileB,count);
+   if(second.Id<=0||second.Count<=0||second.Count>count)throw new InvalidDataException("Second claim response is unconfirmed. Review the provider before retrying.");
+   confirmed.Add(new(profileB,second.Id,second.Count));
+   return new(confirmed,"","");
+  }catch(Exception ex){return new(confirmed,step,ex is InvalidOperationException or InvalidDataException or FFSellerException?ex.Message:"Request failed. Refresh this account before retrying; no automatic repeat.");}
+ }
+}

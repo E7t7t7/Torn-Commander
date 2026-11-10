@@ -341,3 +341,9 @@ assert(!nodes.ffSellerEnergy.disabled,'Energy-based claim incorrectly needs a va
 context.ffReserveEnergy();assert(ledgerRequests.some(x=>x.cmd==='ffClaimEnergy'&&x.data.order==='ENERGY'),'Energy claim action missing');
 context.renderFF({...actionable,pending:'claim'});assert(nodes.ffSellerEnergy.disabled,'Pending request permits another energy claim');
 console.log('ENERGY RESERVATION UI PASSED: independent third action and pending guard.');
+
+context.renderFF({...actionable,cap:30,sessionLimit:0,contracts:[{orderNumber:'BOTH',available:1185,price:350000}]});
+nodes.ffSellerContract.value='BOTH';context.updateFFActions();assert(!nodes.ffSellerBoth.disabled);
+context.ffReserveBoth();assert(ledgerRequests.some(x=>x.cmd==='ffClaimBoth'&&x.data.order==='BOTH'),'Both-account chooser command missing');
+context.renderFF({...actionable,batchBusy:true});assert(nodes.ffSellerBoth.disabled,'Duplicate batch chooser enabled');
+console.log('DUAL RESERVATION UI PASSED: chooser command and duplicate batch guard.');
