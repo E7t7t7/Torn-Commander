@@ -13,7 +13,7 @@ public sealed partial class MainForm {
  private LossAutoCycleWorker? FFWorker(string profile,long claimId)=>new[]{_lossWorkerA,_lossWorkerB}.FirstOrDefault(w=>w?.IsArmed==true&&w.ProfileId==profile&&_medicalSessions.TryGetValue(w,out var m)&&_lossOrders.Any(o=>o.Id==m.Order&&o.SourceService=="FFScouter"&&o.RemoteProfileId==profile&&o.RemoteClaimId==claimId));
  private object? FFWorkerView(string profile,long claimId){var w=FFWorker(profile,claimId);return w==null?null:new{slot=w.Slot,status=w.LastStatus,paused=w.LastStatus.StartsWith("paused:",StringComparison.OrdinalIgnoreCase)};}
 
- private FFSellerState FFFor(string profile){if(!_ffStates.TryGetValue(profile,out var s)){s=IntelStore.Load(profile,"ff-seller",new FFSellerState());_ffStates[profile]=s;}return s;}
+ private FFSellerState FFFor(string profile){if(!_ffStates.TryGetValue(profile,out var s)){s=IntelStore.Load(profile,"ff-seller",new FFSellerState());_ffStates[profile]=s;if(FFSellerData.MigrateLimit(s))IntelStore.Save(profile,"ff-seller",s);}return s;}
  private void SaveFF(string profile)=>IntelStore.Save(profile,"ff-seller",FFFor(profile));
  private object FFDashboard(){var s=FFFor(CurrentProfileId);return new{profileId=CurrentProfileId,configured=!string.IsNullOrEmpty(CredentialManager.LoadSellerKey(CurrentProfileId)),busy=_ffBusy.Contains(CurrentProfileId),activity=_ffActivity.GetValueOrDefault(CurrentProfileId),controlBusy=_ffControlBusy.Contains(CurrentProfileId),s.Player,s.Enabled,s.AutoRun,s.AutoFinish,s.SessionLimit,s.Cap,s.LastSync,s.Note,s.Pending,totals=FFSellerData.Totals(s),contracts=s.Contracts,claims=s.Claims.Values.OrderByDescending(x=>x.ClaimedAt).Take(100).Select(c=>new{c.Id,c.OrderNumber,c.Target,c.State,c.Claimed,c.Delivered,c.Price,c.Earnings,c.PaymentStatus,c.Paid,c.Review,c.ExpiresAt,c.IdleDeadline,live=c.Live(DateTime.UtcNow),worker=FFWorkerView(CurrentProfileId,c.Id)}).ToList()};}
  private void PushFF(bool keySaved=false){if(_modernDashboard?.CoreWebView2!=null)_modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="ffSeller",data=FFDashboard(),keySaved}));}
@@ -169,9 +169,9 @@ public sealed partial class MainForm {
    }else if(action=="ffSettings"){
     bool arm=root.GetProperty("autoRun").GetBoolean();
     if(arm&&(s.Player<=0||string.IsNullOrEmpty(CredentialManager.LoadSellerKey(profile))))throw new InvalidOperationException("Connect and verify the seller account before arming.");
-    int limit=root.GetProperty("limit").GetInt32();if(limit is <1 or >1000000)throw new InvalidDataException("Invalid session claim limit.");
+    int limit=root.GetProperty("limit").GetInt32();if(limit is <0 or >1000000)throw new InvalidDataException("Invalid session claim limit.");
     if(arm&&!s.AutoRun){s.ArmedAt=DateTime.UtcNow;foreach(var id in s.Claims.Keys)s.AutoHandled.Add(id);} // Arm only subsequently discovered claims.
-    s.AutoRun=arm;s.AutoFinish=root.GetProperty("autoFinish").GetBoolean();s.Enabled=root.GetProperty("enabled").GetBoolean()||arm;s.SessionLimit=limit;s.Note="Settings saved. Home execution applies to NEW claims after arming; existing claims require Start.";SaveFF(profile);
+    s.AutoRun=arm;s.AutoFinish=root.GetProperty("autoFinish").GetBoolean();s.Enabled=root.GetProperty("enabled").GetBoolean()||arm;s.SessionLimit=limit;s.LimitCustomized=limit>0;s.Note="Settings saved. Home execution applies to NEW claims after arming; existing claims require Start.";SaveFF(profile);
    }else if(action=="ffRefresh"){await SyncFFCore(profile);
    }else if(action=="ffResolve"){
     if(DateTime.UtcNow-s.LastSync>TimeSpan.FromSeconds(45))throw new InvalidOperationException("Refresh claims first.");
@@ -180,9 +180,20 @@ public sealed partial class MainForm {
     foreach(var w in new[]{_lossWorkerA,_lossWorkerB})if(w?.ProfileId==profile&&w.IsArmed)throw new InvalidOperationException("Stop this account's worker before disconnecting.");
     if(s.Pending!="")throw new InvalidOperationException("Reconcile the pending operation before disconnecting.");
     CredentialManager.ForgetSellerKey(profile);s.Enabled=s.AutoRun=s.AutoFinish=false;s.Note="Disconnected locally. History retained; no remote key revoked.";SaveFF(profile);
-   }else if(action=="ffClaim"){
-    await SyncFFCore(profile);string order=ReadWorkerString(root,"order");int count=FFSellerData.ClaimCount(s,order,root.GetProperty("count").GetInt32(),root.GetProperty("max").GetBoolean(),DateTime.UtcNow);
-    if(MessageBox.Show(this,"Reserve "+count+" losses on "+order+" for this account? The five-minute/15-minute timers start immediately.","FFScouter reservation",MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
+   }else if(action is "ffClaim" or "ffClaimEnergy"){
+    await SyncFFCore(profile);string order=ReadWorkerString(root,"order");int count;string energyNote="";
+    if(action=="ffClaimEnergy"){
+     FFActivity(profile,"Reading this account's current energy…");
+     var tornKey=CredentialManager.LoadApiKey(profile)??throw new InvalidOperationException("Save this account's Torn API key first.");
+     using var deadline=new CancellationTokenSource(TimeSpan.FromSeconds(35));
+     using var energyDoc=JsonDocument.Parse(await _api.FetchEndpointAsync("user?selections=profile,bars",tornKey,deadline.Token,fresh:true));
+     FFSellerData.VerifyOwner(s.Player,energyDoc.RootElement.GetProperty("profile").GetProperty("id").GetInt32());
+     int energy=energyDoc.RootElement.GetProperty("bars").GetProperty("energy").GetProperty("current").GetInt32();
+     count=FFSellerData.EnergyClaimCount(s,order,energy,DateTime.UtcNow);
+     energyNote="Current energy: "+energy+" / 25 = "+(energy/25)+" possible losses; provider, availability and optional limits reduce this to "+count+".\n\n";
+    }else count=FFSellerData.ClaimCount(s,order,root.GetProperty("count").GetInt32(),root.GetProperty("max").GetBoolean(),DateTime.UtcNow);
+    if(profile!=CurrentProfileId)throw new InvalidOperationException("The selected account changed. No contract reserved; select the account and try again.");
+    if(MessageBox.Show(this,energyNote+"Reserve "+count+" losses on "+order+" for this account? The five-minute/15-minute timers start immediately.","FFScouter reservation",MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
     await FFMutation(profile,"claim",order,count);await SyncFFCore(profile);
    }else{
     long id=root.GetProperty("claimId").GetInt64();var c=s.Claims.GetValueOrDefault(id)??throw new InvalidDataException("Claim not in this account's saved history.");

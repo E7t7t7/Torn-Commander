@@ -1,3 +1,11 @@
+v0.6.94
+- Added Reserve using current energy: one fresh selected-account profile/bars read, verified seller/player identity, floor(energy / 25), capped by FFScouter allowance, available slots and any explicit lower cap. Shows the calculation before confirming the real reservation. Does not assume future refills or start a worker automatically.
+- Energy fixtures cover 775 -> 30 under a 30 limit, 749 -> 29, exactly/less than 25, availability and personal-cap bounds; the third UI action is independent of the manual count field.
+- FFScouter reservations now follow the API-reported personal allowance by default, including a limit of 30. Removed Commander's implicit ten-loss cap.
+- Optional lower claim limit is visible beside contract controls: zero follows FFScouter; a positive value deliberately reduces the maximum. Available slots and the provider allowance always remain authoritative.
+- Migrates the old unmarked default ten to automatic mode. Other saved lower values are retained; newly explicit ten-loss overrides remain ten. Old versions did not distinguish a deliberate ten from their default: users who wanted ten can explicitly save it again.
+- Validation: provider 30/increasing allowances, explicit lower caps, migration/explicit-ten preservation, unknown-cap refusal and dashboard labels/counts; Release build and existing regression checks. No live reservations made.
+
 v0.6.93
 - City Scanner: Collect next item forwards one original map marker/image action for each explicit button press. Another item requires another user press; no loop, timer, pickup endpoint calls or automatic confirmation.
 - Commands consume their scan ticket before dispatch; concurrent/replayed clicks cannot repeat an item. Pending markers block another dispatch until removed, and an attempted marker is never retried automatically. Clear/scan preserves pending uncertainty.

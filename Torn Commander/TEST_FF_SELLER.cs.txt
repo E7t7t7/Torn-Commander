@@ -48,6 +48,20 @@ home.AutoRun=true;Check(FFSellerData.AutoCandidate(home,now)?.Id==42,"New phone 
 home.AutoHandled.Add(42);Check(FFSellerData.AutoCandidate(home,now)==null,"Handled claim restarted");
 home.AutoHandled.Clear();home.ArmedAt=now.AddMinutes(1);Check(FFSellerData.AutoCandidate(home,now)==null,"Pre-arm claim auto-started");
 Check(!LossAccounting.Commit(order,"manual","main","A",()=>{}).Ok,"External delivery accepted without receipt");
+var allowance=new FFSellerState{Cap=30,Contracts=new(){new("THIRTY",1185,350000)}};
+Check(FFSellerData.ClaimCount(allowance,"THIRTY",0,true,now)==30,"Provider allowance incorrectly capped at ten");
+allowance.Cap=40;Check(FFSellerData.ClaimCount(allowance,"THIRTY",0,true,now)==40,"Provider allowance increase ignored");
+allowance.SessionLimit=7;Check(FFSellerData.ClaimCount(allowance,"THIRTY",0,true,now)==7,"Explicit lower cap ignored");
+var legacyLimit=new FFSellerState{SessionLimit=10};Check(FFSellerData.MigrateLimit(legacyLimit)&&legacyLimit.SessionLimit==0,"Legacy default ten retained");
+var intentionalTen=new FFSellerState{SessionLimit=10,LimitCustomized=true};FFSellerData.MigrateLimit(intentionalTen);Check(intentionalTen.SessionLimit==10,"Explicit saved ten changed");
+allowance.Cap=0;Check(FFSellerData.ReservationLimit(allowance,100)==0,"Unknown provider cap fabricated");
+var energyLimit=new FFSellerState{Cap=30,Contracts=new(){new("ENERGY",1185,350000)}};
+Check(FFSellerData.EnergyClaimCount(energyLimit,"ENERGY",775,now)==30,"775 energy exceeded provider thirty or was capped at ten");
+Check(FFSellerData.EnergyClaimCount(energyLimit,"ENERGY",749,now)==29,"Energy losses not floored");
+Check(FFSellerData.EnergyClaimCount(energyLimit,"ENERGY",25,now)==1,"One attack's energy not allowed");
+try{FFSellerData.EnergyClaimCount(energyLimit,"ENERGY",24,now);throw new Exception("Insufficient energy accepted");}catch(InvalidDataException){}
+energyLimit.SessionLimit=7;Check(FFSellerData.EnergyClaimCount(energyLimit,"ENERGY",775,now)==7,"Energy claim ignored explicit lower cap");
+energyLimit.SessionLimit=0;energyLimit.Contracts=new(){new("ENERGY",12,350000)};Check(FFSellerData.EnergyClaimCount(energyLimit,"ENERGY",775,now)==12,"Energy claim exceeded available slots");
 var mutations=new FFSellerState{Player=10,Cap=10,SessionLimit=4,Contracts=new(){new("ORDER-A",8,350000)}};
 int posts=0,saves=0;
 Task<string> Reserve(string route,object? body){posts++;Check(route=="losses/seller/claim","bad reservation endpoint");using var d=JsonDocument.Parse(JsonSerializer.Serialize(body));Check(d.RootElement.GetProperty("slots").GetInt32()==3,"unbounded zero slots");

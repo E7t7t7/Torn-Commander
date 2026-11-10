@@ -16,7 +16,7 @@ public sealed record FFSellerContract(string OrderNumber,int Available,long Pric
 public sealed class FFSellerState {
  public int Player{get;set;}public string KeyHash{get;set;}="";public DateTime OwnerChecked{get;set;}
  public DateTime ArmedAt{get;set;}
- public bool Enabled{get;set;}public bool AutoRun{get;set;}public bool AutoFinish{get;set;}public int SessionLimit{get;set;}=10;
+ public bool Enabled{get;set;}public bool AutoRun{get;set;}public bool AutoFinish{get;set;}public int SessionLimit{get;set;}=0;public bool? LimitCustomized{get;set;}
  public int Cap{get;set;} public DateTime LastSync{get;set;} public string Note{get;set;}="Connect this account's seller key.";
  public List<FFSellerContract> Contracts{get;set;}=new();public Dictionary<long,FFSellerClaim> Claims{get;set;}=new();
  public HashSet<long> PendingKnownIds{get;set;}=new();
@@ -62,13 +62,23 @@ public static class FFSellerData {
  public static bool CanExecute(LossOrder o,FFSellerState s,string profile,DateTime now)=>o.SourceService!="FFScouter"||(o.RemoteProfileId==profile&&o.RemoteOwner==s.Player&&o.RemoteState=="active"&&!o.IsClosed&&o.RemoteDeadline>new DateTimeOffset(now).ToUnixTimeSeconds()&&o.RemoteObservedUtc>now.AddSeconds(-75));
  public static FFSellerClaim? AutoCandidate(FFSellerState s,DateTime now)=>s.Enabled&&s.AutoRun&&s.ArmedAt!=default&&s.Pending==""?s.Claims.Values.FirstOrDefault(c=>c.Live(now)&&c.ClaimedAt>=new DateTimeOffset(s.ArmedAt).ToUnixTimeSeconds()&&!s.AutoHandled.Contains(c.Id)):null;
  public static void VerifyOwner(int seller,int torn){if(seller<=0||seller!=torn)throw new InvalidDataException("Seller key belongs to another account.");}
+ public static bool MigrateLimit(FFSellerState s){
+  if(s.LimitCustomized.HasValue)return false;
+  if(s.SessionLimit==10)s.SessionLimit=0;
+  s.LimitCustomized=s.SessionLimit>0;return true;
+ }
+ public static int ReservationLimit(FFSellerState s,int available)=>Math.Max(0,Math.Min(available,Math.Min(s.Cap,s.SessionLimit>0?s.SessionLimit:s.Cap)));
  public static int ClaimCount(FFSellerState state,string order,int requested,bool max,DateTime now){
   if(state.Pending!="")throw new InvalidOperationException("An earlier request needs reconciliation; do not submit it again.");
   if(state.Claims.Values.Any(c=>c.State=="active"&&c.ExpiresAt>new DateTimeOffset(now).ToUnixTimeSeconds()))throw new InvalidOperationException("One active seller claim is permitted. Complete the existing claim first.");
   var c=state.Contracts.SingleOrDefault(c=>c.OrderNumber==order)??throw new InvalidDataException("Refresh this contract.");
-  int limit=Math.Min(c.Available,Math.Min(state.Cap,state.SessionLimit));int count=max?limit:requested;
+  int limit=ReservationLimit(state,c.Available);int count=max?limit:requested;
   if(count<1||count>limit)throw new InvalidDataException("Count exceeds available slots, personal cap or your session limit.");
   return count;
+ }
+ public static int EnergyClaimCount(FFSellerState s,string order,int energy,DateTime now){
+  if(energy<25)throw new InvalidDataException("At least 25 current energy is needed to reserve one loss.");
+  return Math.Min(energy/25,ClaimCount(s,order,0,true,now));
  }
  public static object Totals(FFSellerState state){
   var rows=state.Claims.Values.ToList();

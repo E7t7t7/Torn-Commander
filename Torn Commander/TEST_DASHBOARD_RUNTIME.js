@@ -327,3 +327,17 @@ assert(ledgerRequests.some(x=>x.cmd==='cityCollect'&&x.data.ticket==='city-ticke
 context.cityCollect({isTrusted:true});assert.equal(ledgerRequests.length,beforeCity+1,'Rapid UI click queued duplicate');
 context.renderCity({profileId:'two',scan:null});assert(nodes.cityCollectNext.disabled&&!context.renderCity.ticket);
 console.log('SINGLE CITY PICKUP UI PASSED: trusted single click, account/ticket, repeat suppression and profile clearing.');
+
+context.renderFF({...actionable,cap:30,sessionLimit:0,contracts:[{orderNumber:'THIRTY',available:1185,price:350000}]});
+nodes.ffSellerContract.value='THIRTY';nodes.ffSellerCount.value=30;context.updateFFActions();
+assert(!nodes.ffSellerReserve.disabled&&nodes.ffSellerMax.textContent.includes('30 losses'),'API cap thirty replaced by ten');
+assert(nodes.ffSellerAvailability.textContent.includes('Follow FFScouter')&&nodes.ffSellerLimit.value===0,'Automatic claim limit unclear');
+context.renderFF({...actionable,cap:30,sessionLimit:5});nodes.ffSellerContract.value='ORDER-A';context.updateFFActions();assert(nodes.ffSellerMax.textContent.includes('5 losses'),'Explicit smaller cap ignored');
+console.log('PROVIDER CLAIM LIMIT PASSED: API thirty, automatic mode and explicit lower override.');
+
+context.renderFF({...actionable,cap:30,sessionLimit:0,claims:[],contracts:[{orderNumber:'ENERGY',available:1185,price:350000}]});
+nodes.ffSellerContract.value='ENERGY';nodes.ffSellerCount.value=999;context.updateFFActions();
+assert(!nodes.ffSellerEnergy.disabled,'Energy-based claim incorrectly needs a valid manual count');
+context.ffReserveEnergy();assert(ledgerRequests.some(x=>x.cmd==='ffClaimEnergy'&&x.data.order==='ENERGY'),'Energy claim action missing');
+context.renderFF({...actionable,pending:'claim'});assert(nodes.ffSellerEnergy.disabled,'Pending request permits another energy claim');
+console.log('ENERGY RESERVATION UI PASSED: independent third action and pending guard.');
