@@ -170,6 +170,14 @@ var upgrading=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",Pro
 Check(upgrading.TrackedTotal==2,"Legacy unresolved overlap was lost.");
 Check(LossAccounting.CommitVisible(upgrading,"new-mode","main","A",now,now.AddSeconds(1),()=>{}).Ok&&upgrading.Remaining==0,"Upgrade reset earlier unresolved local progress and allowed an extra attack.");
 Console.WriteLine("LEGACY BATCH UPGRADE PASSED: existing official receipts and unknown remote overlap preserve the conservative remaining quota.");
+var mixed=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",ProfileAId="main",RequestedLosses=4,RemoteDelivered=2};
+Check(LossAccounting.CommitVisible(mixed,"visible","main","A",now,now.AddSeconds(1),()=>{}).Ok&&mixed.TrackedTotal==3,"Mixed batch setup failed.");
+Check(LossAccounting.Commit(mixed,"ambiguous","main","A",()=>{},24680).Ok&&mixed.Remaining==0&&mixed.TrackedTotal==4,"Official fallback failed to consume a slot in the running visible batch.");
+var rollbackMixed=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",ProfileAId="main",RequestedLosses=4,RemoteDelivered=2};
+LossAccounting.CommitVisible(rollbackMixed,"visible","main","A",now,now.AddSeconds(1),()=>{});
+try{LossAccounting.Commit(rollbackMixed,"failed-official","main","A",()=>throw new IOException("fixture"),24681);}catch(IOException){}
+Check(rollbackMixed.TrackedTotal==3&&rollbackMixed.Remaining==1,"Official fallback save failure spent a local slot.");
+Console.WriteLine("MIXED RESULT PATH PASSED: occasional official fallback shares local batch quota and failed-save rollback.");
 class Handler:HttpMessageHandler{
  public int Calls;public string Host="";public bool Bad;
  protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct){Calls++;Host=request.RequestUri!.Host;if(Bad)throw new HttpRequestException("synthetic timeout");return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("{\"contracts\":[],\"max_claim_slots\":10}")});}

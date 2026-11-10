@@ -54,7 +54,8 @@ public static class LossAccounting
         if(order.SourceService=="FFScouter"&&attackId<=0)return new(false,order.Remaining,"FFScouter deliveries require an official attack receipt.");
         if(order.SourceService=="FFScouter"&&attackId>0&&order.RemoteAttackIds.Contains(attackId)){
             var known=new LossCommitReceipt{ClaimId=claimId,ProfileId=profileId,Slot=slot,AttackId=attackId};order.CommitReceipts.Add(known);
-            try{save();}catch{order.CommitReceipts.Remove(known);throw;}
+            bool batchAdded=order.LocalBatchBaseline.HasValue&&order.LocalBatchClaims.Add(claimId);
+            try{save();}catch{order.CommitReceipts.Remove(known);if(batchAdded)order.LocalBatchClaims.Remove(claimId);throw;}
             return new(true,order.Remaining,"Provider already counted this verified attack; receipt linked without adding a delivery.",true);
         }
         if (order.IsClosed || order.Remaining <= 0)
@@ -64,12 +65,14 @@ public static class LossAccounting
         if (slot == "A") { order.CompletedA++; order.NextA = "Auto recovery"; }
         else { order.CompletedB++; order.NextB = "Auto recovery"; }
         order.CommitReceipts.Add(receipt);
+        bool batchAddedNew=order.SourceService=="FFScouter"&&order.LocalBatchBaseline.HasValue&&order.LocalBatchClaims.Add(claimId);
         if (!NormalizeCompletion(order) && order.Status != "Paused") order.Status = "Auto cycling";
         try { save(); }
         catch
         {
             (order.CompletedA, order.CompletedB, order.NextA, order.NextB, order.Status) = previous;
             order.CommitReceipts.Remove(receipt);
+            if(batchAddedNew)order.LocalBatchClaims.Remove(claimId);
             throw;
         }
         return new(true, order.Remaining, $"Loss saved. {order.Remaining} remaining.");

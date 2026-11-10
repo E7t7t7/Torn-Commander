@@ -1,3 +1,9 @@
+v0.6.99 - Unify fast-batch and ambiguous-result quota
+- Clear loss results continue without per-fight API waits. If an ambiguous result uses the existing official receipt fallback, that verified fight now consumes a slot in the same local batch.
+- Prevents mixed visible/official result paths from authorizing an additional fight. Both paths restore the slot correctly after a failed save.
+- Added mixed-result and persistence-rollback fixtures. Retains v0.6.98 partial-order upgrade protection and v0.6.97 dual start/energy fixes.
+- No live contracts, fights, payments or items used in validation.
+
 v0.6.98 - Preserve partially completed orders during fast-batch upgrade
 - The first visible-batch receipt now preserves the existing conservative tracked count, including earlier official receipts not yet represented in provider hit details.
 - Prevents an upgraded partially completed claim from accidentally gaining an extra local slot when provider history is delayed.

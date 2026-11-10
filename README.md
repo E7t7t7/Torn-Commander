@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.98. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.99. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -189,3 +189,5 @@ v0.6.96: Finance / Island adds private account balance history, a classified cas
 v0.6.97: FFScouter batch execution tracks clear on-screen losses locally without waiting for an attack-log/provider confirmation after every fight. Background and end-of-batch reconciliation retain separate provider-confirmed delivery/payment totals. A fixed local batch baseline prevents provider catch-up from counting the same progress twice. One active owning desktop batch per claim; do not also fight that same claim from the phone while its desktop worker is running. Claim timers, quota, medical verification, stop/pause controls and no-drug medical rule remain in force. Start / resume both accounts chooses two separate active claims. Energy reservations use actual stacked energy, automatically choose a sole available contract, allow server refresh of stale availability and explain cap reductions. No live claim or fight used in tests.
 
 v0.6.98: Preserve the conservative remaining quota when an older partially completed FFScouter order first transitions to the new fast local-batch mode. Previously verified receipts missing from a delayed provider hit list cannot be lost during this transition.
+
+v0.6.99: If an ambiguous combat result requires the existing official receipt fallback, that receipt consumes one slot in the same fast local batch. Switching result-verification paths cannot leave a spare local slot; failed persistence restores it.
