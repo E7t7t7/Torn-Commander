@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.92. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.93. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -175,3 +175,5 @@ Target lists and FF estimates do not guarantee wins, and exact XP is not fabrica
 See [FFScouter integration and phone handoff](FFSCOUTER_INTEGRATION.md) for setup, account ownership, home execution, accounting rules and validation limits. FFContractor remains an independent mobile repository.
 
 City Scanner: open the new sidebar tab, Open City Map, select Map in Torn, then Scan City. Highlights canvas/image markers and provides manual Show on map. Collection stays manual under Torn scripting rules. Scan results are account-specific and reflect only the loaded map.
+
+v0.6.93: after Scan City, press Collect next item for one original pickup action. Press again for each next item. Pending pickups are not retried; complete any Torn confirmation manually. The button does not run a collection loop.

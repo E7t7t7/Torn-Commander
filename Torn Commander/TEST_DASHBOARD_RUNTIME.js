@@ -318,3 +318,12 @@ nodes.ffSellerClaims.innerHTML='PRESERVE_BUTTON_DURING_HEARTBEAT';
 context.renderFF(attached);assert.equal(nodes.ffSellerClaims.innerHTML,'PRESERVE_BUTTON_DURING_HEARTBEAT','Heartbeat replaced unchanged worker buttons');
 assert(nodes.ffSellerNext.textContent.includes('Refreshing claim progress'),'Loading phase not explained');
 console.log('SELLER WORKER CONTROLS PASSED: pause/resume beside target while refreshing, correct claim payload, no duplicate Start and stable heartbeat DOM.');
+
+context.S.profileId='one';context.renderCity({profileId:'one',scan:{ticket:'city-ticket',items:[{id:67,index:0,name:'FAK'}]}});
+assert(!nodes.cityCollectNext.disabled);const beforeCity=ledgerRequests.length;
+context.cityCollect({isTrusted:false});assert.equal(ledgerRequests.length,beforeCity,'Synthetic UI event dispatched a pickup');
+context.cityCollect({isTrusted:true});assert(nodes.cityCollectNext.disabled);
+assert(ledgerRequests.some(x=>x.cmd==='cityCollect'&&x.data.ticket==='city-ticket'&&x.data.profileId==='one'),'Pickup lost scan/account binding');
+context.cityCollect({isTrusted:true});assert.equal(ledgerRequests.length,beforeCity+1,'Rapid UI click queued duplicate');
+context.renderCity({profileId:'two',scan:null});assert(nodes.cityCollectNext.disabled&&!context.renderCity.ticket);
+console.log('SINGLE CITY PICKUP UI PASSED: trusted single click, account/ticket, repeat suppression and profile clearing.');
