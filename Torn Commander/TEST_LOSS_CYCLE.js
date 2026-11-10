@@ -184,7 +184,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  }}}};
  const context={window,document,location,URL,Date:Clock,Math,console,localStorage:store(local),sessionStorage:store(session),getComputedStyle:()=>({visibility:'visible',display:'block'}),setInterval:fn=>{interval=fn},setTimeout:()=>{}};
  vm.createContext(context);vm.runInContext(source,context);h=window.TornCommanderLossCycle;
- h.start({requireOfficialLoss:!!options.requireOfficialLoss,externalDeadline:options.expiredExternal?clock-1:0,acceptLevelUps:!!options.acceptLevelUps,mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
+ h.start({localLossTracking:!!options.localLossTracking,requireOfficialLoss:!!options.requireOfficialLoss,externalDeadline:options.expiredExternal?clock-1:0,acceptLevelUps:!!options.acceptLevelUps,mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
  return {h,counts,messages,async step(milliseconds=1000){h.pump();while(replies.length)replies.shift()();clock+=milliseconds;await Promise.resolve()}};
 }
 (async()=>{
@@ -423,6 +423,13 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
   assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-commit').length,0);assert.equal(endedLoss.counts.medicine,0,'Unverified result triggered healing');
   if(extra.lossReceiptMissing){assert.equal(endedLoss.messages.filter(m=>m.type==='tc-loss-terminal').length,6);assert(endedLoss.h.resume());await endedLoss.step(250);assert.equal(endedLoss.h.getState().stage,'loss-verify');assert.equal(endedLoss.counts.pillow,1);}
  }
+ const localBatch=fixture(false,false,false,{smartMedical:true,localLossTracking:true,losses:30,stock:100,delay:1000});
+ for(let i=0;i<20000&&localBatch.h.getState().stage!=='complete';i++)await localBatch.step(250);
+ assert.equal(localBatch.h.getState().stage,'complete',localBatch.h.getState().status);
+ assert.equal(localBatch.messages.filter(m=>m.type==='tc-loss-terminal').length,0,'Fast batch requested per-fight attack API confirmation');
+ const localReceipts=localBatch.messages.filter(m=>m.type==='tc-loss-commit');
+ assert(localReceipts.length===30&&localReceipts.every(m=>m.visibleOutcome==='loss'&&m.lossObservedAt>=m.fightStartedAt),'Fast batch lost visible outcome/account timing proof');
+ console.log('FAST LOCAL LOSS WORKER PASSED: on-screen loss commits immediately with timestamps and no per-fight API receipt request.');
  const external=fixture(false,false,false,{smartMedical:true,requireOfficialLoss:true});
  for(let i=0;i<1500&&external.h.getState().stage!=='complete';i++)await external.step(250);
  assert.equal(external.h.getState().stage,'complete',external.h.getState().status);

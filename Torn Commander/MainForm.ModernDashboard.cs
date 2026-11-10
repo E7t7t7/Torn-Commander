@@ -105,7 +105,7 @@ public sealed partial class MainForm
                 case "intelCopyLogin": CopyIntelLogin(root); break;
                 case "intelSignIn": await AddBrowserTabAsync("https://torn-intel.com/login"); break;
                 case "intelClientRequest": await AddBrowserTabAsync("https://torn-intel.com/contact"); break;
-                case "ffState": case "ffConnect": case "ffForget": case "ffSettings": case "ffRefresh": case "ffClaim": case "ffClaimEnergy": case "ffClaimBoth": case "ffComplete": case "ffStart": case "ffPause": case "ffResume": case "ffTarget": case "ffResolve": await HandleFFAction(cmd,root); break;
+                case "ffState": case "ffConnect": case "ffForget": case "ffSettings": case "ffRefresh": case "ffClaim": case "ffClaimEnergy": case "ffClaimBoth": case "ffStartBoth": case "ffComplete": case "ffStart": case "ffPause": case "ffResume": case "ffTarget": case "ffResolve": await HandleFFAction(cmd,root); break;
                 case "lossLedgerRefresh": RefreshLossLedger(); break;
                 case "lossCreate": CreateDashboardLossOrder(root); break;
                 case "lossSelect": SelectDashboardLossOrder(root); break;
@@ -356,7 +356,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.96",
+                    version = "0.6.97",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -402,13 +402,13 @@ public sealed partial class MainForm
                     ffSeller=FFDashboard(),
                     finance=FinanceDashboard(),
                     lossLedger = LossLedgerDashboard(),
-                    lossOrders = _lossOrders.Select(x => new { id=x.Id, buyer=x.BuyerName, target=x.TargetPlayerId, requested=x.RequestedLosses, completed=x.CompletedTotal, status=x.Status }).ToList(),
+                    lossOrders = _lossOrders.Select(x => new { id=x.Id, buyer=x.BuyerName, target=x.TargetPlayerId, requested=x.RequestedLosses, completed=x.TrackedTotal, status=x.Status }).ToList(),
                     loss = activeLoss is null ? null : new
                     {
                         id = activeLoss.Id,
                         buyer = activeLoss.BuyerName,
                         target = activeLoss.TargetPlayerId,
-                        completed = activeLoss.CompletedTotal,
+                        completed = activeLoss.TrackedTotal,localPending=activeLoss.VisiblePending,
                         requested = activeLoss.RequestedLosses,
                         remaining = activeLoss.Remaining,
                         gross = activeLoss.Gross,
@@ -650,13 +650,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="city"><i>⌖</i>City Scanner</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.96</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.97</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.96</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.97</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -782,6 +782,7 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <div class="twocol"><label>2. Select an available contract<select id="ffSellerContract" onchange="updateFFActions()"><option value="">Refresh contracts first</option></select></label><label>Number of losses to reserve<input id="ffSellerCount" type="number" min="1" value="1" oninput="updateFFActions()"></label></div>
  <div id="ffSellerAvailability" class="sub" role="status"></div><div class="actions"><button class="btn primary" id="ffSellerReserve" disabled onclick="ffReserve(false)">3. Reserve this many losses…</button><button class="btn" id="ffSellerMax" disabled onclick="ffReserve(true)">3. Reserve maximum allowed…</button><button class="btn good" id="ffSellerEnergy" disabled onclick="ffReserveEnergy()">3. Reserve using current energy…</button><button class="btn" id="ffSellerBoth" disabled onclick="ffReserveBoth()">Reserve on both accounts…</button></div>
  <p class="sub">Energy-based reservation reads this account’s current energy and uses floor(energy / 25), capped by available slots, your FFScouter allowance and any optional lower limit. It does not include future refills. Reserving claims the contract and starts its timer. It does not start fighting. After reservation, press <b>4. Start losses on this account</b> on the active claim below. Reserve maximum uses the smallest of available slots, FFScouter's current limit and any optional lower limit you saved.</p>
+ <div class="actions"><button class="btn primary" id="ffSellerStartBoth" onclick="ffAction('ffStartBoth')">4. Start / resume both accounts…</button></div><div id="ffSellerDualStatus" class="sub" role="status"></div>
  <h3>Active claims and previous contracts</h3>
  <div id="ffSellerPending" class="sub"></div><button class="btn" id="ffSellerResolve" onclick="ffResolve()">I reviewed the refreshed claims — clear uncertain request</button>
  <div id="ffSellerClaims"></div><p class="sub">Eight figures use provider-reported deliveries/earnings and confirmed payment status. API history is retained locally beyond seven days. Phone-only older history is not automatically copied; current claims are discovered through FFScouter. Mail references do not mark payment received.</p></details>
@@ -1424,7 +1425,7 @@ function ffAction(action,data={}){send(action,{profileId:S.profileId,...data});}
 function ffConnect(){ffAction('ffConnect',{key:$('ffSellerKey').value.trim(),consent:$('ffSellerConsent').checked});}
 function ffSettings(){ffAction('ffSettings',{enabled:$('ffSellerEnabled').checked,autoRun:$('ffSellerAuto').checked,autoFinish:$('ffSellerFinish').checked,limit:Number($('ffSellerLimit').value)});}
 function ffReserve(max){updateFFActions();if($(max?'ffSellerMax':'ffSellerReserve').disabled)return;ffAction('ffClaim',{order:$('ffSellerContract').value,count:Number($('ffSellerCount').value),max});}
-function ffReserveEnergy(){updateFFActions();if($('ffSellerEnergy').disabled)return;ffAction('ffClaimEnergy',{order:$('ffSellerContract').value});}
+function ffReserveEnergy(){updateFFActions();if($('ffSellerEnergy').disabled)return;$('ffSellerNext').textContent='Reading current energy and checking claim limits…';ffAction('ffClaimEnergy',{order:$('ffSellerContract').value});}
 function ffReserveBoth(){updateFFActions();if($('ffSellerBoth').disabled)return;ffAction('ffClaimBoth',{order:$('ffSellerContract').value});}
 function ffResolve(){if(confirm('Review FFScouter claims first. Clearing this guard permits another request; it does not undo a possibly successful reservation.'))ffAction('ffResolve');}
 function updateFFActions(){
@@ -1433,8 +1434,8 @@ function updateFFActions(){
  const chosen=rows.find(c=>c.orderNumber===$('ffSellerContract').value),limit=Math.max(0,Math.min(chosen?.available||0,Number(d.cap)||0,Number(d.sessionLimit)>0?Number(d.sessionLimit):Number(d.cap)||0)),count=Number($('ffSellerCount').value);
  const blocked=!d.configured||d.busy||d.pending||active||!fresh||!chosen||limit<1;
  $('ffSellerReserve').disabled=!!blocked||!Number.isInteger(count)||count<1||count>limit;
- $('ffSellerBoth').disabled=!!blocked||!!d.batchBusy;
- $('ffSellerEnergy').disabled=!!blocked;
+ $('ffSellerBoth').disabled=!!(!d.configured||d.pending||active||!chosen)||!!d.batchBusy;
+ $('ffSellerEnergy').disabled=!!(!d.configured||d.pending||active||!chosen);
  $('ffSellerMax').disabled=!!blocked;$('ffSellerMax').textContent=limit?'3. Reserve up to '+limit+' losses…':'3. Reserve maximum allowed…';
  $('ffSellerRefresh').disabled=!!d.busy||!d.configured;
  $('ffSellerContract').disabled=!!d.busy||!d.configured||!rows.length;
@@ -1451,11 +1452,13 @@ function renderFF(d){
  const t=d.totals||{},cards=[['Total Paid',money(t.paid||0)],['Outstanding Payouts',money(t.outstanding||0)],['Total Earned',money(t.earned||0)],['Losses Completed',t.losses||0],['Contracts Finished',t.finished||0],['Available Contracts',t.available||0],['Active Claims',t.active||0],['Payments Pending',t.pending||0]];
  $('ffSellerStats').innerHTML=cards.map(x=>'<div class="card span3"><div class="eyebrow">'+esc(x[0])+'</div><div class="metric s">'+esc(x[1])+'</div></div>').join('');
  renderFF.data=d;const contracts=JSON.stringify([d.profileId,d.contracts||[]]);
- if(ffContractIdentity!==contracts){ffContractIdentity=contracts;const prior=$('ffSellerContract').value;$('ffSellerContract').replaceChildren(new Option('Select a contract…',''),...(d.contracts||[]).filter(c=>c.available>0).map(c=>new Option(c.orderNumber+' · '+c.available+' slots · '+money(c.price)+'/loss',c.orderNumber)));if((d.contracts||[]).some(c=>c.orderNumber===prior))$('ffSellerContract').value=prior;}
+ if(ffContractIdentity!==contracts){ffContractIdentity=contracts;const prior=$('ffSellerContract').value;$('ffSellerContract').replaceChildren(new Option('Select a contract…',''),...(d.contracts||[]).filter(c=>c.available>0).map(c=>new Option(c.orderNumber+' · '+c.available+' slots · '+money(c.price)+'/loss',c.orderNumber)));if((d.contracts||[]).some(c=>c.orderNumber===prior))$('ffSellerContract').value=prior;else if((d.contracts||[]).filter(c=>c.available>0).length===1)$('ffSellerContract').value=d.contracts.find(c=>c.available>0).orderNumber;}
  $('ffSellerPending').textContent=d.pending?'Pending '+d.pending+' request. Refresh to reconcile; no automatic repeat.':'';
  $('ffSellerResolve').hidden=!d.pending;
  const claimsIdentity=JSON.stringify([d.profileId,d.claims||[]]);
- if(renderFF.claimsIdentity!==claimsIdentity){renderFF.claimsIdentity=claimsIdentity;$('ffSellerClaims').innerHTML=[...(d.claims||[])].sort((a,b)=>Number(!!b.live)-Number(!!a.live)).map(c=>'<div class="card" style="margin-top:8px"><b>'+esc(c.orderNumber)+'</b> · claim '+Number(c.id)+'<div class="sub">'+Number(c.delivered)+' / '+Number(c.claimed)+' provider-confirmed · '+esc(c.state)+' · '+money(c.earnings||0)+' earned · '+(c.paid?'Payment confirmed':c.review?'Payment review':'Payment unconfirmed')+'</div><div class="sub">'+(c.live?'Active claim · Torn target '+(c.target||'not supplied yet'):'Previous contract — no losses can be started here')+' · expiry '+(c.expiresAt?new Date(c.expiresAt*1000).toLocaleString():'unknown')+'</div><div class="actions">'+(c.live&&!c.worker?'<button class="btn small primary" data-ff-action="ffStart" data-claim="'+Number(c.id)+'">4. Start losses on this account</button>':'')+(c.live?'<button class="btn small" data-ff-action="ffTarget" data-claim="'+Number(c.id)+'">'+(c.target?'Open target only':'Look up target')+'</button>':'')+(c.worker?'<button class="btn small warn" data-ff-action="ffPause" data-claim="'+Number(c.id)+'">Pause</button><button class="btn small good" data-ff-action="ffResume" data-claim="'+Number(c.id)+'">Resume</button><div class="sub">Worker '+esc(c.worker.slot)+' · '+esc(c.worker.status)+'</div>':'')+(c.state==='active'?'<button class="btn small" data-ff-action="ffComplete" data-claim="'+Number(c.id)+'">End claim / release unused losses…</button>':'')+'</div></div>').join('')||'<div class="empty">No claims saved for this account. Refresh and reserve an available contract above.</div>';}
+ if(renderFF.claimsIdentity!==claimsIdentity){renderFF.claimsIdentity=claimsIdentity;$('ffSellerClaims').innerHTML=[...(d.claims||[])].sort((a,b)=>Number(!!b.live)-Number(!!a.live)).map(c=>'<div class="card" style="margin-top:8px"><b>'+esc(c.orderNumber)+'</b> · claim '+Number(c.id)+'<div class="sub">'+Number(c.delivered)+' / '+Number(c.claimed)+' provider-confirmed · '+esc(c.state)+' · '+money(c.earnings||0)+' earned'+(c.localPending?' · '+Number(c.localPending)+' locally observed, awaiting provider':'')+' · '+(c.paid?'Payment confirmed':c.review?'Payment review':'Payment unconfirmed')+'</div><div class="sub">'+(c.live?'Active claim · Torn target '+(c.target||'not supplied yet'):'Previous contract — no losses can be started here')+' · expiry '+(c.expiresAt?new Date(c.expiresAt*1000).toLocaleString():'unknown')+'</div><div class="actions">'+(c.live&&!c.worker?'<button class="btn small primary" data-ff-action="ffStart" data-claim="'+Number(c.id)+'">4. Start losses on this account</button>':'')+(c.live?'<button class="btn small" data-ff-action="ffTarget" data-claim="'+Number(c.id)+'">'+(c.target?'Open target only':'Look up target')+'</button>':'')+(c.worker?'<button class="btn small warn" data-ff-action="ffPause" data-claim="'+Number(c.id)+'">Pause</button><button class="btn small good" data-ff-action="ffResume" data-claim="'+Number(c.id)+'">Resume</button><div class="sub">Worker '+esc(c.worker.slot)+' · '+esc(c.worker.status)+'</div>':'')+(c.state==='active'?'<button class="btn small" data-ff-action="ffComplete" data-claim="'+Number(c.id)+'">End claim / release unused losses…</button>':'')+'</div></div>').join('')||'<div class="empty">No claims saved for this account. Refresh and reserve an available contract above.</div>';}
+ $('ffSellerStartBoth').disabled=!!d.startBothBusy||!!d.batchBusy;
+ $('ffSellerDualStatus').textContent=(d.dualAccounts||[]).filter(a=>a.connected).map(a=>a.name+': '+a.active+' active claim(s)').join(' · ')+' · Both accounts need separate claims. Reserving on both does not start fighting; press Start / resume both here.';
  updateFFActions();
 
  $('ffSellerClaims').onclick=e=>{const button=e.target.closest('[data-ff-action]');if(button)ffAction(button.dataset.ffAction,{claimId:Number(button.dataset.claim)});};
@@ -1501,7 +1504,7 @@ function renderLossSales(d){
 function renderLossStatus(d){
  if(d.ffSeller)renderFF(d.ffSeller);
  renderLossSales(d);
- if(d.medical)renderSmartMedical(d.medical);if(d.leveling)renderLeveling(d.leveling);const delay=d.lossAttackDelayMs;if(Number.isInteger(delay)&&delay>=500&&delay<=5000&&renderLossStatus.timingValue!==delay&&document.activeElement!==$('lossAttackDelay')){$('lossAttackDelay').value=delay;renderLossStatus.timingValue=delay;}$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';$('lossCard').innerHTML=d.loss?`<div class="section">${esc(d.loss.buyer)} · target ${esc(d.loss.target)}</div><div class="metric">${d.loss.completed} / ${d.loss.requested} confirmed losses</div><div class="loss-meter" role="progressbar" aria-label="Confirmed losses" aria-valuemin="0" aria-valuemax="${Number(d.loss.requested)||0}" aria-valuenow="${Number(d.loss.completed)||0}"><span style="width:${Math.max(0,Math.min(100,Number(d.loss.completed)/Math.max(1,Number(d.loss.requested))*100))}%"></span></div><div class="sub">${d.loss.remaining} remaining · ${money(d.loss.gross)} quoted cash · ${esc(d.loss.status)}</div>`:'<div class="empty">No order selected. Use New order above to get started.</div>';}
+ if(d.medical)renderSmartMedical(d.medical);if(d.leveling)renderLeveling(d.leveling);const delay=d.lossAttackDelayMs;if(Number.isInteger(delay)&&delay>=500&&delay<=5000&&renderLossStatus.timingValue!==delay&&document.activeElement!==$('lossAttackDelay')){$('lossAttackDelay').value=delay;renderLossStatus.timingValue=delay;}$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';$('lossCard').innerHTML=d.loss?`<div class="section">${esc(d.loss.buyer)} · target ${esc(d.loss.target)}</div><div class="metric">${d.loss.completed} / ${d.loss.requested} tracked losses</div><div class="loss-meter" role="progressbar" aria-label="Tracked losses" aria-valuemin="0" aria-valuemax="${Number(d.loss.requested)||0}" aria-valuenow="${Number(d.loss.completed)||0}"><span style="width:${Math.max(0,Math.min(100,Number(d.loss.completed)/Math.max(1,Number(d.loss.requested))*100))}%"></span></div><div class="sub">${d.loss.remaining} remaining${d.loss.localPending?" · "+d.loss.localPending+" locally observed, awaiting provider":""} · ${money(d.loss.gross)} quoted cash · ${esc(d.loss.status)}</div>`:'<div class="empty">No order selected. Use New order above to get started.</div>';}
 function cityAction(cmd,index){send(cmd,{profileId:S.profileId,index});}
 function cityCollect(event){
  if(!event?.isTrusted||$('cityCollectNext').disabled)return;
@@ -1560,7 +1563,7 @@ function renderSection(name,fn){
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.96';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.97';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -1568,7 +1571,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.96 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.97 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 renderSection('Leveling',()=>renderLeveling(d.leveling));renderLossStatus(d);renderSection('Loss orders',()=>renderLossOrders(d));renderSection('Item intelligence',()=>renderItemIntelligence(d.itemIntelligence,d.profileId));

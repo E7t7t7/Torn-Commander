@@ -253,7 +253,12 @@ public sealed class LossOrder
     public string Status { get; set; } = "Active";
     public string Notes { get; set; } = "";
     public int CompletedTotal => SourceService=="FFScouter"?Math.Max(RemoteDelivered,RemoteAttackIds.Concat(CommitReceipts.Where(x=>x.AttackId>0).Select(x=>x.AttackId)).Distinct().Count()):CompletedA + CompletedB;
-    public int Remaining => Math.Max(0, RequestedLosses - CompletedTotal);
+    public int? LocalBatchBaseline {get;set;}
+    public HashSet<string> LocalBatchClaims {get;set;}=new();
+    public int VisiblePending => Math.Max(0,(LocalBatchBaseline??0)+LocalBatchClaims.Count-CompletedTotal);
+    public int TrackedTotal => SourceService=="FFScouter"?Math.Max(CompletedTotal,LocalBatchBaseline.HasValue?LocalBatchBaseline.Value+LocalBatchClaims.Count:RemoteDelivered+CommitReceipts.Where(x=>x.AttackId>0&&!RemoteAttackIds.Contains(x.AttackId)).Select(x=>x.AttackId).Distinct().Count()):CompletedTotal;
+    // Unknown overlap must never authorize more attacks than this external claim reserved.
+    public int Remaining => Math.Max(0, RequestedLosses - TrackedTotal);
     public long Gross => CompletedTotal * PayPerLoss;
 }
 

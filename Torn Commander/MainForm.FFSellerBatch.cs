@@ -1,6 +1,40 @@
 using System.Text.Json;
 namespace TornCommander;
 public sealed partial class MainForm{
+ private async Task StartFFBoth(){
+  if(_ffStartBothBusy||_ffBatchBusy)throw new InvalidOperationException("A two-account operation is already open.");
+  _ffStartBothBusy=true;
+  try{
+   var profiles=_settings.Profiles.Where(p=>FFFor(p.Id).Claims.Values.Any(c=>c.Live(DateTime.UtcNow))&&!string.IsNullOrEmpty(CredentialManager.LoadSellerKey(p.Id))).ToList();
+   if(profiles.Count<2)throw new InvalidOperationException("Both accounts need their own active FFScouter claim. Refresh each account after claiming, then use Start / resume both.");
+   using var dialog=new Form{Text="Start / resume two independent loss claims",ClientSize=new Size(570,235),StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,BackColor=PanelBg,ForeColor=TextMain,AutoScaleMode=AutoScaleMode.Dpi};
+   var a=new ComboBox{Left=160,Top=55,Width=385,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=FieldBg,ForeColor=TextMain};
+   var b=new ComboBox{Left=160,Top=95,Width=385,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=FieldBg,ForeColor=TextMain};
+   foreach(var p in profiles){a.Items.Add(p.Name+" ["+p.Id+"]");b.Items.Add(p.Name+" ["+p.Id+"]");}
+   a.SelectedIndex=Math.Max(0,profiles.FindIndex(p=>p.Id==CurrentProfileId));b.SelectedIndex=a.SelectedIndex==0?1:0;
+   var run=new Button{Text="Start / resume both accounts",Left=16,Top=185,Width=330,DialogResult=DialogResult.OK,BackColor=FieldBg,ForeColor=TextMain,FlatStyle=FlatStyle.Flat};
+   var cancel=new Button{Text="Cancel",Left=365,Top=185,Width=175,DialogResult=DialogResult.Cancel,BackColor=FieldBg,ForeColor=TextMain,FlatStyle=FlatStyle.Flat};
+   dialog.Controls.AddRange(new Control[]{new Label{Text="Uses each account's own existing claim; reserves no new losses.",Left=16,Top=15,Width=530},new Label{Text="First account",Left=16,Top=58,Width=135},a,new Label{Text="Second account",Left=16,Top=98,Width=135},b,new Label{Text="Paused workers resume their existing session. Medical verification must finish first. Each account reports its own result.",Left=16,Top=138,Width=530,Height=38},run,cancel});
+   dialog.AcceptButton=run;dialog.CancelButton=cancel;
+   if(dialog.ShowDialog(this)!=DialogResult.OK)return;
+   var first=profiles[a.SelectedIndex];var second=profiles[b.SelectedIndex];
+   var ca=FFSellerExecution.Choose(first.Id,FFFor(first.Id),DateTime.UtcNow);var cb=FFSellerExecution.Choose(second.Id,FFFor(second.Id),DateTime.UtcNow);FFSellerExecution.Pair(ca,cb);
+   // Existing start/resume path owns account verification, deadlines, medical checks and duplicate-worker guards.
+   var results=new List<string>();
+   foreach(var c in new[]{ca,cb}){
+    var existing=FFWorker(c.Profile,c.Claim);
+    if(existing!=null&&!existing.LastStatus.StartsWith("paused:",StringComparison.OrdinalIgnoreCase)){results.Add(profiles.First(p=>p.Id==c.Profile).Name+": already running");continue;}
+    try{await HandleFFControl(existing==null?"ffStart":"ffResume",c.Profile,c.Claim);}
+    catch(Exception ex){results.Add(profiles.First(p=>p.Id==c.Profile).Name+": "+(ex is InvalidOperationException or InvalidDataException?ex.Message:"Worker did not start; review this account."));continue;}
+    var after=FFWorker(c.Profile,c.Claim);
+    results.Add(profiles.First(p=>p.Id==c.Profile).Name+": "+(after==null||after.LastStatus.StartsWith("paused:",StringComparison.OrdinalIgnoreCase)?FFFor(c.Profile).Note:"worker "+after.Slot+" active"));
+   }
+   string summary=string.Join(" · ",results);
+   foreach(var c in new[]{ca,cb}){FFFor(c.Profile).Note=summary;SaveFF(c.Profile);}
+   MessageBox.Show(this,summary,"Both-account worker results");FlashStatus(summary);
+  }catch(Exception ex){FFFor(CurrentProfileId).Note=ex is InvalidOperationException or InvalidDataException?ex.Message:"Both-account start failed. Existing workers were not stopped; inspect each account before retrying.";SaveFF(CurrentProfileId);FlashStatus(FFFor(CurrentProfileId).Note);}
+  finally{_ffStartBothBusy=false;PushFF();UpdateLossDashboardStatus();}
+ }
  private async Task ReserveFFBoth(JsonElement root){
   if(_ffBatchBusy)throw new InvalidOperationException("A two-account reservation is already open.");
   _ffBatchBusy=true;var held=new List<string>();

@@ -280,7 +280,7 @@ public sealed partial class MainForm
 
         await worker.StartAsync(new
         {
-            requireOfficialLoss=order.SourceService=="FFScouter",externalDeadline=order.SourceService=="FFScouter"?order.RemoteDeadline*1000:0,
+            requireOfficialLoss=false,localLossTracking=order.SourceService=="FFScouter",externalDeadline=order.SourceService=="FFScouter"?order.RemoteDeadline*1000:0,
             profileId,
             slot = accountA ? "A" : "B",
             orderId = order.Id,
@@ -395,7 +395,11 @@ public sealed partial class MainForm
         {
             var requestId = ReadWorkerString(root, "requestId");
             var orderId = ReadWorkerString(root, "orderId");
-            if(!await FFBeforeClaimAsync(worker,orderId)){await worker.ReplyClaimAsync(requestId,false,"","Waiting for the owning FFScouter claim/delivery receipt; no new attack authorized.");return;}
+            if(!await FFBeforeClaimAsync(worker,orderId)){
+             var pendingOrder=_lossOrders.FirstOrDefault(o=>o.Id==orderId);
+             string note=pendingOrder==null?"Order no longer exists.":pendingOrder.IsClosed||pendingOrder.RemoteDeadline<=DateTimeOffset.UtcNow.ToUnixTimeSeconds()?"External claim finished or expired. No further attack authorized.":pendingOrder.Remaining<=0?"No remaining authorized losses; verified local receipts await provider reconciliation.":"Waiting for the owning FFScouter claim refresh (not another Pillow click). "+FFFor(worker.ProfileId).Note;
+             await worker.ReplyClaimAsync(requestId,false,"",note);return;
+            }
             var result = RequestLossClaim(worker, orderId);
             await worker.ReplyClaimAsync(requestId, result.Ok, result.ClaimId, result.Message);
             return;
@@ -406,7 +410,11 @@ public sealed partial class MainForm
         {
             var orderId = ReadWorkerString(root, "orderId");
             var claimId = ReadWorkerString(root, "claimId");
-            var result = CommitLossClaim(worker, orderId, claimId);
+            DateTime? visibleStarted=null,visibleEnded=null;
+            if(root.TryGetProperty("visibleOutcome",out var outcome)&&outcome.GetString()=="loss"&&root.TryGetProperty("fightStartedAt",out var fs)&&fs.TryGetInt64(out var startMs)&&root.TryGetProperty("lossObservedAt",out var fe)&&fe.TryGetInt64(out var endMs)){
+             visibleStarted=DateTimeOffset.FromUnixTimeMilliseconds(startMs).UtcDateTime;visibleEnded=DateTimeOffset.FromUnixTimeMilliseconds(endMs).UtcDateTime;
+            }
+            var result = CommitLossClaim(worker, orderId, claimId,visibleStarted:visibleStarted,visibleEnded:visibleEnded);
             await worker.ReplyCommitAsync(claimId, result.Ok, result.Remaining, result.Message);
             UpdateLossDashboardStatus();
             return;
@@ -428,6 +436,7 @@ public sealed partial class MainForm
             {
                 worker.MarkFinished();
                 if (LossAccounting.NormalizeCompletion(order)) SaveLossOrders();
+                if(order.SourceService=="FFScouter")_=ReconcileFFBatch(worker.ProfileId,order.RemoteClaimId);
                 RebindLossOrders();
                 FlashStatus($"Loss order {order.Id} completed after final recovery. Gross tracked: ${order.Gross:N0}.");
             }
@@ -445,7 +454,7 @@ public sealed partial class MainForm
             leveling=LevelingDashboard(),
             lossAttackDelayMs = Math.Clamp(_settings.LossAttackDelayMs, 500, 5000),
             workers=new{a=_lossWorkerA?.LastStatus??"Not initialized",b=_lossWorkerB?.LastStatus??"Not initialized"},
-            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.CompletedTotal,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,accountA=LossProfileLabel(order.ProfileAId),accountB=string.IsNullOrEmpty(order.ProfileBId)?null:LossProfileLabel(order.ProfileBId),source=order.SourceService,closed=order.IsClosed,cash=order.SourceService=="FFScouter"?order.RemotePaidCash:order.CashReceived,xanax=order.XanaxReceived,payoutUpdated=order.PayoutUpdatedUtc,status=order.Status}
+            loss=order is null?null:new{id=order.Id,buyer=order.BuyerName,target=order.TargetPlayerId,completed=order.TrackedTotal,localPending=order.VisiblePending,requested=order.RequestedLosses,remaining=order.Remaining,gross=order.Gross,accountA=LossProfileLabel(order.ProfileAId),accountB=string.IsNullOrEmpty(order.ProfileBId)?null:LossProfileLabel(order.ProfileBId),source=order.SourceService,closed=order.IsClosed,cash=order.SourceService=="FFScouter"?order.RemotePaidCash:order.CashReceived,xanax=order.XanaxReceived,payoutUpdated=order.PayoutUpdatedUtc,status=order.Status}
         };
         _modernDashboard.CoreWebView2.PostWebMessageAsJson(DashboardJson.Serialize(new{type="lossStatus",data}));
     }
@@ -477,7 +486,7 @@ public sealed partial class MainForm
                 return (false, "", "Target is busy on the other loss worker; waiting for the target lease.");
 
             var inFlightForOrder = _lossClaims.Values.Count(x => x.OrderId == order.Id);
-            if (order.CompletedTotal + inFlightForOrder >= order.RequestedLosses)
+            if (order.TrackedTotal + inFlightForOrder >= order.RequestedLosses)
                 return (false, "", "No remaining unclaimed losses.");
 
             var lease = new LossClaimLease
@@ -492,7 +501,7 @@ public sealed partial class MainForm
         }
     }
 
-    private (bool Ok, int Remaining, string Message) CommitLossClaim(LossAutoCycleWorker worker, string orderId, string claimId,long attackId=0)
+    private (bool Ok, int Remaining, string Message) CommitLossClaim(LossAutoCycleWorker worker, string orderId, string claimId,long attackId=0,DateTime? visibleStarted=null,DateTime? visibleEnded=null)
     {
         if (string.IsNullOrWhiteSpace(claimId)) return (false, 0, "Worker had no active claim to commit.");
 
@@ -508,12 +517,18 @@ public sealed partial class MainForm
             if (!lease.OrderId.Equals(orderId, StringComparison.OrdinalIgnoreCase) || lease.Slot != worker.Slot || lease.ProfileId != worker.ProfileId)
                 return (false, order.Remaining, "Loss claim did not match this account/order.");
             LossCommitResult result;
-            try { result = LossAccounting.Commit(order, claimId, worker.ProfileId, worker.Slot, SaveLossOrders,attackId); }
+            try {
+                if(order.SourceService=="FFScouter"&&attackId==0&&visibleStarted.HasValue&&visibleEnded.HasValue){
+                 if(visibleStarted.Value<lease.CreatedAt.AddSeconds(-2)||visibleEnded.Value>DateTime.UtcNow.AddSeconds(5)||!worker.IsArmed||!_medicalSessions.TryGetValue(worker,out var medical)||medical.Player!=order.RemoteOwner)
+                  return(false,order.Remaining,"Visible fight result did not match this worker/session.");
+                 result=LossAccounting.CommitVisible(order,claimId,worker.ProfileId,worker.Slot,visibleStarted.Value,visibleEnded.Value,SaveLossOrders);
+                }else result = LossAccounting.Commit(order, claimId, worker.ProfileId, worker.Slot, SaveLossOrders,attackId);
+            }
             catch (Exception ex) { return (false, order.Remaining, "Loss was not saved; count and claim retained. " + ex.Message); }
             if (!result.Ok) return (false, result.Remaining, result.Message);
             _lossClaims.Remove(claimId);
             RebindLossOrders();
-            FlashStatus($"Auto-cycle {worker.Slot} confirmed visible loss. {order.CompletedTotal}/{order.RequestedLosses} complete.");
+            FlashStatus($"Auto-cycle {worker.Slot} confirmed visible loss. {order.TrackedTotal}/{order.RequestedLosses} tracked.");
             return (true, result.Remaining, result.Message);
         }
     }

@@ -1,3 +1,13 @@
+v0.6.97 - Fast FFScouter batches, energy reservations and dual start
+- New Start / resume both accounts button and account chooser uses two separate active claims. Existing workers resume their sessions; failures report per account without duplicating a claim.
+- Energy claim accepts server revalidation when displayed availability goes stale, coalesces an existing refresh, selects a sole available contract and reports actual stacked energy / 25, provider/personal caps, available slots and energy left.
+- FFScouter batches now track clear visible losses locally without waiting for per-fight Torn attack-log or provider receipt confirmation, as requested. No network call blocks a normal next-fight grant.
+- Durable provisional receipts retain account/slot/lease and fight times, replay protection, persistence rollback and hard slot quota. Provider-confirmed deliveries, earnings and payments remain separate.
+- Fixed batch baseline prevents a background provider progress update from counting locally observed fights twice. Reconciliation runs in background and after completion; ambiguous terminal screens still use official verification, never guessed outcomes.
+- Claim expiry, pause/stop, account isolation and medical state verification are preserved. Use one execution source per claim; phone claiming is supported, simultaneous phone fighting of a desktop-running claim is not.
+- Offline real Edge layout check: Finance navigation/chart and 600/850/1100px responsive widths passed.
+- Tests: 30-slot local batch, asynchronous provider catch-up, restart, save rollback, receipt matching, stacked energy/ownership, dual preflight, worker/protocol, accounting and dashboard regressions; Windows build. No live claims, attacks or medical consumption used.
+
 v0.6.96 - Finance and Private Island planner
 - New profile-isolated Finance / Island tab: official wallet, vault, Cayman, bank principal/interest/maturity, faction credit and net-worth snapshots; 15-minute opt-in monitoring and actual daily history charts.
 - Persistent classified income/spending ledger with cash and Xanax kept separate, transfers excluded, immutable imported source amounts, manual entry, review, filtering and private JSON export.

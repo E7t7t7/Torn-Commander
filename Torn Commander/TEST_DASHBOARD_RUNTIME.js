@@ -356,3 +356,12 @@ assert(nodes.finReconcile.textContent.includes('5 Xanax')&&nodes.finEntries.inne
 context.renderFinance({profileId:'two',goal:500000000,reserve:0,dailyIncome:0,dailySpending:0,summary:{},entries:[],advice:[]});
 assert(!nodes.finEntries.innerHTML.includes('receipt')&&nodes.finAmount.value===''&&nodes.finBalances.textContent.includes('No saved balances'),'Finance data leaked across profiles');
 console.log('FINANCE UI PASSED: savings, scenario, cash flow, source reconciliation, classification and profile clearing.');
+
+context.renderFF({...actionable,lastSync:new Date(Date.now()-120000).toISOString(),contracts:[{orderNumber:'ENERGY',available:100,price:350000}]});
+nodes.ffSellerContract.value='ENERGY';context.updateFFActions();
+assert(!nodes.ffSellerEnergy.disabled,'Stale cache made energy button silently unusable instead of allowing server recheck');
+assert(!nodes.ffSellerStartBoth.disabled,'Dual start button unavailable');
+context.renderFF({...actionable,startBothBusy:true,dualAccounts:[{id:'main',name:'Main',active:1,connected:true},{id:'wife',name:'Wife',active:1,connected:true}]});
+assert(nodes.ffSellerStartBoth.disabled&&nodes.ffSellerDualStatus.textContent.includes('Wife: 1 active'),'Dual execution state missing');
+assert(html.includes("ffAction('ffStartBoth')"),'Dual execution not wired to native handler');
+console.log('CLAIM RESPONSIVENESS / DUAL START UI PASSED: energy revalidation, independent accounts and duplicate action guard.');

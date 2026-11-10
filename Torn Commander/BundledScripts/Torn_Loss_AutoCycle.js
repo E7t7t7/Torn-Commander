@@ -207,6 +207,11 @@
     state.status='Fight ended. Checking Torn attack log before counting a loss ('+state.lossVerifyAttempts+'/6).';save(state);
     post({type:'tc-loss-terminal',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,fightStartedAt:state.fightOpenedAt||state.fightStartedAt});
   }
+  function postVisibleLoss(state){
+    post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,
+      visibleOutcome:state.localLossTracking&&state.lossObservedAt?'loss':undefined,
+      fightStartedAt:state.fightOpenedAt||state.fightStartedAt,lossObservedAt:state.lossObservedAt});
+  }
   function levelCommit(state,terminal=false){state.levelTerminalSeen=terminal;state.stage='commit-wait';state.commitAttempts=1;state.replyWaitAt=now();state.status='Verifying the completed leveling fight with Torn.';save(state);post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId,terminal});}
   function detectFightResult(state) {
     const text = bodyText();
@@ -693,7 +698,7 @@
           } else {
             state.commitAttempts=Number(state.commitAttempts || 1)+1; state.replyWaitAt=now();
             state.status='Loss reply missing; replaying the same commit receipt without a new fight.'; save(state);
-            post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId});
+            postVisibleLoss(state);
           }
         }
         return;
@@ -731,7 +736,7 @@
         }
         state.attackWaitStartedAt = 0;
         state.stage = 'fight';
-        state.fightStartedAt = now();state.fightOpenedAt=state.fightStartedAt;
+        state.fightStartedAt = now();state.fightOpenedAt=state.fightStartedAt;state.lossObservedAt=0;
         state.lastPillowAt = 0;
         state.pillowTurns = 0;
         state.status = 'JOIN FIGHT clicked. Looking for the equipped Pillow.';
@@ -750,12 +755,13 @@
         const outcome = detectFightResult(state);
         if (outcome === 'loss'&&state.requireOfficialLoss){lossTerminalCheck(state);return;}
         if (outcome === 'loss') {
+          state.lossObservedAt=now();
           state.stage = 'commit-wait';
           state.commitAttempts = 1;
           state.replyWaitAt = now();
           state.status = 'Visible loss detected. Committing exactly one loss to Commander.';
           save(state);
-          post({ type: 'tc-loss-commit', profileId: state.profileId, slot: state.slot, orderId: state.orderId, claimId: state.claimId });
+          postVisibleLoss(state);
           return;
         }
         if (outcome === 'win'&&state.mode==='level'){state.stage='level-finish';state.levelFinishAt=now();state.status='Fight won. Looking for a single Leave control.';save(state);return;}
@@ -982,7 +988,7 @@
       const token = 'sess_' + now() + '_' + Math.random().toString(36).slice(2);
       sessionStorage.setItem(SESSION_KEY, token);
       const state = {
-        requireOfficialLoss:config.requireOfficialLoss===true,externalDeadline:Number(config.externalDeadline)||0,mode:config.mode==='level'?'level':'loss',acceptLevelUps:config.acceptLevelUps===true,weaponSlot:String(config.weaponSlot||'weapon_primary'),
+        requireOfficialLoss:config.requireOfficialLoss===true,localLossTracking:config.localLossTracking===true,externalDeadline:Number(config.externalDeadline)||0,mode:config.mode==='level'?'level':'loss',acceptLevelUps:config.acceptLevelUps===true,weaponSlot:String(config.weaponSlot||'weapon_primary'),
         profileId: String(config.profileId || ''),
         slot: String(config.slot || ''),
         orderId: String(config.orderId || ''),
@@ -1039,7 +1045,7 @@
       state.probeStartedAt = now();
       state.status = 'Resumed from Commander. Rechecking page state before the next action.';
       save(state);
-      if(reconcile) post({type:'tc-loss-commit',profileId:state.profileId,slot:state.slot,orderId:state.orderId,claimId:state.claimId});
+      if(reconcile) postVisibleLoss(state);
       return true;
     },
     stop() {

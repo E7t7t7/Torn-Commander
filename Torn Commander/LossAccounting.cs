@@ -2,6 +2,9 @@ namespace TornCommander;
 public sealed class LossCommitReceipt
 {
     public long AttackId {get;set;}
+    public bool VisibleOnly {get;set;}
+    public DateTime? FightStartedUtc {get;set;}
+    public DateTime? FightEndedUtc {get;set;}
     public string ClaimId { get; set; } = "";
     public string ProfileId { get; set; } = "";
     public string Slot { get; set; } = "";
@@ -26,6 +29,18 @@ public static class LossAccounting
         return receipt.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase) && receipt.Slot.Equals(slot, StringComparison.OrdinalIgnoreCase)
             ? new(true, order.Remaining, "This loss was already saved; acknowledgement restored without counting again.", true)
             : new(false, order.Remaining, "Saved loss receipt belongs to a different worker.");
+    }
+    public static LossCommitResult CommitVisible(LossOrder order,string claimId,string profile,string slot,DateTime started,DateTime ended,Action save){
+        var replay=Replay(order,claimId,profile,slot);if(replay!=null)return replay;
+        if(string.IsNullOrWhiteSpace(claimId)||order.SourceService!="FFScouter"||order.RemoteProfileId!=profile||order.IsClosed||order.Remaining<=0||
+           (slot=="A"?order.ProfileAId:slot=="B"?order.ProfileBId:"")!=profile||started>ended||ended-started>TimeSpan.FromMinutes(15))
+            return new(false,order.Remaining,"Visible loss did not match an active owning claim.");
+        var receipt=new LossCommitReceipt{ClaimId=claimId,ProfileId=profile,Slot=slot,VisibleOnly=true,FightStartedUtc=started,FightEndedUtc=ended};
+        var previousBaseline=order.LocalBatchBaseline;
+        order.LocalBatchBaseline??=order.CompletedTotal;
+        order.LocalBatchClaims.Add(claimId);
+        order.CommitReceipts.Add(receipt);try{save();}catch{order.CommitReceipts.Remove(receipt);order.LocalBatchClaims.Remove(claimId);order.LocalBatchBaseline=previousBaseline;throw;}
+        return new(true,order.Remaining,"Visible loss tracked locally. Provider confirmation and payout remain separate.");
     }
     // Caller must authorize a live claim before invoking a new commit.
     public static LossCommitResult Commit(LossOrder order, string claimId, string profileId, string slot, Action save,long attackId=0)

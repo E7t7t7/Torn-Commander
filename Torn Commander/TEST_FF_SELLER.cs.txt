@@ -119,6 +119,53 @@ try{await FFSellerBatch.Reserve("main","wife",BatchState(10),activeB,"BOTH",30,1
 Check(batchCalls==0,"First claim posted before second preflight");
 Console.WriteLine("DUAL RESERVATION PASSED: distinct owners, combined availability, both preflights, reduced second slots and first/second uncertain failures without retry.");
 Console.WriteLine("FF SELLER PASSED: official schema/targets, owner/credential isolation, one active claim/caps, durable reservation/completion, interrupted response/restart, duplicate deliveries/payments, expiry and native HTTP host restriction.");
+
+using(var en=JsonDocument.Parse("""{"profile":{"id":10},"bars":{"energy":{"current":775,"maximum":150}}}""")){
+ Check(FFSellerData.ReadEnergy(en.RootElement,10)==775,"Stacked current energy was capped to maximum.");
+ try{FFSellerData.ReadEnergy(en.RootElement,11);throw new Exception("Energy from the wrong player accepted.");}catch(InvalidDataException){}
+}
+using(var en=JsonDocument.Parse("""{"profile":{"id":10},"bars":{}}""")){
+ try{FFSellerData.ReadEnergy(en.RootElement,10);throw new Exception("Missing energy became zero.");}catch(InvalidDataException){}
+}
+var execA=new FFSellerState{Player=10,Claims=new(){[42]=original}};
+var execB=new FFSellerState{Player=11,Claims=new(){[43]=Row($$"""{"id":43,"state":"active","slots_claimed":10,"slots_delivered":0,"expires_at":{{unix+900}}}""")}};
+var pickA=FFSellerExecution.Choose("main",execA,now);var pickB=FFSellerExecution.Choose("wife",execB,now);FFSellerExecution.Pair(pickA,pickB);
+try{FFSellerExecution.Pair(pickA,pickA);throw new Exception("Same player started twice.");}catch(InvalidDataException){}
+execB.Pending="claim";try{FFSellerExecution.Choose("wife",execB,now);throw new Exception("Pending claim started.");}catch(InvalidOperationException){}
+var delayed=new LossOrder{SourceService="FFScouter",RemoteOwner=10,RemoteProfileId="main",RemoteState="active",RemoteDeadline=unix+900,RemoteObservedUtc=now,ProfileAId="main",RequestedLosses=10,RemoteDelivered=1,RemoteAttackIds=[90],CommitReceipts=[new(){AttackId=91,ProfileId="main"}]};
+Check(FFSellerData.CanContinue(delayed,execA,"main",now)&&delayed.Remaining==8,"Provider ingestion delay blocked an official local receipt.");
+Check(!FFSellerData.CanContinue(delayed,execA,"wife",now),"Delayed receipt crossed profiles.");
+delayed.RequestedLosses=2;Check(!FFSellerData.CanContinue(delayed,execA,"main",now)&&delayed.Remaining==0,"Unacknowledged receipt exceeded the reserved cap.");
+delayed.RemoteDelivered=2;delayed.RemoteAttackIds.Add(91);Check(delayed.CompletedTotal==2&&delayed.Remaining==0,"Provider acknowledgment double counted a local loss.");
+delayed.RequestedLosses=3;delayed.RemoteObservedUtc=now.AddMinutes(-2);Check(FFSellerData.CanContinue(delayed,execA,"main",now),"Per-fight API freshness blocked a verified active batch.");
+Console.WriteLine("ENERGY / DUAL START / PROVIDER LAG PASSED: stacked actual energy, identity, missing fields, distinct live claims, pending guard, official local continuation, hard slot bound and deduplication.");
+
+var visible=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",RemoteOwner=10,ProfileAId="main",RequestedLosses=30,RemoteState="active",RemoteDeadline=unix+900};
+for(int i=0;i<30;i++){
+ var result=LossAccounting.CommitVisible(visible,"lease-"+i,"main","A",now.AddSeconds(i*2),now.AddSeconds(i*2+1),()=>{});
+ Check(result.Ok&&visible.Remaining==29-i,"Visible batch blocked before its thirty reserved slots.");
+}
+Check(visible.VisiblePending==30&&visible.CompletedTotal==0&&visible.TrackedTotal==30,"Local observations became confirmed provider deliveries.");
+Check(!LossAccounting.CommitVisible(visible,"extra","main","A",now,now,()=>{}).Ok,"Thirty-first attack authorized.");
+Check(LossAccounting.CommitVisible(visible,"lease-0","main","A",now,now,()=>{}).Duplicate,"Visible receipt replay counted twice.");
+var hit=Row($$"""{"id":99,"hits":[{"attack_id":12345,"started_at":{{unix}},"ended_at":{{unix+1}}}]}""");
+var oneVisible=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",ProfileAId="main",RequestedLosses=1};
+LossAccounting.CommitVisible(oneVisible,"one","main","A",now,now.AddSeconds(1),()=>{});
+Check(FFSellerData.ReconcileVisible(oneVisible,hit)==1&&oneVisible.VisiblePending==0&&oneVisible.CompletedTotal==1,"Batch provider receipt did not reconcile local result.");
+Check(FFSellerData.ReconcileVisible(oneVisible,hit)==0,"Batch reconciliation duplicated receipt.");
+Console.WriteLine("LOCAL BATCH PASSED: 30 observed losses without API wait, hard reservation bound, replay, separate confirmation and final hit reconciliation.");
+var asyncProgress=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",ProfileAId="main",RequestedLosses=30};
+for(int i=0;i<30;i++){
+ Check(LossAccounting.CommitVisible(asyncProgress,"step-"+i,"main","A",now.AddSeconds(i*30),now.AddSeconds(i*30+5),()=>{}).Ok,"Async batch blocked.");
+ asyncProgress.RemoteDelivered=i+1; // Summary can advance before detailed hit IDs arrive.
+ Check(asyncProgress.TrackedTotal==i+1&&asyncProgress.Remaining==29-i,"Background provider progress counted a local observed fight twice.");
+}
+var before=JsonSerializer.Deserialize<LossOrder>(JsonSerializer.Serialize(asyncProgress))!;
+Check(before.Remaining==0&&before.VisiblePending==0,"Restart forgot pending local batch.");
+var failedSave=new LossOrder{SourceService="FFScouter",RemoteProfileId="main",ProfileAId="main",RequestedLosses=1};
+try{LossAccounting.CommitVisible(failedSave,"save-failure","main","A",now,now,()=>throw new IOException("fixture"));}catch(IOException){}
+Check(failedSave.LocalBatchClaims.Count==0&&failedSave.LocalBatchBaseline==null&&failedSave.CommitReceipts.Count==0,"Failed persistence spent a loss slot.");
+Console.WriteLine("ASYNC PROGRESS PASSED: all thirty run while provider summaries catch up, no duplicate progress, restart and failed-save rollback.");
 class Handler:HttpMessageHandler{
  public int Calls;public string Host="";public bool Bad;
  protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct){Calls++;Host=request.RequestUri!.Host;if(Bad)throw new HttpRequestException("synthetic timeout");return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("{\"contracts\":[],\"max_claim_slots\":10}")});}

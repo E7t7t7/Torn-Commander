@@ -7,7 +7,7 @@ public sealed class FFSellerClaim {
  public string State{get;set;}="";public int Claimed{get;set;}public int Delivered{get;set;}public long Price{get;set;}public long Earnings{get;set;}
  public bool EarningsKnown{get;set;}
  public long ClaimedAt{get;set;}public long ExpiresAt{get;set;}public long IdleDeadline{get;set;}public long PaidAt{get;set;}
- public string PaymentStatus{get;set;}="";public bool Review{get;set;}public List<long> AttackIds{get;set;}=new();
+ public string PaymentStatus{get;set;}="";public bool Review{get;set;}public List<long> AttackIds{get;set;}=new();public Dictionary<long,long> HitStarts{get;set;}=new();public Dictionary<long,long> HitEnds{get;set;}=new();
  public bool Paid=>EarningsKnown&&!Review&&(PaymentStatus=="resolved"||PaidAt>0);
  public bool Live(DateTime now)=>State=="active"&&ExpiresAt>new DateTimeOffset(now).ToUnixTimeSeconds()&&(IdleDeadline==0||IdleDeadline>new DateTimeOffset(now).ToUnixTimeSeconds())&&Delivered<Claimed;
  public long Deadline=>IdleDeadline>0?Math.Min(ExpiresAt,IdleDeadline):ExpiresAt;
@@ -41,6 +41,9 @@ public static class FFSellerData {
   c.PaymentStatus=row.TryGetProperty("payment_status",out _)?Text(row,"payment_status"):c.PaymentStatus;
   if(row.TryGetProperty("payment_review_required",out var review))c.Review=review.ValueKind==JsonValueKind.True;
   if(row.TryGetProperty("hits",out var hits)&&hits.ValueKind==JsonValueKind.Array)c.AttackIds=c.AttackIds.Concat(hits.EnumerateArray().Select(x=>Number(x,"attack_id")).Where(x=>x>0)).Distinct().ToList();
+  if(row.TryGetProperty("hits",out var timing)&&timing.ValueKind==JsonValueKind.Array)foreach(var hit in timing.EnumerateArray()){
+   long attack=Number(hit,"attack_id"),began=Number(hit,"started_at"),ended=Number(hit,"ended_at");if(attack>0&&began>0&&ended>=began){c.HitStarts[attack]=began;c.HitEnds[attack]=ended;}
+  }
   if(c.Target<0||c.Claimed is <0 or >1000000||c.Delivered<0||c.Delivered>c.Claimed||c.OrderNumber.Length>100||c.Price>1000000000000||c.Earnings>1000000000000000)throw new InvalidDataException("Seller claim values are inconsistent.");
   return c;
  }
@@ -59,7 +62,20 @@ public static class FFSellerData {
   }
   state.Claims=updated; // Never delete history merely because the API's seven-day window moved.
  }
- public static bool CanExecute(LossOrder o,FFSellerState s,string profile,DateTime now)=>o.SourceService!="FFScouter"||(o.RemoteProfileId==profile&&o.RemoteOwner==s.Player&&o.RemoteState=="active"&&!o.IsClosed&&o.RemoteDeadline>new DateTimeOffset(now).ToUnixTimeSeconds()&&o.RemoteObservedUtc>now.AddSeconds(-75));
+ public static bool CanExecute(LossOrder o,FFSellerState s,string profile,DateTime now)=>o.SourceService!="FFScouter"||(s.Pending==""&&o.RemoteProfileId==profile&&o.RemoteOwner==s.Player&&o.RemoteState=="active"&&!o.IsClosed&&o.RemoteDeadline>new DateTimeOffset(now).ToUnixTimeSeconds()&&o.RemoteObservedUtc>now.AddSeconds(-75));
+ public static bool CanContinue(LossOrder o,FFSellerState s,string profile,DateTime now)=>
+  s.Pending==""&&o.SourceService=="FFScouter"&&o.RemoteProfileId==profile&&o.RemoteOwner==s.Player&&o.RemoteState=="active"&&!o.IsClosed&&o.RemoteDeadline>new DateTimeOffset(now).ToUnixTimeSeconds()&&o.Remaining>0&&
+  o.CommitReceipts.All(x=>(x.AttackId>0||x.VisibleOnly)&&x.ProfileId==profile);
+ public static int ReconcileVisible(LossOrder order,FFSellerClaim claim){
+  if(order.RemoteClaimId>0&&order.RemoteClaimId!=claim.Id)throw new InvalidDataException("Provider hit list belongs to another claim.");
+  int count=0;var used=order.CommitReceipts.Where(x=>x.AttackId>0).Select(x=>x.AttackId).ToHashSet();
+  foreach(var receipt in order.CommitReceipts.Where(x=>x.VisibleOnly&&x.AttackId<=0&&x.FightStartedUtc.HasValue&&x.FightEndedUtc.HasValue)){
+   var matches=claim.HitStarts.Where(x=>!used.Contains(x.Key)&&claim.HitEnds.TryGetValue(x.Key,out var end)&&
+    Math.Abs((DateTimeOffset.FromUnixTimeSeconds(x.Value).UtcDateTime-receipt.FightStartedUtc!.Value).TotalSeconds)<=15&&
+    Math.Abs((DateTimeOffset.FromUnixTimeSeconds(end).UtcDateTime-receipt.FightEndedUtc!.Value).TotalSeconds)<=15).Select(x=>x.Key).ToList();
+   if(matches.Count!=1)continue;receipt.AttackId=matches[0];receipt.VisibleOnly=false;used.Add(matches[0]);count++;
+  }return count;
+ }
  public static FFSellerClaim? AutoCandidate(FFSellerState s,DateTime now)=>s.Enabled&&s.AutoRun&&s.ArmedAt!=default&&s.Pending==""?s.Claims.Values.FirstOrDefault(c=>c.Live(now)&&c.ClaimedAt>=new DateTimeOffset(s.ArmedAt).ToUnixTimeSeconds()&&!s.AutoHandled.Contains(c.Id)):null;
  public static void VerifyOwner(int seller,int torn){if(seller<=0||seller!=torn)throw new InvalidDataException("Seller key belongs to another account.");}
  public static bool MigrateLimit(FFSellerState s){
@@ -75,6 +91,12 @@ public static class FFSellerData {
   int limit=ReservationLimit(state,c.Available);int count=max?limit:requested;
   if(count<1||count>limit)throw new InvalidDataException("Count exceeds available slots, personal cap or your session limit.");
   return count;
+ }
+ public static int ReadEnergy(JsonElement r,int owner){
+  if(!r.TryGetProperty("profile",out var profile)||!profile.TryGetProperty("id",out var id)||!id.TryGetInt32(out var player))throw new InvalidDataException("Torn did not return this account's identity. No claim made.");
+  VerifyOwner(owner,player);
+  if(!r.TryGetProperty("bars",out var bars)||!bars.TryGetProperty("energy",out var energy)||!energy.TryGetProperty("current",out var current)||!current.TryGetInt32(out var value)||value<0||value>1000000)throw new InvalidDataException("Current energy was not returned. Check this profile's Torn API permissions; no claim made.");
+  return value;
  }
  public static int EnergyClaimCount(FFSellerState s,string order,int energy,DateTime now){
   if(energy<25)throw new InvalidDataException("At least 25 current energy is needed to reserve one loss.");
@@ -173,5 +195,18 @@ public static class FFSellerBatch{
    confirmed.Add(new(profileB,second.Id,second.Count));
    return new(confirmed,"","");
   }catch(Exception ex){return new(confirmed,step,ex is InvalidOperationException or InvalidDataException or FFSellerException?ex.Message:"Request failed. Refresh this account before retrying; no automatic repeat.");}
+ }
+}
+
+public sealed record FFExecutionChoice(string Profile,int Player,long Claim);
+public static class FFSellerExecution {
+ public static FFExecutionChoice Choose(string profile,FFSellerState state,DateTime now){
+  if(string.IsNullOrWhiteSpace(profile)||state.Player<=0||state.Pending!="")throw new InvalidOperationException("Reconnect/reconcile this seller account before starting.");
+  var claims=state.Claims.Values.Where(c=>c.Live(now)).ToList();
+  if(claims.Count!=1)throw new InvalidOperationException("This account needs exactly one active, unfinished claim.");
+  return new(profile,state.Player,claims[0].Id);
+ }
+ public static void Pair(FFExecutionChoice a,FFExecutionChoice b){
+  if(a.Profile==b.Profile||a.Player<=0||b.Player<=0||a.Player==b.Player||a.Claim<=0||b.Claim<=0||a.Claim==b.Claim)throw new InvalidDataException("Choose two different accounts with separate live claims.");
  }
 }
