@@ -104,7 +104,7 @@ public sealed partial class MainForm : Form
 
     public MainForm()
     {
-        Text = "Torn Commander v0.6.99";
+        Text = "Torn Commander v0.6.100";
         MinimumSize = new Size(850, 600);
         Size = new Size(1500, 900);
         BackColor = Bg;
@@ -284,7 +284,7 @@ public sealed partial class MainForm : Form
         _settings.ApiFullAccessVerified = false;
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
-        Text = $"Torn Commander v0.6.99 — {target.Name}";
+        Text = $"Torn Commander v0.6.100 — {target.Name}";
 
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
         _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -395,7 +395,7 @@ public sealed partial class MainForm : Form
         Storage.SaveSettings(_settings);
         RefreshProfileSelector();
         RefreshLossProfileCombos();
-        Text = $"Torn Commander v0.6.99 — {name}";
+        Text = $"Torn Commander v0.6.100 — {name}";
         UpdateModernDashboard();
         FlashStatus($"Profile renamed to {name}.");
     }
@@ -460,7 +460,7 @@ public sealed partial class MainForm : Form
             : new List<string> { TornRoutes.Home };
         foreach (var url in urls) await AddBrowserTabAsync(url);
         if (_apiKeyBox is not null) _apiKeyBox.Text = CredentialManager.LoadApiKey(CurrentProfileId) ?? "";
-        Text = $"Torn Commander v0.6.99 — {fallback.Name}";
+        Text = $"Torn Commander v0.6.100 — {fallback.Name}";
         UpdateAllUi();
         if (!string.IsNullOrWhiteSpace(CredentialManager.LoadApiKey(CurrentProfileId)))
             await RefreshFullAsync(false);
@@ -1293,7 +1293,7 @@ public sealed partial class MainForm : Form
         {
             FlashStatus($"Downloading {displayName} from its author…");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.99");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.100");
             var script = await http.GetStringAsync(downloadUrl);
             if (!script.Contains("==UserScript==", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The downloaded file did not look like a userscript.");
@@ -1378,8 +1378,9 @@ public sealed partial class MainForm : Form
         var row = new FlowLayoutPanel { AutoSize = true, BackColor = PanelBg, WrapContents = true };
         row.Controls.Add(MakeButton("Add session", (_, _) =>
         {
-            _casino.Add(new CasinoSession { Game = game.Text.Trim(), StartBankroll = start.Value, EndBankroll = end.Value, Notes = note.Text.Trim() });
-            Storage.Save(Storage.CasinoPath, _casino);
+            var next=_casino.ToList();
+            next.Add(new CasinoSession { ProfileId=CurrentProfileId,Game = game.Text.Trim(), StartBankroll = start.Value, EndBankroll = end.Value, Notes = note.Text.Trim() });
+            Storage.SaveAtomic(Storage.CasinoPath, next);_casino=next;
             RebindCasino();
         }, 100));
         row.Controls.Add(MakeButton("Delete", (_, _) => DeleteSelectedCasino(), 72));
@@ -1521,7 +1522,7 @@ public sealed partial class MainForm : Form
         Program.TraceStartup("InitializeAsync started.");
         try
         {
-            Text = $"Torn Commander v0.6.99 — {CurrentProfile.Name}";
+            Text = $"Torn Commander v0.6.100 — {CurrentProfile.Name}";
             FlashStatus($"Starting browser profile: {CurrentProfile.Name}…");
             Program.TraceStartup("Creating WebView2 environment.");
             _webEnv = await GetWebEnvironmentAsync(CurrentProfileId);
@@ -1972,6 +1973,7 @@ public sealed partial class MainForm : Form
 
     private void UpdateAllUi()
     {
+        RebindCasino();
         _recommendation = RecommendationEngine.Build(_snapshot, _settings);
 
         var name = _snapshot.PlayerName ?? "Waiting for API";
@@ -2918,11 +2920,13 @@ public sealed partial class MainForm : Form
         RebindTrades();
     }
 
+    private List<CasinoSession> _visibleCasinoEntries=new();
     private void RebindCasino()
     {
         if (_casinoGrid is null) return;
         _casinoSource.DataSource = null;
-        _casinoSource.DataSource = _casino.Select(x => new
+        _visibleCasinoEntries=_casino.Where(x=>x.ProfileId==CurrentProfileId).ToList();
+        _casinoSource.DataSource = _visibleCasinoEntries.Select(x => new
         {
             x.Date,
             x.Game,
@@ -2932,14 +2936,17 @@ public sealed partial class MainForm : Form
             x.Notes
         }).ToList();
         _casinoGrid.DataSource = _casinoSource;
+        UpdateModernDashboard();
     }
 
     private void DeleteSelectedCasino()
     {
         var i = _casinoGrid.CurrentRow?.Index ?? -1;
-        if (i < 0 || i >= _casino.Count) return;
-        _casino.RemoveAt(i);
-        Storage.Save(Storage.CasinoPath, _casino);
+        if (i < 0 || i >= _visibleCasinoEntries.Count) return;
+        var selected=_visibleCasinoEntries[i];
+        if(selected.Active){FlashStatus("End the active session in the Casino tab first.");return;}
+        var next=_casino.Where(x=>x.Id!=selected.Id).ToList();
+        Storage.SaveAtomic(Storage.CasinoPath, next);_casino=next;
         RebindCasino();
     }
 
@@ -2969,7 +2976,7 @@ public sealed partial class MainForm : Form
             TotalCrimeNerveSpent = totalNerve,
             NerveSpentSincePrior = Math.Max(0, totalNerve - priorTotal),
             MainCrimes = mainCrimes,
-            Notes = $"Recorded from Torn Commander v0.6.99; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
+            Notes = $"Recorded from Torn Commander v0.6.100; addiction {(_snapshot.DetectedAddictionPercent ?? _settings.ManualAddictionPercent)}% ({(_snapshot.DetectedAddictionPercent is not null ? "API" : "fallback")})"
         });
         _milestones = _milestones.OrderBy(x => x.Date).ToList();
         Storage.Save(Storage.MilestonesPath, _milestones);

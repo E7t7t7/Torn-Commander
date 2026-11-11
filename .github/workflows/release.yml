@@ -103,6 +103,13 @@ jobs:
         run: |
           node 'Torn Commander/TEST_CASINO_COACH.js' 'Torn Commander/CasinoCoachScript.cs'
           if ($LASTEXITCODE -ne 0) { throw 'Casino regression failed; release withheld.' }
+      - name: Check casino sessions and visible-card reader
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_CASINO_SESSIONS.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Casino sessions failed; release withheld.' }
+          node 'Torn Commander/TEST_CASINO_READ.js' 'Torn Commander/BundledScripts/Torn_Casino_Read.js'
+          if ($LASTEXITCODE -ne 0) { throw 'Casino reader failed; release withheld.' }
       - name: Check trading advice and live Blackjack fallbacks
         shell: pwsh
         run: |

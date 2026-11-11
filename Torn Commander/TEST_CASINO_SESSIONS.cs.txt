@@ -1,0 +1,32 @@
+using TornCommander;
+using System.Text.Json;
+void Check(bool v,string why){if(!v)throw new Exception(why);}
+var now=new DateTime(2026,11,10,17,0,0,DateTimeKind.Utc);
+var s=CasinoTracking.Start("main","session","Blackjack",1000,200,300,now);
+Check(s.Active&&s.ProfitLoss==0&&s.Readings.Count==1,"Start treated bankroll as earnings.");
+CasinoTracking.Update(s,1100,100,0,now.AddMinutes(1));
+Check(s.ProfitLoss==0&&s.LimitReached=="","Top-up treated as winnings.");
+CasinoTracking.Update(s,900,100,200,now.AddMinutes(2));
+Check(s.ProfitLoss==0,"Cash-out treated as loss.");
+CasinoTracking.Update(s,700,100,200,now.AddMinutes(3));
+Check(s.ProfitLoss==-200&&s.LimitReached=="Stop-loss reached","Exact loss threshold missed.");
+CasinoTracking.Update(s,1000,100,200,now.AddMinutes(4));
+Check(s.LimitReached=="Stop-loss reached","Alert disappeared while session was still active.");
+var count=s.Readings.Count;CasinoTracking.Update(s,1000,100,200,now.AddMinutes(5));
+Check(s.Readings.Count==count&&s.Deposits==100&&s.Withdrawals==200,"Repeated update duplicated cash flow or reading.");
+var p=CasinoTracking.Start("wife","poker","Poker",1000,100,50,now);
+CasinoTracking.Update(p,1050,0,0,now);
+Check(p.LimitReached=="Profit target reached","Exact target missed.");
+var off=CasinoTracking.Start("main","off","Other",1000,0,0,now);
+CasinoTracking.Update(off,0,0,0,now);Check(off.LimitReached=="","Zero/off threshold triggered.");
+foreach(var n in new[]{-1m,0.001m,1000000000001m}){bool blocked=false;try{CasinoTracking.Money(n);}catch(InvalidDataException){blocked=true;}Check(blocked,"Invalid money accepted.");}
+try{CasinoTracking.Update(s,100,0,0,now);throw new Exception("Cumulative funding allowed to decrease.");}catch(InvalidDataException){}
+var legacy=JsonSerializer.Deserialize<CasinoSession>("""{"Game":"Poker","StartBankroll":100,"EndBankroll":80}""")!;
+Check(legacy.ProfileId==""&&!legacy.Active&&legacy.ProfitLoss==-20,"Legacy history assigned or altered.");
+var saved=JsonSerializer.Deserialize<CasinoSession>(JsonSerializer.Serialize(s))!;
+Check(saved.LimitReached==s.LimitReached&&saved.ProfitLoss==s.ProfitLoss&&saved.Readings.Count==s.Readings.Count,"Restart lost tracking or alert.");
+var rows=new[]{s,p,legacy};
+Check(rows.Where(x=>x.ProfileId=="main").Count()==1&&rows.Where(x=>x.ProfileId=="wife").Count()==1,"Profile totals mixed or legacy assigned.");
+p.Active=false;
+try{CasinoTracking.Update(p,1,0,0,now);throw new Exception("Closed session changed.");}catch(InvalidOperationException){}
+Console.WriteLine("CASINO SESSIONS PASSED: exact thresholds, latched alerts, top-up/cash-out neutrality, replay, fractional stakes, legacy ownership, profile boundaries, restart and closed-session guard.");

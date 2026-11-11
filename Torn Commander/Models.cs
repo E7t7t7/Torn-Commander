@@ -106,14 +106,28 @@ public sealed class NnbMilestone
     public string Notes { get; set; } = "";
 }
 
+public sealed class CasinoReading{
+ public DateTime At{get;set;} public decimal Bankroll{get;set;} public decimal Net{get;set;}
+}
 public sealed class CasinoSession
 {
+    public string Id {get;set;}=Guid.NewGuid().ToString("N");
+    public string ProfileId {get;set;}=""; // Legacy records stay unassigned until explicitly adopted.
+    public bool Active {get;set;}
+    public decimal Deposits {get;set;}
+    public decimal Withdrawals {get;set;}
+    public decimal StopLoss {get;set;}
+    public decimal ProfitTarget {get;set;}
+    public string LimitReached {get;set;}="";
+    public DateTime? LimitReachedUtc {get;set;}
+    public DateTime? EndedUtc {get;set;}
+    public List<CasinoReading> Readings {get;set;}=new();
     public DateTime Date { get; set; } = DateTime.Now;
     public string Game { get; set; } = "Blackjack";
     public decimal StartBankroll { get; set; }
     public decimal EndBankroll { get; set; }
     public string Notes { get; set; } = "";
-    public decimal ProfitLoss => EndBankroll - StartBankroll;
+    public decimal ProfitLoss => EndBankroll + Withdrawals - StartBankroll - Deposits;
 }
 
 public sealed class RacingNote

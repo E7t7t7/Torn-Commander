@@ -365,3 +365,24 @@ context.renderFF({...actionable,startBothBusy:true,dualAccounts:[{id:'main',name
 assert(nodes.ffSellerStartBoth.disabled&&nodes.ffSellerDualStatus.textContent.includes('Wife: 1 active'),'Dual execution state missing');
 assert(html.includes("ffAction('ffStartBoth')"),'Dual execution not wired to native handler');
 console.log('CLAIM RESPONSIVENESS / DUAL START UI PASSED: energy revalidation, independent accounts and duplicate action guard.');
+
+context.renderCasino({profileId:'one',sessions:2,net:-100,active:[{id:'session-one',game:'Blackjack',startBankroll:1000,endBankroll:800,deposits:0,withdrawals:0,profitLoss:-200,stopLoss:200,profitTarget:300,limitReached:'Stop-loss reached',points:[]}],history:[],legacy:3});
+assert(!nodes.casinoActive.hidden&&nodes.casinoStartFields.hidden&&!nodes.casinoLimitAlert.hidden,'Casino active session/alert missing');
+assert(nodes.casinoActiveMeta.textContent.includes('-200')&&nodes.casinoLegacyNote.textContent.includes('3 older'),'Casino actual P/L or legacy boundary missing');
+nodes.casinoCurrent.value=123;
+context.renderCasino({profileId:'one',sessions:2,net:-100,active:[{id:'session-one',game:'Blackjack',startBankroll:1000,endBankroll:800,deposits:0,withdrawals:0,profitLoss:-200,stopLoss:200,profitTarget:300,limitReached:'Stop-loss reached',points:[]}],history:[],legacy:3});
+assert.equal(nodes.casinoCurrent.value,123,'Heartbeat overwrote unsaved bankroll');
+context.renderCasino({profileId:'two',sessions:0,net:0,active:[],history:[],legacy:3});
+assert(nodes.casinoActive.hidden&&nodes.casinoCurrent.value===''&&nodes.casinoSessionMemo.value===''&&nodes.casinoNet.textContent==='$0','Casino account switch leaked bankroll or totals');
+console.log('CASINO DASHBOARD PASSED: active controls, thresholds, profile boundaries, legacy records and draft retention.');
+
+context.crypto={getRandomValues:a=>{a.fill(7);return a;}};
+context.S.profileId='one';
+nodes.casinoStartBank.value='1000';nodes.casinoStopLoss.value='200';nodes.casinoTarget.value='300';nodes.casinoGame.value='Blackjack';
+context.casinoStart();
+assert(ledgerRequests.some(x=>x.cmd==='casinoStart'&&x.data.profileId==='one'&&/^[a-f0-9]{32}$/.test(x.data.id)),'Casino Start needs unsupported randomUUID on embedded page');
+assert(context.casinoMoney(12.5).includes('12.50'),'Poker fractional stakes rounded away');
+nodes.finAt.value='2026-11-10T12:00';nodes.finAmount.value='123';nodes.finCurrency.value='cash';nodes.finKind.value='income';nodes.finCategory.value='Other';nodes.finEntryNote.value='fixture';
+context.financeAdd();
+assert(ledgerRequests.some(x=>x.cmd==='financeEntry'&&x.data.amount===123),'Finance Add requires unsupported randomUUID');
+console.log('EMBEDDED RECORD CREATION PASSED: Casino Start and Finance Add without randomUUID; fractional casino money retained.');

@@ -1,3 +1,15 @@
+v0.6.100 - Repair Casino desk, account isolation and session limits
+- Added modern Start / Update / Finish session controls, exact stop-loss and profit-target alerts, persistent latched threshold state, bankroll readings/P-L chart and saved history.
+- P/L excludes cumulative additions and cash-outs. Repeating an update does not add funding twice. Cash values support cents for fractional table stakes.
+- Fixed global Casino counters and Classic records leaking between account views. New records belong to the current profile; old untagged sessions remain excluded until explicit assignment. Casino writes now use atomic persistence.
+- Replaced dependency on an installed Blackjack userscript with a native read-once visible-card snapshot button. It refuses hidden, incomplete, completed and ambiguous split hands; no bets, game clicks, background scraping or network calls.
+- Organized manual Blackjack/Poker/High-Low/EV advisers into expandable sections; session edits no longer invalidate unrelated hand advice. Profile changes clear bankroll/card drafts and available-action flags.
+- Fixed new-record receipt generation on WebView2 opaque/about:blank dashboards where crypto.randomUUID is unavailable; Casino Start and Finance Add use getRandomValues instead.
+- Stop-loss/target alerts require recording settled results; they do not automatically play, cash out or stop actions in the game. Blackjack multi-card/Charlie strategy and poker sampled equity remain explicitly approximate.
+- Real Edge fixture exercised Start/Update/Finish, threshold rendering, native hand replies, actual Blackjack/Poker calculations and responsive 600/850/1100px layouts without network or live bets.
+- Validation: threshold/funding/profile/restart fixtures, read-only card-reader fixtures, existing adviser and dashboard regressions, Windows build. No live bets or private account data used.
+- Rules/reference checked: https://www.torn.com/rules.php and official Blackjack/Poker wiki. Unattended casino play is not included.
+
 v0.6.99 - Unify fast-batch and ambiguous-result quota
 - Clear loss results continue without per-fight API waits. If an ambiguous result uses the existing official receipt fallback, that verified fight now consumes a slot in the same local batch.
 - Prevents mixed visible/official result paths from authorizing an additional fight. Both paths restore the slot correctly after a failed save.

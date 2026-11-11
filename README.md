@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.99. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.100. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -191,3 +191,6 @@ v0.6.97: FFScouter batch execution tracks clear on-screen losses locally without
 v0.6.98: Preserve the conservative remaining quota when an older partially completed FFScouter order first transitions to the new fast local-batch mode. Previously verified receipts missing from a delayed provider hit list cannot be lost during this transition.
 
 v0.6.99: If an ambiguous combat result requires the existing official receipt fallback, that receipt consumes one slot in the same fast local batch. Switching result-verification paths cannot leave a spare local slot; failed persistence restores it.
+
+
+v0.6.100: Casino desk repaired. Start, update and finish sessions directly in the modern tab; set stop-loss/profit-target alerts, record cumulative money added/cashed out, view a P/L chart and saved history. Totals and active sessions are profile-isolated in both interfaces. Old untagged history stays excluded until explicitly assigned. The native Read current Blackjack hand button reads the manually opened visible table without requiring an installed userscript, without clicking game controls or making network requests. Split/unknown/finished hands request manual input instead of guessing. Poker and other calculators remain manual and describe their assumptions. Session limits only alert on recorded settled-bankroll updates; they cannot stop bets made in Torn, cash out, or guarantee profit.
