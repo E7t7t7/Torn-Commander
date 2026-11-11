@@ -77,7 +77,7 @@ internal static class Storage
 
             foreach (var source in Directory.EnumerateFiles(BundledScriptsPath, "*", SearchOption.TopDirectoryOnly)
                          .Where(IsSupportedScriptFile)
-                         .Where(path => !new[]{"Torn_Loss_AutoCycle.js","Torn_Casino_Read.js"}.Contains(Path.GetFileName(path),StringComparer.OrdinalIgnoreCase)))
+                         .Where(path => !new[]{"Torn_Loss_AutoCycle.js","Torn_Casino_Read.js","Torn_Company_Training.js"}.Contains(Path.GetFileName(path),StringComparer.OrdinalIgnoreCase)))
             {
                 var name = Path.GetFileName(source);
                 var destination = Path.Combine(UserScriptsPath, name);

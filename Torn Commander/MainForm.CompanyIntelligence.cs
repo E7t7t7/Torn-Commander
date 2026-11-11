@@ -298,6 +298,7 @@ public sealed partial class MainForm
             health = new { efficiency = latest?.Efficiency, environment = latest?.Environment,
                 popularity = latest?.Popularity, trains = latest?.Trains, capacity = latest?.Capacity, funds = latest?.Funds },
             team = CompanyStaffAdvisor.Report(latest, journal.Team),
+            training = TrainingDashboard(journal),
             layouts = CompanyStaffLayouts.Build(latest, journal.Team),
             scan = journal.Team?.CompanyId == journal.ActiveCompanyId ? new {
                 at = journal.Team.ScannedUtc.ToString("yyyy-MM-dd HH:mm") + " UTC",

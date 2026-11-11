@@ -123,6 +123,13 @@ jobs:
           $ErrorActionPreference = 'Stop'
           & 'Torn Commander/TEST_ADVICE_MODELS.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Advice regression test failed; release withheld.' }
+      - name: Check company training rotation and receipts
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_COMPANY_TRAINING.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Company training failed; release withheld.' }
+          node 'Torn Commander/TEST_COMPANY_TRAINING_HELPER.js' 'Torn Commander/BundledScripts/Torn_Company_Training.js'
+          if ($LASTEXITCODE -ne 0) { throw 'Company training helper failed; release withheld.' }
       - name: Check actual-flight and custom-departure plans
         shell: pwsh
         run: |

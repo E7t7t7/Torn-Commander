@@ -138,6 +138,7 @@ public sealed partial class MainForm
                 case "companyMarket": await ScanCompanyMarketAsync(); break;
                 case "companyHistory": SelectCompanyHistory(root); break;
                 case "companyScenario": CalculateCompanyScenario(root); break;
+                case "trainingOpen": case "trainingFocus": case "trainingPlan": case "trainingClear": case "trainingSync": await HandleTraining(cmd,root); break;
                 case "companySync": await SyncCompanyIntelligenceAsync(); break;
                 case "openCompany": NavigateActive("https://www.torn.com/companies.php"); break;
                 case "companyStaffPlan": SaveCompanyStaffPlan(root); break;
@@ -357,7 +358,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.100",
+                    version = "0.6.101",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -629,6 +630,9 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
 #casino input:not([type="checkbox"]),#casino select{box-sizing:border-box;max-width:100%;width:100%;padding:9px;border:1px solid var(--line2);border-radius:8px;background:var(--theme-field,var(--bg));color:var(--text)}
 #casino details{padding:10px 0;border-top:1px solid var(--line)}
 #casinoAdvice{margin-top:14px;white-space:pre-wrap}
+#company button[aria-pressed="true"]{border-color:var(--blue);background:var(--panel2)}
+#ctTotals th,#ctTotals td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+#ctTotals th:not(:first-child),#ctTotals td:not(:first-child){text-align:center}
 </style>
 </head>
 <body>
@@ -657,13 +661,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="city"><i>⌖</i>City Scanner</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.100</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.101</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.100</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.101</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -899,10 +903,10 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <section class="page" id="stocks"><div class="top"><div><div class="eyebrow">Torn Stock Exchange</div><div class="bigtitle">Stock Portfolio</div><div class="sub">Your holdings, local price history and benefit-block planning</div></div><div class="actions"><button class="btn primary" id="stockScan" onclick="send('stocksScan')">Scan Stocks</button><button class="btn" onclick="send('stocksCsv')">Export CSV</button><button class="btn" onclick="send('openStocks')">Open Torn Stocks</button></div></div><div class="notice info" id="stockStatus">Scan to begin.</div><div class="card hero" style="margin:12px 0"><div class="eyebrow">Portfolio market value</div><div class="metric" id="stockValue">Unknown</div><div class="sub">P/L deducts Torn's 0.1% selling fee. Benefit payouts and past realized gains are excluded. Quotes and targets update when you scan; there are no background or phone alerts.</div></div><div class="formgrid" style="margin:12px 0"><label>Find stock<input id="stockSearch" type="text" placeholder="Name or symbol" oninput="renderStocks(S.stocks,S.profileId)"></label></div><div class="sub">Charts show recorded hourly samples from the last 30 days, not complete market history. Gaps mean Commander did not scan. Payout value and interval are your assumptions for one first-tier payout; the yield is not a price forecast.</div><div id="stockRows" class="stock-table" style="margin-top:12px"></div></section>
  <section class="page" id="company">
   <div class="top">
-   <div><div class="eyebrow">Local company intelligence</div><div class="bigtitle">Company Growth Advisor</div><div class="sub">Daily outcomes, advertising experiments and business trends — read-only recommendations</div></div>
+   <div><div class="eyebrow">Local company intelligence</div><div class="bigtitle">Your company</div><div class="sub">See how the business is doing, support your staff and choose the next improvement</div></div>
    <div class="actions"><button class="btn primary" id="coSync" onclick="send('companySync')">Sync Company</button><button class="btn" onclick="send('companyCsv')">Export CSV</button><button class="btn" id="coCopyReport" onclick="send('companyCopyReport')" title="Copies company and employee stats, costs and recent results for you to share. Excludes API keys and browser sessions.">Copy Company Report</button><button class="btn" onclick="send('openCompany')">Open Torn Company</button><label class="sub"><input type="checkbox" id="coAuto" onchange="send('companyAuto',{enabled:this.checked})"> Daily sync while open</label></div>
   </div>
-  <div class="actions" style="margin:12px 0"><button class="btn" onclick="setCompanyTab('overview')">Overview</button><button class="btn" onclick="setCompanyTab('staff')">Staff &amp; positions</button><button class="btn" onclick="setCompanyTab('intelligence')">History &amp; scenarios</button><button class="btn" onclick="setCompanyTab('accounting')">Costs &amp; records</button></div>
+  <div class="actions" style="margin:12px 0"><button class="btn" onclick="setCompanyTab('overview')">Overview</button><button class="btn" onclick="setCompanyTab('staff')">Staff &amp; positions</button><button class="btn" onclick="setCompanyTab('training')">Staff training</button><button class="btn" onclick="setCompanyTab('intelligence')">History &amp; scenarios</button><button class="btn" onclick="setCompanyTab('accounting')">Costs &amp; records</button></div>
   <div data-company-panel="overview">
   <div class="grid" style="margin-top:12px">
    <div class="card span6"><div class="eyebrow">CURRENT COMPANY</div><div class="metric s" id="coName">No company synced</div><div class="sub" id="coMeta">Star rating and employees appear after sync</div></div>
@@ -926,6 +930,19 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
   <div class="card" style="margin-top:12px"><div class="eyebrow">STAFF POSITION ADVISOR</div><div class="section" id="coTeamState">Not scanned</div><div class="sub" id="coTeamNote"></div><div class="statusline" id="coTeamScore"></div><div id="coTeamRows" class="rows" style="margin-top:12px"></div></div>
   <details class="card" style="margin-top:12px"><summary>Advanced: compare your own job counts</summary><div class="sub">You choose the job counts here. This comparison does not prove that those counts make business sense. Keep the total equal to your staff count. Use the starter draft for key-job coverage; a fresh scan returns to review mode.</div><div id="coJobs" class="rows" style="margin-top:12px"></div><div class="actions"><button class="btn primary" onclick="saveCompanyStaffPlan(false)">Compare These Counts</button><button class="btn" onclick="saveCompanyStaffPlan(true)">Review Current Positions</button></div></details>
   <details class="card" style="margin-top:12px" open><summary>Stock and pricing checks</summary><div class="sub">Reported stock and order quantities; these are not daily supply costs.</div><div id="coStockRows" class="rows" style="margin-top:12px"></div></details>
+  </div>
+  <div data-company-panel="training" hidden>
+   <div class="card"><div class="eyebrow">Give everyone a fair turn, or focus on useful growth</div><div class="section">Staff training</div>
+   <div class="sub">1. Scan Company &amp; Staff. 2. Refresh training receipts. 3. Choose today's people. 4. Train each person in Torn, then refresh receipts to confirm the results.</div>
+   <div class="actions"><button class="btn" id="ctSync" onclick="trainingAction('trainingSync')">Refresh training receipts</button><button class="btn" onclick="trainingAction('trainingOpen')">Open Torn employees</button></div>
+   <div id="ctNote" class="notice info" role="status"></div>
+   <div class="formgrid adviser-fields"><label>How to choose<select id="ctMode"><option value="rotation">Fair random rotation</option><option value="efficient">Recommended growth · local advisor</option></select></label><label>People to train (one each)<input id="ctCount" type="number" min="1" max="1000" value="4"></label>
+   <button class="btn primary" id="ctChoose" onclick="trainingAction('trainingPlan',{mode:$('ctMode').value,count:Number($('ctCount').value)})">Choose today's group</button><button class="btn" onclick="trainingAction('trainingClear')">Clear untrained choices…</button></div>
+   <div class="sub">Rotation gives priority to people with fewer recorded trains and shuffles ties. Recommendations look at the benefit to each person's current job, not a promise of higher company income. No paid AI is used.</div>
+   <div id="ctBudget" class="sub"></div><div id="ctPlan"></div>
+   <div class="sub">Choosing a group does not use trains. Find a person's Train link below, then click the actual link in Torn yourself. Only imported training receipts increase the totals. Days here use Torn time (UTC).</div></div>
+   <div class="card" style="margin-top:12px"><div class="section">Who has received trains?</div><div class="sub">Recorded history only. Earlier trains will appear if they are still present in the imported company news. Former employees stay in the table.</div><div id="ctTotals"></div></div>
+   <details class="card" style="margin-top:12px"><summary>Recent training receipts</summary><div id="ctHistory"></div></details>
   </div>
   <div data-company-panel="accounting" hidden>
   <div class="card" style="margin-top:12px"><div class="eyebrow">ADVERTISING EXPERIMENT ADVISOR</div>
@@ -1113,7 +1130,7 @@ function drawCompanyChart(c){markChartRange('company');$('companyTrendChart').in
 function drawFactionCharts(f){markChartRange('faction');const rows=rangeRows(f?.history,'faction','day');$('factionRespectChart').innerHTML=insightChart(rows,'day',[{key:'respect',label:'Respect',color:'#60c7fa'}]);$('factionMemberChart').innerHTML=insightChart(rows,'day',[{key:'members',label:'Members',color:'#be9cff'}]);$('factionActivityChart').innerHTML=insightChart(f?.activity?.timeline,'at',[{key:'online',label:'Online',color:'#2ed5b0'},{key:'idle',label:'Idle',color:'#f5c56b'},{key:'offline',label:'Offline',color:'#fa718c'}],false,2);}
 function drawTravelChart(t){const rows=(t?.rows||[]).filter(x=>Number.isFinite(Number(x.profitHr))&&Number(x.profitHr)>0).sort((a,b)=>b.profitHr-a.profitHr).slice(0,6),max=rows[0]?.profitHr||1;$('travelOpportunityChart').innerHTML=rows.map(x=>'<div><div class="route-bar-label"><span>'+esc(x.country)+' · '+esc(x.item)+'</span><strong>'+money(x.profitHr)+'/hr</strong></div><div class="route-bar-track"><div class="route-bar-fill" style="width:'+(Number(x.profitHr)/max*100).toFixed(1)+'%"></div></div></div>').join('')||'<div class="chart-empty">Refresh travel data to compare routes.</div>';}
 let companyHistoryIdentity='',companyScenarioIdentity='';
-function setCompanyTab(key){document.querySelectorAll('[data-company-panel]').forEach(el=>el.hidden=el.dataset.companyPanel!==key)}
+function setCompanyTab(key){if(!['overview','staff','training','intelligence','accounting'].includes(key))return;document.querySelectorAll('[data-company-panel]').forEach(el=>el.hidden=el.dataset.companyPanel!==key);document.querySelectorAll('#company button[onclick]').forEach(b=>{const action=b.getAttribute('onclick')||'';if(action.startsWith('setCompanyTab('))b.setAttribute('aria-pressed',String(action.includes("'"+key+"'")));});}
 function calculateCompanyScenario(){const n=id=>$(id).value.trim()===''?null:Number($(id).value);send('companyScenario',{profileId:S.profileId,companyId:Number($('coHistoryCompany').value),ads:n('coScenarioAds'),payroll:n('coScenarioPay'),supplies:n('coScenarioStock'),revenueChange:Number($('coScenarioRevenue').value)})}
 function renderCompanyHistory(data,scenario,profile){if(!data)return;
  const key=JSON.stringify([profile,data.companies]);if(key!==companyHistoryIdentity){companyHistoryIdentity=key;$('coHistoryCompany').replaceChildren(...(data.companies||[]).map(x=>new Option(x.name+' #'+x.id,x.id)));}
@@ -1307,19 +1324,24 @@ function renderCompany(c,profile){
  $('coLayoutSelected').textContent='Named assignments below use: '+(layouts.selected||'Current role counts');
  $('coLayouts').innerHTML=(layouts.options||[]).map(x=>'<div class="minirow" style="display:block"><b>'+esc(x.name)+' · Unvalidated draft'+'</b><div class="sub">'+esc(x.reason)+'</div><div>'+esc(x.countsText)+'</div><div class="sub">Calculated job-fit total '+known(x.workingScore)+' · '+known(x.underqualified)+' below recommended stats.'+(x.trainerWorkingFit==null?'':' Trainer working-stat fit: '+known(x.trainerWorkingFit)+'.')+' This is not an income estimate.</div><button class="btn primary" data-company-layout="'+esc(x.id)+'" onclick="previewCompanyLayout(this.dataset.companyLayout)"'+(c.syncing?' disabled':'')+'>Preview Staff Placements</button></div>').join('')||'<div class="empty">No guided layout available for this scan. The custom role-count builder remains available below.</div>';
  $('coLayoutChecks').innerHTML=(layouts.checks||[]).map(x=>'<div class="minirow"><div class="sub">'+esc(x)+'</div></div>').join('');
- $('coTeamState').textContent=team.state||'NOT SCANNED';
+ renderCompanyTraining(c.training,profile);
+ $('coTeamState').textContent=String(team.state||'Not scanned').replaceAll('_',' ').toLowerCase().replace(/^./,s=>s.toUpperCase());
  $('coTeamNote').textContent=team.note||'Sync Company to scan employees and their job requirements.';
- $('coTeamScore').textContent=String(team.state||'').includes('REVIEW ONLY')?'These are your current jobs, not an endorsement of this setup. Preview a draft before moving people.':String(team.state||'').startsWith('STARTER DRAFT')?'Key-job coverage comes first in this draft. Everyone stays included, even with very low stats. The total score can fall; it does not decide which setup earns more.':team.before==null?'A complete staff list and working stats are needed. Low stats are allowed; missing stats are different.':'Custom comparison: calculated job-fit total '+known(team.before)+' → '+known(team.after)+'. A higher total does not prove this job mix is better for the company.';
+ $('coTeamScore').textContent=String(team.state||'').includes('REVIEW ONLY')?'These are your current positions. Preview a staffing option before deciding who to move.':String(team.state||'').startsWith('STARTER DRAFT')?'This draft fills the key jobs first and keeps everyone included. Review the reasons before moving staff.':team.before==null?'Scan the staff list to compare positions. Low stats are fine; missing stats need another scan.':'This compares how well staff stats match the jobs you chose. It is not a sales forecast.';
  const staffIdentity=String(profile)+'|'+String(c.id||0)+'|'+JSON.stringify(team.rows||[]);
  if(staffIdentity!==coStaffIdentity){
   coStaffIdentity=staffIdentity;
   $('coTeamRows').innerHTML=(team.rows||[]).map(x=>{
    const explanation=x.explanation||{};
-   return '<div class="minirow" style="display:block"><b>'+esc(x.name)+' ['+esc(x.id)+']</b><div>'+(String(team.state||'').includes('REVIEW ONLY')?'Current position: '+esc(x.current):esc(x.current)+' → '+esc(x.recommended))+'</div><div class="sub">'+esc(explanation.summary||'')+'</div><div class="sub">'+esc(stats(x.stats))+'</div><div class="sub">Modeled work-stat score '+known(x.before)+' → '+known(x.after)+'</div><div class="sub">'+esc(x.nextStep)+'</div>'+
+   const review=String(team.state||'').includes('REVIEW ONLY');
+   const short=review?'This is their current job. No move is being suggested yet.':x.current===x.recommended?'Keep them in this role in the selected draft.':x.after>x.before?'This role makes better use of their working stats.':x.after<x.before?'This fills a job the team needs, but they are less suited to it. Check the training or hiring gap before moving them.':'This fills a job in the draft, with no clear stat advantage.';
+   const gaps=x.stats&&x.required?['manualLabor','intelligence','endurance'].filter(k=>x.required[k]>x.stats[k]).map(k=>Math.max(0,x.required[k]-x.stats[k]).toLocaleString()+' '+({manualLabor:'manual labor',intelligence:'intelligence',endurance:'endurance'}[k])):[];
+   const next=!x.stats||!x.required?'Working stats or job requirements are missing. Scan staff before acting.':gaps.length?'Still needs '+gaps.join(' and ')+' to meet this role’s suggested stats.':'Their stats meet this role’s suggested requirements.';
+   return '<div class="minirow" style="display:block"><b>'+esc(x.name)+' ['+esc(x.id)+']</b><div>'+(review?'Current job: '+esc(x.current):esc(x.current)+' → '+esc(x.recommended))+'</div><p>'+esc(short)+'</p><div class="sub">'+esc(next)+'</div>'+
    (x.before!=null&&x.actualWorking!=null&&Math.abs(x.before-x.actualWorking)>=5?'<div class="sub">Verify score mismatch — see details before moving.</div>':'')+
    '<details style="margin-top:10px"><summary class="btn" style="display:list-item;cursor:pointer">Why this position? — Show details</summary><div style="margin-top:10px"><b>'+esc(explanation.summary||'Detailed reasoning requires a fresh company scan.')+'</b>'+
    (explanation.reasons||[]).map(reason=>'<p class="sub">'+esc(reason)+'</p>').join('')+
-   '<div class="sub">Recommended role requirements: '+esc(stats(x.required))+'</div>'+
+   '<p class="sub">'+esc(x.nextStep)+'</p><div class="sub">Current stats: '+esc(stats(x.stats))+' · Estimated job fit '+known(x.before)+' → '+known(x.after)+'</div><div class="sub">Recommended role requirements: '+esc(stats(x.required))+'</div>'+
    (explanation.statComparison||[]).map(reason=>'<div class="sub">'+esc(reason)+'</div>').join('')+
    '<p class="sub">Torn reported work-stat score '+known(x.actualWorking)+' · Total effectiveness '+known(x.actualTotal)+'</p>'+
    '<div class="sub">Wage/day '+(x.wage==null?'Unknown':money(x.wage))+' · API contribution estimate '+(x.contributionValue==null?'Not exposed by this scan':money(x.contributionValue))+' (reporting period unspecified)</div>'+
@@ -1620,12 +1642,26 @@ function renderCasino(d){
  $('casinoLegacyNote').textContent=d.legacy?d.legacy+' older records have no account identity. They are excluded from all account totals until explicitly assigned.':'';
  $('casinoAdopt').hidden=!d.legacy;
 }
+let trainingIdentity='';
+function trainingAction(cmd,data={}){const t=S.company?.training;if(!t?.companyId){$('ctNote').textContent='Scan Company & Staff first.';return;}send(cmd,{profileId:S.profileId,companyId:t.companyId,...data});}
+function renderCompanyTraining(t,profile){
+ if(!t){$('ctNote').textContent='Scan your company to start a training history.';$('ctPlan').innerHTML='';$('ctTotals').innerHTML='';$('ctHistory').innerHTML='';return;}
+ const identity=profile+'|'+t.companyId;if(trainingIdentity!==identity){trainingIdentity=identity;$('ctMode').value=t.mode||'rotation';$('ctCount').value=Math.max(1,Math.min(4,t.available??4));}
+ $('ctSync').disabled=!!t.busy;$('ctChoose').disabled=!!t.busy;
+ $('ctNote').textContent=t.note||'Refresh training receipts first.';
+ $('ctBudget').textContent='Last reported trains available: '+(t.available??'not checked')+(t.budgetAt?' · checked '+new Date(t.budgetAt).toLocaleString():'')+' · Today in Torn: '+t.day+(t.lastSync?' · Receipts refreshed '+new Date(t.lastSync).toLocaleString():'');
+ const planKey=JSON.stringify([identity,t.planDay,t.plan]);if(renderCompanyTraining.plan!==planKey){renderCompanyTraining.plan=planKey;$('ctPlan').innerHTML=(t.plan||[]).length?'<h3>Group for '+esc(t.planDay)+(t.planDay!==t.day?' · previous day':'')+'</h3>'+t.plan.map(x=>'<div class="minirow" style="display:block"><b>'+esc(x.name)+'</b> · '+esc(x.role)+'<div class="sub">'+esc(x.reason)+'</div>'+(x.done?'<span class="pill good">Training receipt received</span>':'<button class="btn" data-training-person="'+Number(x.employee)+'">Find '+esc(x.name)+'’s Train button</button>')+'</div>').join(''):'<div class="empty">No group chosen yet. Select a mode and press Choose today’s group.</div>';}
+ $('ctPlan').onclick=e=>{const button=e.target.closest('[data-training-person]');if(button)trainingAction('trainingFocus',{employee:Number(button.dataset.trainingPerson)});};
+ $('ctTotals').innerHTML=(t.rows||[]).length?'<div style="overflow-x:auto"><table style="width:100%"><thead><tr><th style="text-align:left">Employee</th><th>Today</th><th>Last 7 days</th><th>Total recorded</th><th>Last received</th></tr></thead><tbody>'+t.rows.map(x=>'<tr><td><b>'+esc(x.name)+'</b><div class="sub">'+esc(x.position)+'</div></td><td>'+Number(x.today)+'</td><td>'+Number(x.week)+'</td><td>'+Number(x.total)+'</td><td>'+esc(x.last?new Date(x.last).toLocaleDateString():'None recorded')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">No employee history yet. Scan staff and refresh training receipts.</div>';
+ $('ctHistory').innerHTML=(t.events||[]).map(x=>'<div class="sub">'+esc(new Date(x.at).toLocaleString())+' · '+esc(x.name)+' received '+Number(x.count)+' train · company news receipt</div>').join('')||'<div class="empty">No readable training receipts have been imported.</div>';
+}
+
 function renderSection(name,fn){
  try{fn()}catch(error){console.error(name+' dashboard failed',error);$('dashboardRenderWarning').hidden=false;$('dashboardRenderWarning').textContent=name+' panel could not update. Profile and update controls remain available.';}
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('bjDouble').checked=true;$('bjSplit').checked=true;$('bjSurrender').checked=false;$('pkOpponents').value=1;$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.100';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.101';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -1633,7 +1669,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.100 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.101 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 renderSection('Leveling',()=>renderLeveling(d.leveling));renderLossStatus(d);renderSection('Loss orders',()=>renderLossOrders(d));renderSection('Item intelligence',()=>renderItemIntelligence(d.itemIntelligence,d.profileId));

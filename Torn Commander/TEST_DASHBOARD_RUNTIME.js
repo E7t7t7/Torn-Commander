@@ -5,7 +5,7 @@ const script=source.slice(source.indexOf('<script>')+8,source.indexOf('</script>
 const ids=new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]));
 for(const match of script.matchAll(/\$\('([^']+)'\)/g)) assert(match[1]=='mobilePageSelect'||ids.has(match[1]),'Missing markup ID: '+match[1]);
 const nodes=Object.fromEntries([...ids].map(id=>[id,{id,value:'',textContent:'',innerHTML:'',hidden:true,style:{},dataset:{}}]));
-const context={$:id=>nodes[id]??null,money:x=>String(x??''),esc:x=>String(x??''),document:{activeElement:null},console:{error:()=>{}}};
+const context={renderCompanyTraining:()=>{},$:id=>nodes[id]??null,money:x=>String(x??''),esc:x=>String(x??''),document:{activeElement:null},console:{error:()=>{}}};
 vm.createContext(context);
 vm.runInContext(script.slice(script.indexOf("const chartRanges="),script.indexOf("let factionFormIdentity=")),context);
 vm.runInContext(script.slice(script.indexOf("let factionFormIdentity="),script.indexOf("let coRecordIdentity=")),context);
@@ -18,7 +18,7 @@ context.renderCompany({id:7,name:'Fixture Company',health:{efficiency:71,environ
  scan:{token:'one',at:'fixture UTC',warnings:['Restricted stock access'],jobs:[{id:1,name:'Manual',required:{manualLabor:100,intelligence:0,endurance:50},count:1}],stock:[{name:'Candle',inStock:0,onOrder:2,cost:10,price:9}]},
  team:{state:'TEAM PLAN READY',before:8,after:72,note:'Fixture plan',actions:['Train staff'],rows:[{name:'Worker',id:11,current:'Manual',recommended:'Office',stats:{manualLabor:10,intelligence:80,endurance:0},before:4,after:36,nextStep:'INT gap'}]},rows:[]},'one');
 assert(nodes.coTeamRows.innerHTML.includes('Office')&&nodes.coTeamRows.innerHTML.includes('INT 80'),'Staff scan not rendered');
-assert(nodes.coTeamScore.textContent.includes('72')&&nodes.coJobs.innerHTML.includes('data-company-role="1"'),'Allocation or role counts not rendered');
+assert(nodes.coTeamScore.textContent.includes('not a sales forecast')&&nodes.coJobs.innerHTML.includes('data-company-role="1"'),'Allocation or role counts not rendered');
 assert(nodes.coStockRows.innerHTML.includes('Candle')&&!nodes.coScanWarnings.hidden,'Stock details or scan warnings missing');
 
 assert(nodes.coTeamRows.innerHTML.includes('<details')&&nodes.coTeamRows.innerHTML.includes('Why this position?'),'Expandable position reasoning missing');
@@ -33,7 +33,7 @@ context.send=(cmd,data)=>{context.layoutMessage={cmd,...data}};
 context.previewCompanyLayout('growth');
 assert.strictEqual(context.layoutMessage.scenarioId,'growth');
 context.renderCompany({id:7,team:{state:'CURRENT SETUP â€” REVIEW ONLY',rows:[]},layouts:{selected:'Old planner suggestion â€” rebuild before using',options:[]},rows:[]},'one');
-assert(nodes.coTeamScore.textContent.includes('not an endorsement'),'Current setup was endorsed on scan');
+assert(nodes.coTeamScore.textContent.includes('before deciding who to move'),'Current setup was endorsed on scan');
 assert(nodes.coLayoutSelected.textContent.includes('Old planner'),'Old plan invalidation not displayed');
 context.renderCompany({id:7,team:{state:'STARTER DRAFT â€” REVIEW BEFORE APPLYING',rows:[{id:2,name:'Filler',current:'Chandler',recommended:'Salesperson',explanation:{summary:'Keep this person included in the general sales team'}}]},layouts:{options:[{id:'starter-v2',name:'Starter draft',suggested:false,countsText:'1 Cleaner',underqualified:9,workingScore:100}]},rows:[]},'one');
 assert(nodes.coTeamRows.innerHTML.includes('Keep this person included'),'Plain-language filler explanation missing from simple view');
@@ -386,3 +386,10 @@ nodes.finAt.value='2026-11-10T12:00';nodes.finAmount.value='123';nodes.finCurren
 context.financeAdd();
 assert(ledgerRequests.some(x=>x.cmd==='financeEntry'&&x.data.amount===123),'Finance Add requires unsupported randomUUID');
 console.log('EMBEDDED RECORD CREATION PASSED: Casino Start and Finance Add without randomUUID; fractional casino money retained.');
+
+context.renderCompanyTraining({companyId:17,day:'2026-11-11',planDay:'2026-11-11',available:4,plan:[{employee:101,name:'Worker A',role:'Chandler',reason:'Fewest recorded trains',done:false}],rows:[{id:101,name:'Worker A',position:'Chandler',today:0,week:2,total:5}],events:[]},'one');
+assert(nodes.ctPlan.innerHTML.includes('Worker A')&&nodes.ctTotals.innerHTML.includes('Total recorded'),'Training plan/table missing');
+assert(nodes.ctBudget.textContent.includes('4'),'Training budget missing');
+context.renderCompanyTraining({companyId:18,day:'2026-11-11',plan:[],rows:[],events:[]},'two');
+assert(!nodes.ctPlan.innerHTML.includes('Worker A')&&!nodes.ctTotals.innerHTML.includes('Worker A'),'Training history crossed profiles/companies');
+console.log('COMPANY TRAINING UI PASSED: saved group, receipt-only progress, staff table, budget and company/profile clearing.');

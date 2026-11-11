@@ -1,3 +1,15 @@
+v0.6.101 - Human-readable company advice and fair staff training
+- Company staff cards now explain whether to keep/move someone and describe missing job stats in plain language. Technical scores remain in expandable details. Added a visible Staff training subsection.
+- Saved daily groups support Fair random rotation (fewest recorded trains, longest waiting, shuffled ties) or Recommended growth (estimated benefit of one train to the employee's current role, with explicit stat-gain assumptions and no promised sales gain).
+- Plans keep employees distinct, skip people already trained today, retain the same group across refresh/restart and check the current company's available train balance. Days use UTC/Torn time.
+- Training history imports documented company/news?cat=training receipts with stable-ID deduplication and recipient parsing for both active and passive phrasing. Choosing a person is not counted as training. Unknown news formats are reported rather than guessed. Initial coverage is latest 100 entries; imported history remains saved.
+- New per-employee table shows today, 7-day and total recorded trains, last received date, and former employees. Storage is isolated by local profile and company.
+- Open Employees / Find Train highlights the exact native link on the actively viewed company page. The player clicks each actual Train control manually, then refreshes receipts. No automated batch training or hidden requests are performed.
+- Tests: nine-day rotation balance/no repeated daily groups, growth/missing-data ranking, receipt parsing/director exclusion, deduplication, UTC rollover, restart, daily-plan guard, helper ambiguity/focus/no-action checks and dashboard isolation.
+- Read-only live API validation found and added the actual "employee has been trained by the director" news format; no training actions were submitted.
+- Real Edge fixture checked Training navigation, mode/count and target payloads, receipt progress, plain staff cards, account clearing and responsive layouts.
+- References verified: current official Torn API company/news and company/employees schema; official Working Stats/Company wiki for base 50 primary / 25 secondary gains. No real trains consumed in testing.
+
 v0.6.100 - Repair Casino desk, account isolation and session limits
 - Added modern Start / Update / Finish session controls, exact stop-loss and profit-target alerts, persistent latched threshold state, bankroll readings/P-L chart and saved history.
 - P/L excludes cumulative additions and cash-outs. Repeating an update does not add funding twice. Cash values support cents for fractional table stakes.

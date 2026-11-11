@@ -1,0 +1,40 @@
+using TornCommander;
+using System.Text.Json;
+void Check(bool v,string why){if(!v)throw new Exception(why);}
+var now=new DateTime(2026,11,11,10,0,0,DateTimeKind.Utc);
+var team=new CompanyTeamScan{CompanyId=17,EmployeesLoaded=true};
+team.Jobs.Add(new(){Id=1,Name="Chandler",Required=new(4500,2250,0)});
+for(int i=1;i<=9;i++)team.Employees.Add(new(){Id=i,Name="Worker "+i,Position="Chandler",PositionId=1,Stats=new(300*i,100*i,100)});
+var j=new CompanyTrainingJournal();
+HashSet<long> previous=new();
+for(int day=0;day<9;day++){
+ var when=now.AddDays(day);var plan=CompanyTraining.Choose(j,team,"rotation",4,when,new Random(day+3));
+ Check(plan.Count==4&&plan.Select(x=>x.Employee).Distinct().Count()==4,"Group contained duplicates.");
+ Check(!plan.Any(x=>previous.Contains(x.Employee)),"Rotation repeated yesterday's group despite enough people waiting.");
+ foreach(var person in plan)j.Records.Add(new(){Id=day+"-"+person.Employee,Employee=person.Employee,Name=person.Name,At=when});
+ previous=plan.Select(x=>x.Employee).ToHashSet();
+ var totals=team.Employees.Select(e=>CompanyTraining.Total(j,e.Id)).ToList();
+ Check(totals.Max()-totals.Min()<=1,"Fair rotation became unbalanced.");
+}
+var ai=CompanyTraining.Choose(new(),team,"efficient",4,now,new Random(1));
+Check(ai.Count==4&&ai.All(x=>x.Reason.Contains("50 manual labor")&&x.Reason.Contains("25 intelligence")),"Training growth assumptions or explanation incorrect.");
+var missing=new CompanyTeamScan{EmployeesLoaded=true,Employees=[new(){Id=99,Name="Missing",PositionId=1}]};
+Check(CompanyTraining.Choose(new(),missing,"rotation",1,now,new Random()).Count==1,"Random mode excluded a low-data roster member.");
+try{CompanyTraining.Choose(new(),missing,"efficient",1,now,new Random());throw new Exception("Missing stats received invented efficiency advice.");}catch(InvalidDataException){}
+var stamp=new DateTimeOffset(now).ToUnixTimeSeconds();
+var json=JsonSerializer.Serialize(new{news=new[]{
+ new{id="a",timestamp=stamp,text="<a href=\"profiles.php?XID=100\">Director</a> trained <a href=\"profiles.php?XID=2\">Worker 2</a>"},
+ new{id="b",timestamp=stamp,text="You trained <a href=\"https://www.torn.com/profiles.php?XID=3\">Worker 3</a>"},
+ new{id="passive",timestamp=stamp,text="<a href='profiles.php?XID=4'>Worker 4</a> has been trained by the director"},
+ new{id="c",timestamp=stamp,text="Someone received training but no verifiable player ID is present"}}});
+var parsed=CompanyTraining.ReadNews(json,now);
+Check(parsed.Records.Count==3&&parsed.Unknown==1&&parsed.Records[2].Employee==4&&parsed.Records[0].Employee==2,"Trainer mistaken for recipient or unknown receipt guessed.");
+var imported=new CompanyTrainingJournal();Check(CompanyTraining.Merge(imported,parsed.Records)==3&&CompanyTraining.Merge(imported,parsed.Records)==0,"Duplicate API receipts increased totals.");
+Check(CompanyTraining.Today(imported,2,now)==1&&CompanyTraining.Today(imported,2,now.AddDays(1))==0,"UTC day rollover failed.");
+var planAfter=CompanyTraining.Choose(imported,team,"rotation",4,now,new Random(1));
+Check(planAfter.All(x=>x.Employee!=2&&x.Employee!=3&&x.Employee!=4),"Today's already-trained employee selected again.");
+var restored=JsonSerializer.Deserialize<CompanyTrainingJournal>(JsonSerializer.Serialize(imported))!;
+Check(CompanyTraining.Total(restored,2)==1&&new CompanyTrainingJournal().Records.Count==0,"Restart or new company history failed.");
+j.Plan=[new(){Employee=1}];j.PlanDay=now.ToString("yyyy-MM-dd");
+try{CompanyTraining.Choose(j,team,"rotation",4,now,new Random());throw new Exception("Saved daily group silently rerolled.");}catch(InvalidOperationException){}
+Console.WriteLine("COMPANY TRAINING PASSED: nine-day fair rotation, distinct daily groups, current-job growth recommendations, missing stats, receipt recipient parsing, deduplication, UTC rollover, restart and saved-plan guard.");

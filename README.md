@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.100. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.101. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -194,3 +194,6 @@ v0.6.99: If an ambiguous combat result requires the existing official receipt fa
 
 
 v0.6.100: Casino desk repaired. Start, update and finish sessions directly in the modern tab; set stop-loss/profit-target alerts, record cumulative money added/cashed out, view a P/L chart and saved history. Totals and active sessions are profile-isolated in both interfaces. Old untagged history stays excluded until explicitly assigned. The native Read current Blackjack hand button reads the manually opened visible table without requiring an installed userscript, without clicking game controls or making network requests. Split/unknown/finished hands request manual input instead of guessing. Poker and other calculators remain manual and describe their assumptions. Session limits only alert on recorded settled-bankroll updates; they cannot stop bets made in Torn, cash out, or guarantee profit.
+
+
+v0.6.101: Company Staff training adds a saved daily group, fair rotation (fewest recorded trains, longest waiting, shuffled ties) and a local current-job growth recommendation mode. Each employee's confirmed company-news receipts are retained with today/7-day/total counts, including former staff. Refresh receipts before choosing a group; planning never counts as training. The Find Train button highlights the exact employee's existing Torn control. You click the native Train link manually and refresh receipts afterward; there is no batch training or unattended interaction. Available trains are verified against the current company before planning. Training history is isolated by profile and company; only recent 100 news entries can initially be imported and unreadable entries are reported. Staff advice now leads with a plain-language decision and moves model detail behind an expander.
