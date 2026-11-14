@@ -1,6 +1,14 @@
 using System.Text.Json;
 namespace TornCommander;
 public static class MedicalSnapshotReader{
+ // Pace fresh reads without treating normal consecutive healing plans as failures.
+ // Recheck the worker/session after the wait: Stop or a replaced worker must never continue.
+ public static async Task<bool> WaitForRefreshAsync(DateTime previous,Func<bool> isCurrent,DateTime? now=null,Func<TimeSpan,Task>? delay=null){
+  if(!isCurrent())return false;
+  var remaining=previous.AddSeconds(3)-(now??DateTime.UtcNow);
+  if(remaining>TimeSpan.Zero)await (delay??(wait=>Task.Delay(wait)))(remaining>TimeSpan.FromSeconds(3)?TimeSpan.FromSeconds(3):remaining);
+  return isCurrent();
+ }
  public static async Task<string> ReadIdentityAsync(Func<string,CancellationToken,Task<string>> fetch,CancellationToken ct){
   string json=await fetch("user/profile",ct);using var d=JsonDocument.Parse(json);var p=d.RootElement.GetProperty("profile");
   if(p.GetProperty("id").GetInt32()<=0||string.IsNullOrWhiteSpace(p.GetProperty("name").GetString()))throw new InvalidDataException("Account identity is unavailable.");

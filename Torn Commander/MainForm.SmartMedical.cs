@@ -70,10 +70,16 @@ public sealed partial class MainForm
                 // only when the matching browser operation and fresh API evidence prove no use.
                 bool unresolved=!string.IsNullOrEmpty(s.Pending)&&s.Issued&&!s.Verified;
                 if(unresolved&&(s.Item is null||s.Observation is null||ReadWorkerString(request,"operationToken")!=s.Pending||!request.TryGetProperty("medicalDispatched",out var dispatched)||dispatched.ValueKind!=JsonValueKind.False))throw new InvalidDataException("The previous healing operation still needs verification. Resume that operation before another attack; if its outcome cannot be verified, stop and review. Your healing permissions are enabled.");
-                if(DateTime.UtcNow-s.LastRequest<TimeSpan.FromSeconds(3))throw new InvalidDataException("Medical refresh requested too quickly; pause and review.");s.LastRequest=DateTime.UtcNow;
-                var observation=request.TryGetProperty("continueVerifiedMedical",out var continuation)&&continuation.ValueKind==JsonValueKind.True&&s.Verified&&s.Observation is not null&&DateTime.UtcNow-s.Observation.ObservedUtc<=TimeSpan.FromSeconds(8)
-                    ?s.Observation with{Inventory=inventory}
-                    :await ReadMedicalObservationAsync(worker,s,inventory);
+                MedicalObservation observation;
+                if(request.TryGetProperty("continueVerifiedMedical",out var continuation)&&continuation.ValueKind==JsonValueKind.True&&s.Verified&&s.Observation is not null&&DateTime.UtcNow-s.Observation.ObservedUtc<=TimeSpan.FromSeconds(8))
+                    observation=s.Observation with{Inventory=inventory};
+                else{
+                    // A normal rapid replan is a scheduling condition, not a medical failure.
+                    // Busy remains held while waiting, preventing a second authorization.
+                    if(!await MedicalSnapshotReader.WaitForRefreshAsync(s.LastRequest,()=>MedicalContext(worker,s,request)&&_medicalSessions.TryGetValue(worker,out var current)&&ReferenceEquals(current,s)))return;
+                    s.LastRequest=DateTime.UtcNow;
+                    observation=await ReadMedicalObservationAsync(worker,s,inventory);
+                }
                 if(!MedicalContext(worker,s,request))return;
                 if(unresolved&&!SmartMedicalOptimizer.VerifyUnused(s.Observation!,observation,s.Item!.Id,DateTime.UtcNow,request.TryGetProperty("cancelBeforeDispatch",out var cancel)&&cancel.ValueKind==JsonValueKind.True))throw new InvalidDataException("Could not prove the previous healing permission was unused. No second item authorized; stop and review the item count and cooldown.");
                 s.Observation=observation;s.Plan=WorkerMedicalPlan(worker,s,observation,settings);s.Note=s.Plan.Reason;

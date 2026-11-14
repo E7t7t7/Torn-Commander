@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.102. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.103. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -200,3 +200,6 @@ v0.6.101: Company Staff training adds a saved daily group, fair rotation (fewest
 
 
 v0.6.102: Gear adds budget/reserve-based weapon and armour comparisons from individual Item Market listings, plus bounded directory/selected bazaar checks. Select weapon-only, armour-only, melee/primary + armour or a mixed kit, with damage/accuracy preference. Scans use actual unique-item damage, accuracy, armour and catalogue coverage; relative quality is not compared across weapon types. Three best-found options stay within budget minus reserve, with listing UID, source, quote age and manual navigation. Unknown stats/bonuses stay review-only by default. Builds start from scratch; owned equipment, ammo/reloads, battle stats and bonus/set effects are not simulated. This is a bounded comparison rather than an exhaustive global market/bazaar optimum. Profile settings and completed scans persist independently. Tests include financial boundaries, real response fixtures, profile isolation and responsive Edge UI; a read-only live test parsed 600 market listings. No live purchases were made.
+
+
+v0.6.103: Medical planning no longer pauses normal loss/leveling cycles when a fresh-read request arrives within three seconds of the last one. It asynchronously waits only the remaining interval and rechecks the owning worker/session before reading; already-verified fresh continuations remain immediate. Account identity, outstanding-operation checks and after-use verification are retained. Tests simulate rapid requests, stop/replacement during wait, clock changes and independent accounts; no live medicine or attacks were used.

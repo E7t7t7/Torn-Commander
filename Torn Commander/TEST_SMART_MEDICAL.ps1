@@ -2,6 +2,7 @@ $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderMedical'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'SmartMedicalOptimizer.cs') -Destination $project
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'MedicalSnapshotReader.cs') -Destination $project
 $program=@'
 using TornCommander;
 static void Assert(bool ok,string why){if(!ok)throw new Exception(why);}
@@ -82,6 +83,21 @@ for(int trial=0;trial<120;trial++){
  }
  Assert((expected==int.MaxValue&&actual.State!="Ready")||(actual.State=="Ready"&&actual.CooldownSeconds==expected),"DP oracle mismatch "+trial);
 }
+// The supplied diagnostic is a ~1.3s repeat plan: wait only 1.7s, never pause.
+var waits=new List<TimeSpan>();bool live=true;int contextChecks=0;
+bool Current(){contextChecks++;return live;}
+Task Delay(TimeSpan span){waits.Add(span);return Task.CompletedTask;}
+Assert(await MedicalSnapshotReader.WaitForRefreshAsync(now,Current,now.AddMilliseconds(1305),Delay),"rapid plan paused");
+Assert(waits.Single()==TimeSpan.FromMilliseconds(1695)&&contextChecks==2,"refresh delay not bounded to remaining interval");
+waits.Clear();Assert(await MedicalSnapshotReader.WaitForRefreshAsync(now,Current,now.AddSeconds(3),Delay)&&waits.Count==0,"eligible plan delayed");
+Assert(await MedicalSnapshotReader.WaitForRefreshAsync(DateTime.MinValue,Current,now,Delay)&&waits.Count==0,"first plan delayed");
+live=false;Assert(!await MedicalSnapshotReader.WaitForRefreshAsync(now,Current,now,Delay)&&waits.Count==0,"stopped worker continued");
+live=true;Assert(!await MedicalSnapshotReader.WaitForRefreshAsync(now,Current,now,span=>{live=false;return Task.CompletedTask;}),"worker replacement during delay continued");
+live=true;waits.Clear();Assert(await MedicalSnapshotReader.WaitForRefreshAsync(now.AddMinutes(1),Current,now,Delay)&&waits.Single()==TimeSpan.FromSeconds(3),"clock change caused unbounded wait");
+var accountWaitsA=new List<TimeSpan>();var accountWaitsB=new List<TimeSpan>();
+await Task.WhenAll(MedicalSnapshotReader.WaitForRefreshAsync(now,()=>true,now.AddSeconds(1),span=>{accountWaitsA.Add(span);return Task.CompletedTask;}),MedicalSnapshotReader.WaitForRefreshAsync(now.AddSeconds(-9),()=>true,now,span=>{accountWaitsB.Add(span);return Task.CompletedTask;}));
+Assert(accountWaitsA.Single()==TimeSpan.FromSeconds(2)&&accountWaitsB.Count==0,"medical pacing crossed account sessions");
+Console.WriteLine("MEDICAL REFRESH PASSED: rapid replan waits instead of pausing, first/eligible reads immediate, stopped/replaced contexts rejected, clock bound and independent accounts.");
 Console.WriteLine("SMART MEDICAL PASSED: durations, bonuses, bounded DP oracle, six/nine-hour overshoot, reserves, supplies, ties, blood gating, stale state, verification, account isolation and drug exclusion.");
 '@
 [IO.File]::WriteAllText((Join-Path $project 'Program.cs'),$program)
