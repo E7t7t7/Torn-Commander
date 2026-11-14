@@ -110,6 +110,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Casino sessions failed; release withheld.' }
           node 'Torn Commander/TEST_CASINO_READ.js' 'Torn Commander/BundledScripts/Torn_Casino_Read.js'
           if ($LASTEXITCODE -ne 0) { throw 'Casino reader failed; release withheld.' }
+      - name: Check gear budget optimizer and listing schemas
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_GEAR.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Gear regression failed; release withheld.' }
       - name: Check trading advice and live Blackjack fallbacks
         shell: pwsh
         run: |

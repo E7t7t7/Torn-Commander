@@ -1,3 +1,13 @@
+v0.6.102 - Gear budget optimizer (2026-11-13)
+- New Gear sidebar: budget, cash reserve, build scope, weapon preference, quick/wider scan, extra item names/IDs and optional bazaar sellers.
+- Official catalog and individual Item Market retrieval through the shared paced Torn client. Bazaar directory discovery and up to eight selected sellers are bounded; unavailable/empty stock is reported. This is not a complete bazaar-wide search.
+- Compare actual unique listing damage/accuracy/armour, not relative quality across different weapons. Conservative body-part coverage avoids adding overlapping armour. Bounded, price-diverse combination search keeps complete affordable kits when possible and clearly marks partial kits.
+- Three best-found configurations, total/remaining budget, item UID, source/age and manual item/seller navigation. Buying/equipping remain manual. No owned inventory, ammo, reload, battle-stat, bonus/set simulation.
+- Unknown unique stats/bonus metadata remain review-only unless the bonus opt-in permits review; bonus effects are never assigned invented value. Itemstats hydration is limited to 25 UIDs/request and 100 per scan.
+- Completed scans/settings persist per profile in the existing local store. Cancellation/failure preserves previous results. Age/staleness, hourly provider caching and scan-coverage limitations are visible.
+- Validation: pure budget/UID/schema/freshness/coverage/restart fixtures, 600-choice complete-kit search, dashboard profile/draft/payload tests, real Edge 600/850/1100px interaction/layout checks, Release build. Read-only official API probe parsed 600 individually statted market listings and produced three builds; no purchases, equipping, fights or item consumption.
+- Limitations: bounded item types/first 100 listings per type, inferred armour slots, conservative scoring proxy, API-cached quotes, and bazaar metadata may omit unique stats/bonuses. Live checked directory bazaars returned empty stock; nonempty legacy bazaar parsing/hydration is fixture-tested, not live verified. Review current price/UID/stats in Torn before buying.
+
 v0.6.101 - Human-readable company advice and fair staff training
 - Company staff cards now explain whether to keep/move someone and describe missing job stats in plain language. Technical scores remain in expandable details. Added a visible Staff training subsection.
 - Saved daily groups support Fair random rotation (fewest recorded trains, longest waiting, shuffled ties) or Recommended growth (estimated benefit of one train to the employee's current role, with explicit stat-gain assumptions and no promised sales gain).

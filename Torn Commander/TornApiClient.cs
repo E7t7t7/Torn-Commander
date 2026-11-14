@@ -123,6 +123,13 @@ internal sealed class TornApiClient
         return await GetAsync(clean.TrimStart('/'), key, ct, fresh);
     }
 
+    public Task<string> FetchBazaarGearAsync(int seller,string key,CancellationToken ct=default)
+    {
+        if(seller<=0)throw new InvalidDataException("Choose a positive bazaar owner ID.");
+        // The documented user/bazaar selection falls back to API v1; use its explicit owner path.
+        return GetAsync("https://api.torn.com/user/"+seller+"?selections=bazaar",key,ct);
+    }
+
     public async Task<List<MarketCatalogItem>> FetchItemCatalogAsync(string key, CancellationToken ct = default)
     {
         var json = await GetAsync("torn/items", key, ct);

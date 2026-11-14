@@ -393,3 +393,12 @@ assert(nodes.ctBudget.textContent.includes('4'),'Training budget missing');
 context.renderCompanyTraining({companyId:18,day:'2026-11-11',plan:[],rows:[],events:[]},'two');
 assert(!nodes.ctPlan.innerHTML.includes('Worker A')&&!nodes.ctTotals.innerHTML.includes('Worker A'),'Training history crossed profiles/companies');
 console.log('COMPANY TRAINING UI PASSED: saved group, receipt-only progress, staff table, budget and company/profile clearing.');
+
+context.renderGear({profileId:'one',settings:{budget:1000,reserve:100,scope:'weapon',bias:'balanced',depth:18},quoted:1,unknown:0,offers:[{key:'gear-one',name:'Fixture sword',slot:'weapon',uid:321,identifier:'321',price:200,damage:60,accuracy:55,statsKnown:true,bonusKnown:true,source:'Item Market'}],builds:[{name:'Best found',cost:200,score:33,missing:[],items:[{key:'gear-one',name:'Fixture sword',slot:'weapon',price:200,damage:60,accuracy:55,identifier:'321',statsKnown:true,bonusKnown:true,source:'Item Market'}]}],warnings:[]});
+assert(nodes.gearBuilds.innerHTML.includes('Fixture sword')&&nodes.gearBuilds.innerHTML.includes('700'),'Gear plan/remaining budget missing');
+nodes.gearBudget.value=777;context.renderGear({profileId:'one',settings:{budget:1000,reserve:100,scope:'weapon',bias:'balanced',depth:18},offers:[],builds:[],warnings:[]});assert.equal(nodes.gearBudget.value,777,'Heartbeat overwrote gear draft');
+context.renderGear({profileId:'two',settings:{budget:500,reserve:0},offers:[],builds:[],warnings:[]});
+assert(!nodes.gearBuilds.innerHTML.includes('Fixture sword')&&nodes.gearSellers.value==='','Gear results/settings crossed profiles');
+context.S.profileId='two';nodes.gearBudget.value=500;nodes.gearReserve.value=100;nodes.gearScope.value='weapon';nodes.gearBias.value='accuracy';nodes.gearDepth.value=18;
+context.scanGear();assert(ledgerRequests.some(x=>x.cmd==='gearScan'&&x.data.profileId==='two'&&x.data.budget===500&&x.data.reserve===100),'Gear scan payload missing budget/profile');
+console.log('GEAR UI PASSED: budgeted build, manual listing action, draft preservation, profile isolation and scan payload.');

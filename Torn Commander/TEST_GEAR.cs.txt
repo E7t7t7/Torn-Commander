@@ -1,0 +1,42 @@
+using TornCommander;using System.Text.Json;
+void Check(bool ok,string why){if(!ok)throw new Exception(why);}
+var now=new DateTime(2026,11,13,12,0,0,DateTimeKind.Utc);
+GearOffer Offer(long id,string slot,long cost,decimal damage=0,decimal accuracy=0,decimal armor=0)=>new(){Key="offer-"+id,Uid=id,ItemId=(int)id,Name="Item "+id,Slot=slot,Category="Melee",Price=cost,Damage=damage,Accuracy=accuracy,Armor=armor,ObservedUtc=now,CollectedUtc=now,TimestampKnown=true,BonusKnown=true,Coverage=slot=="weapon"?new():new(){["Chest"]=100,["Full Body"]=20}};
+var s=new GearSettings{Budget=10,Reserve=0,Scope="balanced"};
+var pool=new List<GearOffer>{Offer(1,"weapon",5,20,60),Offer(2,"weapon",6,90,90)};
+foreach(var pair in new[]{("head",3),("body",4),("hands",5),("legs",6),("feet",7)})pool.Add(Offer(pair.Item2,pair.Item1,1,armor:30));
+var build=GearOptimizer.Build(pool,s,now).First();
+Check(build.Cost<=10&&build.Missing.Count==0&&build.Items.Count==6&&build.Items.First(x=>x.Slot=="weapon").Uid==1,"Budget or complete-kit priority failed.");
+Check(build.Items.Select(x=>x.Uid).Distinct().Count()==build.Items.Count,"Duplicate individual item selected.");
+s.Scope="weapon";s.Budget=100;
+var cheap=Offer(20,"weapon",4,20,20);cheap.Quality=100;
+var strong=Offer(21,"weapon",5,70,50);strong.Quality=5;
+Check(GearOptimizer.Build([cheap,strong],s,now)[0].Items[0].Uid==21,"Relative quality replaced actual damage/accuracy.");
+var stale=Offer(22,"weapon",1,99,99);stale.ObservedUtc=now.AddMinutes(-76);
+Check(GearOptimizer.Build([stale,strong],s,now)[0].Items[0].Uid==21,"Expired provider quote recommended.");
+strong.ObservedUtc=now.AddMinutes(-50);Check(GearOptimizer.Build([strong],s,now).Count==1,"Official hourly cache incorrectly discarded every usable quote.");
+strong.ObservedUtc=now.AddMinutes(3);Check(GearOptimizer.Build([strong],s,now).Count==0,"Future quote accepted.");
+strong.ObservedUtc=now;var baz=Offer(21,"weapon",3,70,50);baz.Source="Bazaar";baz.Seller=50;
+Check(GearOptimizer.Build([strong,baz],s,now)[0].Cost==3,"Same UID source prices not reconciled.");
+baz.Uid=0;Check(GearOptimizer.Build([baz],s,now).Count==0,"Unknown unique stats became a recommendation.");
+baz.Uid=21;baz.BonusKnown=false;Check(GearOptimizer.Build([baz],s,now).Count==0,"Unknown bonus data silently treated as bonus-free.");
+s.AllowBonus=true;Check(GearOptimizer.Build([baz],s,now).Count==1,"Explicit base-stat-only bonus opt-in ignored.");
+s.Scope="armor";var a=Offer(30,"head",1,armor:40);var b=Offer(31,"body",1,armor:40);
+Check(GearOptimizer.Score([a,b],s)==4,"Overlapping armour protection added together.");
+var market=GearOptimizer.Market("""{"itemmarket":{"item":{"id":1},"cache_timestamp":1794571200,"listings":[{"price":55,"amount":1,"item_details":{"uid":21652046894,"stats":{"damage":17.37,"accuracy":55.61,"armor":null,"quality":9.8},"bonuses":[]}}]}}""",new(){Id=1,Name="Hammer",Slot="weapon",Category="Melee"},now);
+Check(market.Count==1&&market[0].Uid==21652046894&&market[0].Damage==17.37m&&market[0].BonusKnown,"Actual market unique-item schema failed.");
+var v1=GearOptimizer.Bazaar("""{"bazaar":[{"ID":1,"UID":9876543210,"quantity":1,"price":10}]}""",[new(){Id=1,Name="Hammer",Slot="weapon",Category="Melee"}],50,now);
+Check(v1.Count==1&&!v1[0].StatsKnown&&!v1[0].BonusKnown,"Legacy bazaar invented stats/bonuses.");
+GearOptimizer.ApplyStats("""{"itemdetails":[{"id":1,"uid":9876543210,"stats":[{"name":"Damage","value":20},{"name":"Accuracy","value":60}]}]}""",v1);
+Check(v1[0].StatsKnown&&v1[0].Damage==20,"Documented 25-UID hydration failed.");
+var saved=JsonSerializer.Deserialize<GearJournal>(JsonSerializer.Serialize(new GearJournal{Offers=market,Settings=s,Builds=[build]}))!;
+Check(saved.Offers[0].Uid==21652046894&&saved.Builds[0].Cost==10,"Restart lost UID or plan.");
+Check(new GearJournal().Offers.Count==0,"New profile inherited results.");
+foreach(var invalid in new[]{new GearSettings{Budget=0},new GearSettings{Budget=10,Reserve=10},new GearSettings{Depth=99}}){try{GearOptimizer.Validate(invalid);throw new Exception("Invalid budget/scan settings accepted.");}catch(InvalidDataException){}}
+Console.WriteLine("GEAR PASSED: complete affordable kits, hard budget, individual UIDs, real stats versus quality, cached/stale/future quotes, duplicate source, unknown data, bonus opt-in, overlap, market/bazaar schema, hydration and restart.");
+
+var dense=new List<GearOffer>();long nextUid=100000;
+foreach(var slot in new[]{"weapon","head","body","hands","legs","feet"})for(int i=1;i<=100;i++)dense.Add(new(){Key="dense"+nextUid,Uid=nextUid++,ItemId=i,Name="Fixture",Slot=slot,Category="Melee",Price=i*100,ObservedUtc=now,CollectedUtc=now,Damage=20+i/5m,Accuracy=60,Armor=20+i/10m,Coverage=new(){["Head"]=slot=="head"?100:0,["Chest"]=slot=="body"?100:0,["Hand"]=slot=="hands"?100:0,["Leg"]=slot=="legs"?100:0,["Foot"]=slot=="feet"?100:0},BonusKnown=true});
+var timer=System.Diagnostics.Stopwatch.StartNew();var denseBuild=GearOptimizer.Build(dense,new(){Budget=25000},now);
+Check(denseBuild.Count==3&&denseBuild.All(x=>x.Missing.Count==0&&x.Cost<=25000),"Dense six-slot budget search failed.");
+Console.WriteLine("DENSE GEAR PASSED: 600 verified choices, complete six-slot kits within budget, "+timer.ElapsedMilliseconds+"ms.");
