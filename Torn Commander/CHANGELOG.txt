@@ -1,3 +1,11 @@
+v0.6.104 - Continue leveling after verified defeats (2026-11-14)
+- Official Lost receipts now skip the defeating target for 24 hours on the owning profile instead of ending the leveling run. Count the defeat as a non-win exactly once, recover under the existing medical settings, then claim the next eligible target.
+- Persist target-ID expiry independently of the imported target list. Restarting, reimporting or starting a new pass does not bypass a live defeat skip; it expires after 24 hours.
+- Apply exclusions to strength eligibility and manual/automatic selection. Target cards display the local expiry and the filtered view excludes currently skipped opponents.
+- Manual verified defeat checks also record the same skip. Other accounts remain independent. Unknown/unverified results and stalemates retain their existing review behavior; energy reserves, attack limits and medical restrictions remain enforced.
+- Fix leveling recovery text referring to committed losses: show the actual leveling result message.
+- Tests: timed expiry boundary, persistence/reimport/new pass, account isolation, eligibility exclusion, verified-loss continuation and unknown-result stop, existing loss/leveling/medical/dashboard regressions and Release build. No live energy, medical items or attacks used; desktop-control runtime unavailable.
+
 v0.6.103 - Medical refresh timing recovery (2026-11-14)
 - Fix loss and leveling pauses saying "Medical refresh requested too quickly; pause and review." A legitimate repeat plan now awaits only the remaining three-second fresh-read pacing interval instead of returning Paused.
 - Fresh verified continuation snapshots still bypass redundant API reads and waits. The interval tracks actual fresh plan reads rather than cached continuations.

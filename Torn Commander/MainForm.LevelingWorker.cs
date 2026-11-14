@@ -115,8 +115,8 @@ public sealed partial class MainForm {
      await worker.ReplyLevelingAsync(new{kind="pending",claimId=claim,message="Waiting for Torn's official attack log. No new attack will start."});return;
     }
     var receipt=result.Value;session.AttackIds.Add(receipt.Id);bool won=receipt.Result=="Attacked";if(won)session.Wins++;else session.OtherResults++;
-    var target=session.Targets.First(x=>x.Id==run.Target);target.Finished=true;target.Status="Verified: "+receipt.Result;session.PendingTarget=0;session.OpenedUtc=null;
-    run.LastCommitted=claim;run.Claim="";run.LastStop=!LevelingPlanner.ContinueAfter(receipt.Result);run.LastRemaining=!run.LastStop?session.Targets.Count(x=>!x.Finished):0;run.LastMessage=won?"Verified Leave win.":!run.LastStop?"Verified "+receipt.Result+"; no win counted. Moving to the next target.":"Stopped after "+receipt.Result+". Review target difficulty and weapon before restarting.";session.Note=run.LastMessage;SaveLeveling(worker.ProfileId);
+    var target=session.Targets.First(x=>x.Id==run.Target);target.Finished=true;target.Status="Verified: "+receipt.Result;LevelingPlanner.RecordDefeat(session,target,receipt.Result,DateTime.UtcNow);session.PendingTarget=0;session.OpenedUtc=null;
+    run.LastCommitted=claim;run.Claim="";run.LastStop=!LevelingPlanner.ContinueAfter(receipt.Result);run.LastRemaining=!run.LastStop?session.Targets.Count(x=>!x.Finished&&!LevelingPlanner.DefeatBlocked(session,x.Id,DateTime.UtcNow)):0;run.LastMessage=won?"Verified Leave win.":receipt.Result=="Lost"?"Verified defeat. "+target.Name+" is skipped for 24 hours on this account. Recovering before the next eligible target.":!run.LastStop?"Verified "+receipt.Result+"; no win counted. Moving to the next target.":"Stopped after "+receipt.Result+". Review target difficulty and weapon before restarting.";session.Note=run.LastMessage;SaveLeveling(worker.ProfileId);
     await worker.ReplyLevelingAsync(new{kind="commit",claimId=claim,remaining=run.LastRemaining,message=run.LastMessage,stop=run.LastStop});UpdateModernDashboard();
    }
   }catch(Exception ex){

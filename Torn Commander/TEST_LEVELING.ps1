@@ -83,7 +83,7 @@ for(int trial=0;trial<100;trial++){
  }
  Check(best==int.MaxValue?actual.Items.Length==0:actual.CooldownSeconds==best,"hospital/life oracle "+trial);
 }
-Check(LevelingPlanner.ContinueAfter("Assist")&&LevelingPlanner.ContinueAfter("Interrupted")&&!LevelingPlanner.ContinueAfter("Lost")&&!LevelingPlanner.ContinueAfter("Stalemate"),"interrupted results continue, losses stop");
+Check(LevelingPlanner.ContinueAfter("Assist")&&LevelingPlanner.ContinueAfter("Interrupted")&&LevelingPlanner.ContinueAfter("Lost")&&!LevelingPlanner.ContinueAfter("Stalemate"),"verified defeats continue; stalemates stop");
 Check(LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Okay","Hospital"),"ended fight corroborated without a win");
 Check(!LevelingPlanner.CanAdvanceUnverified(false,3,1,1,2,2,"Okay","Hospital"),"hospital alone not ended evidence");
 Check(!LevelingPlanner.CanAdvanceUnverified(true,2,1,1,2,2,"Okay","Hospital"),"cached receipt grace");
@@ -91,6 +91,19 @@ Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,3,2,2,"Okay","Hospital"),"w
 Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,3,"Okay","Hospital"),"wrong opponent");
 Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Okay","Okay"),"active fight cannot be abandoned");
 Check(!LevelingPlanner.CanAdvanceUnverified(true,3,1,1,2,2,"Unknown","Hospital"),"unknown own state rejected");
+var defeated=new LevelingTarget{Id=4321,Name="Defeating target",Finished=true};
+var defeatSession=new LevelingSession{Targets=new(){defeated}};
+LevelingPlanner.RecordDefeat(defeatSession,defeated,"Lost",now);
+Check(!defeated.Finished&&LevelingPlanner.DefeatBlocked(defeatSession,4321,now.AddHours(23.99)),"defeat was not a 24-hour timed skip");
+Check(!LevelingPlanner.DefeatBlocked(defeatSession,4321,now.AddHours(24)),"defeat skip did not expire");
+Check(!LevelingPlanner.DefeatBlocked(new LevelingSession(),4321,now),"defeat skip leaked across profiles");
+var restored=System.Text.Json.JsonSerializer.Deserialize<LevelingSession>(System.Text.Json.JsonSerializer.Serialize(defeatSession))!;
+Check(LevelingPlanner.DefeatBlocked(restored,4321,now)&&LevelingScouting.Suitability(defeated,restored,now).StartsWith("Defeat skip"),"restart lost timed skip");
+restored.Targets=new(){new(){Id=4321}};Check(LevelingPlanner.DefeatBlocked(restored,4321,now),"reimport bypassed skip");
+restored.Targets[0].Finished=false;Check(!LevelingScouting.StrengthEligible(restored.Targets[0],restored,now),"new pass bypassed defeat filter");
+LevelingPlanner.RecordDefeat(restored,restored.Targets[0],"Attacked",now.AddHours(1));Check(restored.DefeatSkips[4321]==now.AddHours(24),"win extended defeat skip");
+Check(!LevelingPlanner.ContinueAfter("Unknown")&&!LevelingPlanner.ContinueAfter("Stalemate"),"ambiguous result continued");
+Console.WriteLine("DEFEAT SKIP PASSED: 24-hour boundary, restart/reimport/new pass, account isolation, strength exclusion, verified loss continuation and unknown result stop.");
 var unix=new DateTimeOffset(now).ToUnixTimeSeconds();
 string Attack(int actor,int defender,long started,long ended,string result,int id=91)=>$$"""{"attacks":[{"id":{{id}},"started":{{started}},"ended":{{ended}},"attacker":{"id":{{actor}}},"defender":{"id":{{defender}}},"result":"{{result}}"}]}""";
 Check(LevelingPlanner.FindReceipt(Attack(1,2,unix,unix+5,"Lost"),1,2,now,Array.Empty<long>())?.Result=="Lost","loss terminal official receipt");

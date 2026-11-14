@@ -1124,7 +1124,7 @@
       state.medicalClickedAt = 0;
       state.healClickedAt=0;state.healBeforeCount=null;state.confirmClicked=false;state.aidExpandedAt=0;
       state.kitsThisLoss = 0;
-      state.status = state.finishAfterRecovery
+      state.status = state.mode==='level'?(message||'Fight verified. Recovering before the next target.'):state.finishAfterRecovery
         ? 'Final loss committed. Verifying recovery before completing the order.'
         : `Loss committed. ${remaining} remaining; opening Items to recover.`;
       save(state);

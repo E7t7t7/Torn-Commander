@@ -17,6 +17,7 @@ public sealed class LevelingSession {
  public bool AutoResumeMedical {get;set;}=true;
  public bool AutoHeal {get;set;} public string WeaponSlot {get;set;}="weapon_primary"; public int AttackDelayMs {get;set;}=1000;
  public int LifePercent {get;set;}=100; public int AttackLimit {get;set;}
+ public Dictionary<int,DateTime> DefeatSkips {get;set;}=new();
  public int UnverifiedResults {get;set;}
  public int Wins {get;set;} public int OtherResults {get;set;} public List<long> AttackIds {get;set;}=new();
  public int PendingTarget {get;set;} public DateTime? OpenedUtc {get;set;}
@@ -71,7 +72,15 @@ internal static class LevelingPlanner {
   return new("Heal first","Estimated minimum cooldown to leave hospital and reach "+percent+"% life. Use one item manually, then refresh/recalculate; natural recovery and rounding can change the remainder.",items,bestCost,goal);
  }
  public static bool CanAdvanceUnverified(bool terminal,int checks,int self,int owner,int target,int opponent,string ownState,string targetState)=>terminal&&checks>=3&&self>0&&target>0&&self!=target&&self==owner&&target==opponent&&(ownState=="Okay"||ownState=="Hospital")&&(targetState=="Hospital"||ownState=="Hospital");
- public static bool ContinueAfter(string result)=>result is "Attacked" or "Assist" or "Interrupted";
+ public static bool DefeatBlocked(LevelingSession session,int target,DateTime now)=>session.DefeatSkips.TryGetValue(target,out var until)&&until>now;
+ public static void RecordDefeat(LevelingSession session,LevelingTarget target,string result,DateTime now){
+  if(result!="Lost")return;
+  session.DefeatSkips[target.Id]=now.AddHours(24);
+  target.Finished=false; // A timed skip, not a permanently completed target.
+  target.Status="Defeated: skipped for 24 hours";
+  target.Suitability="Defeat skip until "+session.DefeatSkips[target.Id].ToString("u");
+ }
+ public static bool ContinueAfter(string result)=>result is "Attacked" or "Assist" or "Interrupted" or "Lost";
  public static (long Id,string Result)? FindReceipt(string json,int self,int target,DateTime opened,IEnumerable<long> seen){
   using var d=JsonDocument.Parse(json);long start=new DateTimeOffset(opened).ToUnixTimeSeconds();
   foreach(var a in d.RootElement.GetProperty("attacks").EnumerateArray()){

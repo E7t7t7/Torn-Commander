@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.103. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.104. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -203,3 +203,6 @@ v0.6.102: Gear adds budget/reserve-based weapon and armour comparisons from indi
 
 
 v0.6.103: Medical planning no longer pauses normal loss/leveling cycles when a fresh-read request arrives within three seconds of the last one. It asynchronously waits only the remaining interval and rechecks the owning worker/session before reading; already-verified fresh continuations remain immediate. Account identity, outstanding-operation checks and after-use verification are retained. Tests simulate rapid requests, stop/replacement during wait, clock changes and independent accounts; no live medicine or attacks were used.
+
+
+v0.6.104: Verified leveling defeats now add a profile-specific 24-hour opponent skip, recover under existing medical permissions and continue to other eligible targets. Skips survive restart, list replacement and new passes, with expiry shown on target cards. Only official Lost receipts trigger this rule; ambiguous results and existing medical/API protections remain unchanged. No live energy was consumed during fixture testing.

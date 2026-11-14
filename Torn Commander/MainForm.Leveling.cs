@@ -98,14 +98,14 @@ public sealed partial class MainForm {
    }else if(action=="levelSkip"){
     var target=s.Targets.FirstOrDefault(t=>t.Id==s.PendingTarget);if(target!=null){target.Finished=true;target.Status="Skipped by you";}s.PendingTarget=0;s.OpenedUtc=null;s.Note="Skipped without counting a win. Check next to continue.";
    }else if(action=="levelRound"){
-    if(s.OpenedUtc!=null)throw new InvalidOperationException("Check or skip the pending fight first.");foreach(var t in s.Targets){t.Finished=false;t.CheckedUtc=null;t.Status="Not checked";}s.PendingTarget=0;s.Note="New pass through the list. Session totals and energy reserve retained.";
+    if(s.OpenedUtc!=null)throw new InvalidOperationException("Check or skip the pending fight first.");foreach(var t in s.Targets){t.Finished=false;t.CheckedUtc=null;t.Status="Not checked";}s.PendingTarget=0;s.Note="New pass through the list. Session totals, energy reserve and 24-hour defeat skips retained.";
    }else if(action=="levelResult"){
     if(s.PendingTarget<=0||s.OpenedUtc==null)throw new InvalidOperationException("Open a queued target first.");
     var a=await ReadLevelingAccountAsync(profile);string key=CredentialManager.LoadApiKey(profile)!;
     using var attacks=JsonDocument.Parse(await _api.FetchEndpointAsync("user/attacks?filters=outgoing&limit=100&sort=desc&from="+new DateTimeOffset(s.OpenedUtc.Value).ToUnixTimeSeconds(),key));
     var receipt=LevelingPlanner.FindReceipt(attacks.RootElement.GetRawText(),a.Player,s.PendingTarget,s.OpenedUtc.Value,s.AttackIds);
     if(receipt==null){s.Note="No new completed attack found for this target yet. Torn may cache the log; check again after it updates. Nothing counted.";}
-    else {var r=receipt.Value;s.AttackIds.Add(r.Id);if(r.Result=="Attacked")s.Wins++;else s.OtherResults++;var target=s.Targets.First(t=>t.Id==s.PendingTarget);target.Finished=true;target.Status="Verified: "+r.Result;s.PendingTarget=0;s.OpenedUtc=null;s.Note=r.Result=="Attacked"?"Verified win with Leave. Check next when ready.":"Verified result: "+r.Result+". Review equipment/life before continuing; only Leave results count as leveling wins.";}
+    else {var r=receipt.Value;s.AttackIds.Add(r.Id);if(r.Result=="Attacked")s.Wins++;else s.OtherResults++;var target=s.Targets.First(t=>t.Id==s.PendingTarget);target.Finished=true;target.Status="Verified: "+r.Result;LevelingPlanner.RecordDefeat(s,target,r.Result,DateTime.UtcNow);s.PendingTarget=0;s.OpenedUtc=null;s.Note=r.Result=="Lost"?"Verified defeat. Target skipped for 24 hours on this account. Recover before checking the next target.":r.Result=="Attacked"?"Verified win with Leave. Check next when ready.":"Verified result: "+r.Result+". Review equipment/life before continuing; only Leave results count as leveling wins.";}
    }else if(action=="levelCheck"||action=="levelOpen"){
     EnsureLevelingProfileIdle(profile);
     if(s.OpenedUtc!=null)throw new InvalidOperationException("Check the pending attack result before opening another target.");

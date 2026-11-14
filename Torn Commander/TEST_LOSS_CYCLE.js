@@ -151,7 +151,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
    if(options.apiCommitWaitOnce&&!apiWaited){apiWaited=true;replies.push(()=>h.onLevelReply({kind:'api-wait',requestId:m.requestId,claimId:m.claimId,waitUntil:new Date(clock+5000).toISOString(),message:'Connection retry'}));return;}
    assert.equal(m.claimId,activeLease);
    if(options.levelPendingOnce&&levelPending++===0){replies.push(()=>h.onLevelReply({kind:'pending',claimId:m.claimId,message:'API cache pending'}));return;}
-   counts.levelCommits++;remaining--;activeLease='';replies.push(()=>h.onLevelReply({kind:'commit',claimId:m.claimId,remaining,message:'Verified Leave',stop:false}));return;
+   counts.levelCommits++;remaining--;activeLease='';const defeated=options.levelDefeatOnce&&counts.levelCommits===1;replies.push(()=>h.onLevelReply({kind:'commit',claimId:m.claimId,remaining,message:defeated?'Verified defeat. Target skipped for 24 hours. Recovering before the next target.':'Verified Leave',stop:false}));return;
   }
   if(m.type.startsWith('tc-medical-')){
    assert.equal(m.medicalSession,'session-'+(options.slot||'A'));assert.equal(m.browserPlayerId,321);
@@ -439,6 +439,13 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  for(let i=0;i<30&&expiredExternal.h.getState().stage!=='paused';i++)await expiredExternal.step(250);
  assert.equal(expiredExternal.h.getState().stage,'paused');assert.equal(expiredExternal.counts.join,0,'Expired provider claim attacked');
  console.log('EXTERNAL CLAIM WORKER PASSED: official receipts required for every loss and expired deadline prevents new fights.');
+ const defeatContinue=fixture(false,false,false,{leveling:true,smartMedical:true,levelDefeatOnce:true,pillowHits:2});
+ for(let i=0;i<2400&&defeatContinue.h.getState().stage!=='complete';i++)await defeatContinue.step(250);
+ assert.equal(defeatContinue.h.getState().stage,'complete',defeatContinue.h.getState().status);
+ assert.equal(defeatContinue.counts.levelCommits,2,'Verified defeat prevented the next leveling target');
+ assert(defeatContinue.counts.medicine>0,'Defeat continuation bypassed medical recovery');
+ assert.equal(defeatContinue.messages.filter(m=>m.type==='tc-loss-commit').length,0,'Leveling defeat entered loss sales');
+ console.log('LEVEL DEFEAT WORKER PASSED: verified defeat reply recovers, continues and completes the next target without loss-ledger writes.');
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');
