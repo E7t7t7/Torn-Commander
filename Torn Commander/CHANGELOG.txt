@@ -1,3 +1,11 @@
+v0.6.105 - Loss X-change handoff and order creation (2026-11-16)
+- Replace the separate modal account picker with a highlighted Loss Desk import card. Claim in Commander brings the COMMANDER panel forward, opens Loss Desk and shows buyer/target, quoted price, total count and saved account selectors.
+- Confirm creates and atomically saves a local runnable order, selects it and refreshes sales/orders. Start A / Start Both remains explicit. The total is shared between accounts; this action does not remotely reserve a Loss X-change listing.
+- Pending selections are isolated by originating profile and receipt. Invalid/changed accounts or expired choice receipts cannot create an order; a replacement listing cancels the old choice. Repeated imports select matching active orders for the chosen account assignment rather than creating duplicates or selecting another account's order.
+- Companion buttons show sending, finish account choice, ready-to-start and no-response/retry states. Prevent native form submission/bubbling and report rejected bridge sources rather than silently ignoring them. Support WebView2 string and object JSON messages.
+- Tests cover listing parsing/solo-dual creation, quota and duplicate validation, companion two-stage acknowledgement and timeout, dashboard account/count commands and draft/profile clearing, plus Release compilation and existing regression suites. No live contracts reserved, attacks executed or medical items consumed.
+- Limitation: pending choices are transient until confirmed; saved orders persist normally. Current public availability can change and must be checked in the exchange. Exact original failure on the user's live window is not reproduced; the former silent/modal handoff is removed and failures now produce feedback.
+
 v0.6.104 - Continue leveling after verified defeats (2026-11-14)
 - Official Lost receipts now skip the defeating target for 24 hours on the owning profile instead of ending the leveling run. Count the defeat as a non-win exactly once, recover under the existing medical settings, then claim the next eligible target.
 - Persist target-ID expiry independently of the imported target list. Restarting, reimporting or starting a new pass does not bypass a live defeat skip; it expires after 24 hours.

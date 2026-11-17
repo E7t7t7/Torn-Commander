@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name Torn Commander - Loss X-change companion
 // @namespace torn-commander
-// @version 0.6.88
+// @version 0.6.105
 // @description Build local Commander orders from visible Loss X-change loss listings.
 // @match https://www.torn.com/*
 // @run-at document-end
@@ -28,19 +28,27 @@
  const scan=()=>{
   for(const card of document.querySelectorAll('.tlx-card.kind-loss')){
    if(card.querySelector('[data-tc-lossx-claim]')||!read(card))continue;
-   const button=document.createElement('button');button.setAttribute('data-tc-lossx-claim','1');button.textContent='Claim in Commander';button.style.cssText='margin:8px 0;padding:7px 12px;border:1px solid #69d8a4;border-radius:6px;background:#15352a;color:#e8fff5;cursor:pointer';
-   button.addEventListener('click',()=>{
+   const button=document.createElement('button');button.type='button';button.setAttribute('data-tc-lossx-claim','1');button.textContent='Claim in Commander';button.style.cssText='margin:8px 0;padding:7px 12px;border:1px solid #69d8a4;border-radius:6px;background:#15352a;color:#e8fff5;cursor:pointer';
+   button.addEventListener('click',event=>{
+    event?.preventDefault();event?.stopPropagation();
     const listing=read(card);if(!listing){button.textContent='Listing changed — refresh Browse contracts';return;}
     const nonce=[...crypto.getRandomValues(new Uint8Array(16))].map(x=>x.toString(16).padStart(2,'0')).join('');
-    pending.set(nonce,button);button.disabled=true;button.textContent='Choose accounts in Commander…';
-    window.chrome.webview.postMessage(JSON.stringify({type:'tc-lossx-import',nonce,...listing}));
+    const entry={button,timer:null};pending.set(nonce,entry);button.disabled=true;button.textContent='Sending listing to Commander…';
+    try{
+     entry.timer=setTimeout(()=>{if(!pending.has(nonce))return;pending.delete(nonce);button.disabled=false;button.textContent='No response — retry import';button.title='Commander did not acknowledge this listing. Refresh the Torn tab and try again.';},12000);
+     window.chrome.webview.postMessage(JSON.stringify({type:'tc-lossx-import',nonce,...listing}));
+    }catch{clearTimeout(entry.timer);pending.delete(nonce);button.disabled=false;button.textContent='Import failed — retry';}
+
    });
    card.appendChild(button);
   }
  };
  window.addEventListener('tc-lossx-import-result',event=>{
-  const result=event.detail,button=pending.get(result?.nonce);if(!button)return;
-  pending.delete(result.nonce);button.disabled=false;button.textContent=result.ok?'Commander order ready':'Claim in Commander';button.title=String(result.message||'');
+  const result=event.detail,entry=pending.get(result?.nonce);if(!entry)return;const button=entry.button;
+  clearTimeout(entry.timer);button.title=String(result.message||'');
+  if(result.state==='choose'){button.disabled=true;button.textContent='Finish account choice in Loss Desk';return;}
+  pending.delete(result.nonce);button.disabled=false;button.textContent=result.ok?'Order ready — Start in Loss Desk':'Claim in Commander';
+
  });
  let scheduled=false;
  const queue=()=>{if(scheduled)return;scheduled=true;setTimeout(()=>{scheduled=false;scan();},100);};

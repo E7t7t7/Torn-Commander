@@ -64,13 +64,19 @@ internal sealed class BrowserTab : IDisposable
         {
             try
             {
-                var message = e.TryGetWebMessageAsString();
+                string message;try{message=e.TryGetWebMessageAsString();}catch(ArgumentException){message=e.WebMessageAsJson;}
                 if (string.IsNullOrWhiteSpace(message)) return;
                 if(message.StartsWith("{",StringComparison.Ordinal)){
                     using var doc=JsonDocument.Parse(message);
                     if(doc.RootElement.TryGetProperty("type",out var type)&&type.GetString()=="tc-lossx-import"){
                         if(Uri.TryCreate(e.Source,UriKind.Absolute,out var source)&&source.Scheme=="https"&&source.Host=="www.torn.com"&&Uri.TryCreate(core.Source,UriKind.Absolute,out var current)&&Uri.Compare(source,current,UriComponents.HttpRequestUrl,UriFormat.UriEscaped,StringComparison.Ordinal)==0&&LossExchangeImport!=null)
                             await LossExchangeImport(this,doc.RootElement.Clone());
+                        else{
+                            var nonce=doc.RootElement.TryGetProperty("nonce",out var n)&&n.ValueKind==JsonValueKind.String?n.GetString():"";
+                            var reason="The import source or account is no longer current. Refresh this Torn tab and try again.";
+                            _status(reason);
+                            await core.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('tc-lossx-import-result',{detail:"+JsonSerializer.Serialize(new{nonce,ok=false,message=reason})+"}))");
+                        }
                         return;
                     }
                 }

@@ -402,3 +402,12 @@ assert(!nodes.gearBuilds.innerHTML.includes('Fixture sword')&&nodes.gearSellers.
 context.S.profileId='two';nodes.gearBudget.value=500;nodes.gearReserve.value=100;nodes.gearScope.value='weapon';nodes.gearBias.value='accuracy';nodes.gearDepth.value=18;
 context.scanGear();assert(ledgerRequests.some(x=>x.cmd==='gearScan'&&x.data.profileId==='two'&&x.data.budget===500&&x.data.reserve===100),'Gear scan payload missing budget/profile');
 console.log('GEAR UI PASSED: budgeted build, manual listing action, draft preservation, profile isolation and scan payload.');
+
+// Loss X-change handoff stays inside the dashboard and preserves choices across refreshes.
+vm.runInContext("S={profileId:'main',profiles:[{id:'main',name:'Main'},{id:'wife',name:'Other'}],lossXChoice:{nonce:'abc',buyer:'Buyer',target:123,remaining:20,pay:300000}};renderLossXChoice(S)",context);
+assert(!nodes.lossXImport.hidden);assert.equal(Number(nodes.lossXCount.value),20);assert.equal(nodes.lossXAccountA.value,'main');assert.equal(nodes.lossXAccountB.value,'');
+nodes.lossXCount.value='5';nodes.lossXAccountB.value='wife';vm.runInContext("renderLossXChoice(S);confirmLossX('lossXConfirm')",context);
+assert.equal(Number(nodes.lossXCount.value),5);
+assert(ledgerRequests.some(r=>r.cmd==='lossXConfirm'&&r.data.count===5&&r.data.accountA==='main'&&r.data.accountB==='wife'&&r.data.nonce==='abc'));
+vm.runInContext("renderLossXChoice({profileId:'wife',profiles:[],lossXChoice:null})",context);assert(nodes.lossXImport.hidden);
+console.log('LOSS X-CHANGE DASHBOARD PASSED: visible in-app chooser, account/count payload, draft preservation and profile clearing.');
