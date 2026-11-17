@@ -8,8 +8,8 @@ public sealed partial class MainForm{
   var people=(team?.Employees.Select(e=>new{e.Id,e.Name,e.Position})??[]).ToList();
   foreach(var former in j.Records.GroupBy(x=>x.Employee).Where(g=>people.All(p=>p.Id!=g.Key)))people.Add(new{Id=former.Key,Name=former.OrderByDescending(x=>x.At).First().Name,Position="Former employee / not in latest scan"});
   return new{profileId=CurrentProfileId,companyId=company.ActiveCompanyId,busy=_trainingBusy,j.Note,j.LastSync,j.Unreadable,j.PlanDay,j.Mode,
-   day=now.ToString("yyyy-MM-dd"),available=j.Available,budgetAt=j.BudgetObservedUtc,
-   plan=j.Plan.Select(x=>new{x.Employee,x.Name,x.Role,x.Reason,done=j.PlanCreatedUtc.HasValue&&j.Records.Any(r=>r.Employee==x.Employee&&r.At>=j.PlanCreatedUtc.Value.AddSeconds(-2))}).ToList(),
+   day=now.ToString("yyyy-MM-dd"),available=j.Available,budgetAt=j.BudgetObservedUtc,requested=j.Requested>0?j.Requested:(int?)null,unassigned=j.Available.HasValue?CompanyTraining.FreeChoices(j,j.Available.Value,now):(int?)null,
+   plan=j.Plan.Select(x=>new{x.Employee,x.Name,x.Role,x.Reason,done=CompanyTraining.Done(j,x)}).ToList(),
    rows=people.Select(e=>new{e.Id,e.Name,e.Position,total=CompanyTraining.Total(j,e.Id),today=CompanyTraining.Today(j,e.Id,now),
     week=j.Records.Where(x=>x.Employee==e.Id&&x.At>=now.AddDays(-7)).Sum(x=>x.Count),last=j.Records.Where(x=>x.Employee==e.Id).MaxBy(x=>x.At)?.At}).OrderByDescending(x=>x.total).ToList(),
    events=j.Records.OrderByDescending(x=>x.At).Take(100).ToList()};
@@ -30,7 +30,7 @@ public sealed partial class MainForm{
     var result=await tab!.ExecuteScriptAsync(code.Replace("__EMPLOYEE_ID__",employee.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     if(profile!=CurrentProfileId||tab!=Active())return;
     using var data=JsonDocument.Parse(result??"null");j.Note=data.RootElement.GetProperty("note").GetString()??"Open the employee's Train button manually.";
-   }else if(action=="trainingPlan"){
+   }else if(action is "trainingPlan" or "trainingAdd"){
     var team=company.Team;if(team==null||team.CompanyId!=id||DateTime.UtcNow-team.ScannedUtc>TimeSpan.FromHours(24))throw new InvalidDataException("Scan Company & Staff first; the staff list is missing or over a day old.");
     if(j.LastSync==null||DateTime.UtcNow-j.LastSync.Value>TimeSpan.FromMinutes(5))throw new InvalidOperationException("Refresh training receipts first so today’s existing trains are included in the rotation.");
     int count=r.GetProperty("count").GetInt32();string mode=ReadWorkerString(r,"mode");
@@ -38,12 +38,16 @@ public sealed partial class MainForm{
     var fresh=CompanyIntelligence.ReadProfile(await _api.FetchEndpointAsync("company/profile",key,fresh:true));
     if(profile!=CurrentProfileId)return;if(fresh.CompanyId!=id)throw new InvalidDataException("Your company changed. Scan again.");
     if(fresh.Trains is not { } available)throw new InvalidDataException("Available trains are not exposed for this account. Director access is needed.");
-    if(count>available)throw new InvalidDataException("Only "+available+" trains were reported available. Reduce today's group.");
-    j.Plan=CompanyTraining.Choose(j,team,mode,count,DateTime.UtcNow,Random.Shared);j.PlanDay=DateTime.UtcNow.ToString("yyyy-MM-dd");j.PlanCreatedUtc=DateTime.UtcNow;j.Mode=mode;j.Available=available;j.BudgetObservedUtc=DateTime.UtcNow;
-    j.Note=j.Plan.Count==0?"Everyone in the current staff list already has a recorded train today.":"Today's group is saved. Find each person's Train button in Torn, click it yourself, then refresh receipts here.";
+    bool append=action=="trainingAdd";int free=append?CompanyTraining.FreeChoices(j,available,DateTime.UtcNow):available;
+    if(count>free)throw new InvalidDataException("Only "+free+" trains are unassigned. Existing untrained choices already reserve the rest; refresh receipts after training them.");
+    var chosen=CompanyTraining.Choose(j,team,mode,count,DateTime.UtcNow,Random.Shared,append);
+    j.Requested=append?Math.Max(j.Requested,j.Plan.Count+count):count;
+    if(append)j.Plan.AddRange(chosen);else{j.Plan=chosen;j.PlanDay=DateTime.UtcNow.ToString("yyyy-MM-dd");j.PlanCreatedUtc=DateTime.UtcNow;}
+    j.Mode=mode;j.Available=available;j.BudgetObservedUtc=DateTime.UtcNow;
+    j.Note=CompanyTraining.Summary(j,count,chosen.Count,append);
    }else if(action=="trainingClear"){
     if(MessageBox.Show(this,"Clear today's untrained choices? Training receipts and totals will be kept.","Choose a different group",MessageBoxButtons.YesNo)!=DialogResult.Yes)return;
-    j.Plan.Clear();j.PlanDay="";j.Note="Choices cleared. Received trains remain in the history and rotation.";
+    j.Plan=j.Plan.Where(x=>CompanyTraining.Done(j,x)).ToList();if(j.Plan.Count==0)j.PlanDay="";j.Requested=j.Plan.Count;j.Note="Untrained choices cleared. Confirmed people remain in the group and history.";
    }else if(action=="trainingSync"){
     var key=CredentialManager.LoadApiKey(profile)??throw new InvalidOperationException("Save this account's Torn API key first.");
     var fresh=CompanyIntelligence.ReadProfile(await _api.FetchEndpointAsync("company/profile",key,fresh:true));

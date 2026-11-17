@@ -140,7 +140,7 @@ public sealed partial class MainForm
                 case "companyMarket": await ScanCompanyMarketAsync(); break;
                 case "companyHistory": SelectCompanyHistory(root); break;
                 case "companyScenario": CalculateCompanyScenario(root); break;
-                case "trainingOpen": case "trainingFocus": case "trainingPlan": case "trainingClear": case "trainingSync": await HandleTraining(cmd,root); break;
+                case "trainingOpen": case "trainingFocus": case "trainingPlan": case "trainingAdd": case "trainingClear": case "trainingSync": await HandleTraining(cmd,root); break;
                 case "companySync": await SyncCompanyIntelligenceAsync(); break;
                 case "openCompany": NavigateActive("https://www.torn.com/companies.php"); break;
                 case "companyStaffPlan": SaveCompanyStaffPlan(root); break;
@@ -360,7 +360,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.105",
+                    version = "0.6.106",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -673,13 +673,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="city"><i>⌖</i>City Scanner</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.105</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.106</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.105</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.106</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -972,10 +972,10 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
    <div class="sub">1. Scan Company &amp; Staff. 2. Refresh training receipts. 3. Choose today's people. 4. Train each person in Torn, then refresh receipts to confirm the results.</div>
    <div class="actions"><button class="btn" id="ctSync" onclick="trainingAction('trainingSync')">Refresh training receipts</button><button class="btn" onclick="trainingAction('trainingOpen')">Open Torn employees</button></div>
    <div id="ctNote" class="notice info" role="status"></div>
-   <div class="formgrid adviser-fields"><label>How to choose<select id="ctMode"><option value="rotation">Fair random rotation</option><option value="efficient">Recommended growth · local advisor</option></select></label><label>People to train (one each)<input id="ctCount" type="number" min="1" max="1000" value="4"></label>
-   <button class="btn primary" id="ctChoose" onclick="trainingAction('trainingPlan',{mode:$('ctMode').value,count:Number($('ctCount').value)})">Choose today's group</button><button class="btn" onclick="trainingAction('trainingClear')">Clear untrained choices…</button></div>
+   <div class="formgrid adviser-fields"><label>How to choose<select id="ctMode"><option value="rotation">Fair random rotation</option><option value="efficient">Recommended growth · local advisor</option></select></label><label><span id="ctCountLabel">People to train (one each)</span><input id="ctCount" type="number" min="1" max="1000" value="4"></label>
+   <button class="btn primary" id="ctChoose" onclick="chooseTraining()">Choose today's group</button><button class="btn" onclick="trainingAction('trainingClear')">Clear untrained choices…</button></div>
    <div class="sub">Rotation gives priority to people with fewer recorded trains and shuffles ties. Recommendations look at the benefit to each person's current job, not a promise of higher company income. No paid AI is used.</div>
-   <div id="ctBudget" class="sub"></div><div id="ctPlan"></div>
+   <div id="ctBudget" class="sub"></div><div id="ctGroupSummary" class="notice info"></div><div id="ctPlan"></div>
    <div class="sub">Choosing a group does not use trains. Find a person's Train link below, then click the actual link in Torn yourself. Only imported training receipts increase the totals. Days here use Torn time (UTC).</div></div>
    <div class="card" style="margin-top:12px"><div class="section">Who has received trains?</div><div class="sub">Recorded history only. Earlier trains will appear if they are still present in the imported company news. Former employees stay in the table.</div><div id="ctTotals"></div></div>
    <details class="card" style="margin-top:12px"><summary>Recent training receipts</summary><div id="ctHistory"></div></details>
@@ -1689,10 +1689,21 @@ function renderCasino(d){
 }
 let trainingIdentity='';
 function trainingAction(cmd,data={}){const t=S.company?.training;if(!t?.companyId){$('ctNote').textContent='Scan Company & Staff first.';return;}send(cmd,{profileId:S.profileId,companyId:t.companyId,...data});}
+function chooseTraining(){
+ const t=S.company?.training;if(!t)return;const has=(t.plan||[]).length>0&&t.planDay===t.day;
+ const pending=(t.plan||[]).filter(x=>!x.done).length,free=t.unassigned??Math.max(0,(t.available??0)-pending);
+ const count=has?Math.min(Number($('ctCount').value),free):Number($('ctCount').value);
+ if(!Number.isSafeInteger(count)||count<1){$('ctNote').textContent='No unassigned trains. Train your pending choices and refresh receipts.';return;}
+ trainingAction(has?'trainingAdd':'trainingPlan',{mode:$('ctMode').value,count});
+}
 function renderCompanyTraining(t,profile){
- if(!t){$('ctNote').textContent='Scan your company to start a training history.';$('ctPlan').innerHTML='';$('ctTotals').innerHTML='';$('ctHistory').innerHTML='';return;}
+ if(!t){$('ctNote').textContent='Scan your company to start a training history.';$('ctPlan').innerHTML='';$('ctTotals').innerHTML='';$('ctHistory').innerHTML='';$('ctGroupSummary').textContent='';return;}
  const identity=profile+'|'+t.companyId;if(trainingIdentity!==identity){trainingIdentity=identity;$('ctMode').value=t.mode||'rotation';$('ctCount').value=Math.max(1,Math.min(4,t.available??4));}
- $('ctSync').disabled=!!t.busy;$('ctChoose').disabled=!!t.busy;
+ const todayPlan=(t.plan||[]).length>0&&t.planDay===t.day,pending=todayPlan?(t.plan||[]).filter(x=>!x.done).length:0,done=todayPlan?(t.plan||[]).filter(x=>x.done).length:0,free=t.unassigned??Math.max(0,(t.available??0)-pending);
+ $('ctCountLabel').textContent=todayPlan?'People to add (one each)':'People to train (one each)';
+ $('ctSync').disabled=!!t.busy;$('ctChoose').disabled=!!t.busy||todayPlan&&free<=0;$('ctChoose').textContent=todayPlan?(free>0?'Add remaining people ('+free+' available)':'No unassigned trains'):"Choose today's group";
+ $('ctGroupSummary').textContent=todayPlan?(t.plan||[]).length+(t.requested?' of '+t.requested+' requested people saved':' people saved')+' · '+done+' confirmed · '+pending+' waiting to train · '+free+' train'+(free===1?'':'s')+' available for additional people.':'No group saved for today.';
+
  $('ctNote').textContent=t.note||'Refresh training receipts first.';
  $('ctBudget').textContent='Last reported trains available: '+(t.available??'not checked')+(t.budgetAt?' · checked '+new Date(t.budgetAt).toLocaleString():'')+' · Today in Torn: '+t.day+(t.lastSync?' · Receipts refreshed '+new Date(t.lastSync).toLocaleString():'');
  const planKey=JSON.stringify([identity,t.planDay,t.plan]);if(renderCompanyTraining.plan!==planKey){renderCompanyTraining.plan=planKey;$('ctPlan').innerHTML=(t.plan||[]).length?'<h3>Group for '+esc(t.planDay)+(t.planDay!==t.day?' · previous day':'')+'</h3>'+t.plan.map(x=>'<div class="minirow" style="display:block"><b>'+esc(x.name)+'</b> · '+esc(x.role)+'<div class="sub">'+esc(x.reason)+'</div>'+(x.done?'<span class="pill good">Training receipt received</span>':'<button class="btn" data-training-person="'+Number(x.employee)+'">Find '+esc(x.name)+'’s Train button</button>')+'</div>').join(''):'<div class="empty">No group chosen yet. Select a mode and press Choose today’s group.</div>';}
@@ -1732,7 +1743,7 @@ function renderSection(name,fn){
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('bjDouble').checked=true;$('bjSplit').checked=true;$('bjSurrender').checked=false;$('pkOpponents').value=1;$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.105';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.106';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -1740,7 +1751,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.105 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.106 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 renderSection('Leveling',()=>renderLeveling(d.leveling));renderLossStatus(d);renderSection('Loss orders',()=>{renderLossOrders(d);renderLossXChoice(d);});renderSection('Item intelligence',()=>renderItemIntelligence(d.itemIntelligence,d.profileId));

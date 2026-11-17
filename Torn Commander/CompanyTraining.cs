@@ -8,11 +8,12 @@ internal sealed class CompanyTrainRecord {
 }
 internal sealed class CompanyTrainChoice {
  public long Employee{get;set;}public string Name{get;set;}="";public string Reason{get;set;}="";
- public int ReceivedAtPlan{get;set;}public string Role{get;set;}="";
+ public int ReceivedAtPlan{get;set;}public DateTime? ChosenUtc{get;set;}public string Role{get;set;}="";
 }
 internal sealed class CompanyTrainingJournal {
  public List<CompanyTrainRecord> Records{get;set;}=new();
  public List<CompanyTrainChoice> Plan{get;set;}=new();public string PlanDay{get;set;}="";
+ public int Requested{get;set;}
  public string Mode{get;set;}="rotation";public DateTime? LastSync{get;set;}
  public DateTime? PlanCreatedUtc{get;set;}public int? Available{get;set;}public DateTime? BudgetObservedUtc{get;set;}
  public int Unreadable{get;set;}public string Note{get;set;}="Scan staff, choose today's group, train them in Torn, then refresh the training receipts.";
@@ -20,19 +21,35 @@ internal sealed class CompanyTrainingJournal {
 internal static class CompanyTraining {
  public static int Total(CompanyTrainingJournal j,long id)=>j.Records.Where(x=>x.Employee==id).Sum(x=>x.Count);
  public static int Today(CompanyTrainingJournal j,long id,DateTime now)=>j.Records.Where(x=>x.Employee==id&&x.At.Date==now.Date).Sum(x=>x.Count);
- public static List<CompanyTrainChoice> Choose(CompanyTrainingJournal journal,CompanyTeamScan team,string mode,int count,DateTime now,Random random){
+ public static List<CompanyTrainChoice> Choose(CompanyTrainingJournal journal,CompanyTeamScan team,string mode,int count,DateTime now,Random random,bool append=false){
   if(mode is not ("rotation" or "efficient")||count is <1 or >1000||!team.EmployeesLoaded||team.Employees.Count==0)throw new InvalidDataException("Scan the employee list and choose a valid training mode/count.");
-  if(journal.PlanDay==now.ToString("yyyy-MM-dd")&&journal.Plan.Count>0)
+  if(append&&(journal.PlanDay!=now.ToString("yyyy-MM-dd")||journal.Plan.Count==0))throw new InvalidOperationException("Choose today’s group before adding people.");
+  if(!append&&journal.PlanDay==now.ToString("yyyy-MM-dd")&&journal.Plan.Count>0)
    throw new InvalidOperationException("Today's group is already saved. Use it or explicitly clear its untrained choices before choosing again.");
-  var candidates=team.Employees.Where(x=>x.Id>0&&Today(journal,x.Id,now)==0).Select(e=>{
+  var candidates=team.Employees.Where(x=>x.Id>0&&Today(journal,x.Id,now)==0&&(!append||journal.Plan.All(p=>p.Employee!=x.Id))).DistinctBy(x=>x.Id).Select(e=>{
    var job=team.Jobs.FirstOrDefault(x=>x.Id==e.PositionId);
    return new{employee=e,tie=random.NextDouble(),score=Priority(e,job),total=Total(journal,e.Id),last=journal.Records.Where(r=>r.Employee==e.Id).MaxBy(r=>r.At)?.At.Date??DateTime.MinValue};
   }).ToList();
-  if(mode=="efficient")candidates=candidates.Where(x=>x.score.Gain>=0).ToList();
-  var ordered=mode=="rotation"?candidates.OrderBy(x=>x.total).ThenBy(x=>x.last).ThenBy(x=>x.tie):candidates.OrderByDescending(x=>x.score.Gain).ThenBy(x=>x.total).ThenBy(x=>x.tie);
-  if(candidates.Count==0)throw new InvalidDataException(mode=="efficient"?"No staff have a supported role/stat calculation. Scan again or use fair rotation.":"Every current employee already has a recorded train today.");
-  return ordered.Take(count).Select(x=>new CompanyTrainChoice{Employee=x.employee.Id,Name=x.employee.Name,Role=x.employee.Position,ReceivedAtPlan=x.total,
-   Reason=mode=="rotation"?$"{x.total} trains recorded so far. Picked from staff with the fewest trains; people waiting longest came first and ties were shuffled.":x.score.Reason}).ToList();
+  var rotation=candidates.OrderBy(x=>x.total).ThenBy(x=>x.last).ThenBy(x=>x.tie);
+  var ordered=mode=="rotation"?rotation:candidates.Where(x=>x.score.Gain>=0).OrderByDescending(x=>x.score.Gain).ThenBy(x=>x.total).ThenBy(x=>x.tie).Concat(rotation.Where(x=>x.score.Gain<0));
+  if(candidates.Count==0)throw new InvalidDataException("Every current employee already has a recorded train or a saved choice today.");
+  return ordered.Take(count).Select(x=>new CompanyTrainChoice{Employee=x.employee.Id,Name=x.employee.Name,Role=x.employee.Position,ReceivedAtPlan=x.total,ChosenUtc=now,
+   Reason=mode=="rotation"?$"{x.total} trains recorded so far. Picked from staff with the fewest trains; people waiting longest came first and ties were shuffled.":x.score.Gain>=0?x.score.Reason:$"No reliable current-job growth estimate was available. Added by fair rotation to fill your group; {x.total} previous trains recorded. No gain estimate was guessed."}).ToList();
+ }
+ public static bool Done(CompanyTrainingJournal j,CompanyTrainChoice choice){
+  var since=choice.ChosenUtc??j.PlanCreatedUtc;
+  return since.HasValue&&j.Records.Any(r=>r.Employee==choice.Employee&&r.At>=since.Value.AddSeconds(-2)&&r.At.ToString("yyyy-MM-dd")==j.PlanDay);
+ }
+ public static int FreeChoices(CompanyTrainingJournal j,int available,DateTime now){
+  int pending=j.PlanDay==now.ToString("yyyy-MM-dd")?j.Plan.Count(x=>!Done(j,x)):0;
+  return Math.Max(0,available-pending);
+ }
+ public static string Summary(CompanyTrainingJournal j,int wanted,int added,bool append){
+  int fallback=j.Plan.Count(x=>x.Reason.StartsWith("No reliable current-job growth estimate"));
+  string result=append?$"Added {added} more "+(added==1?"person.":"people.")+" Your previous choices and confirmed trains are kept.":$"Saved {added} of {wanted} requested people.";
+  if(added<wanted)result+=$" Only {added} untrained, unselected employees were available; no employee was assigned twice.";
+  if(fallback>0)result+=$" {fallback} "+(fallback==1?"choice uses":"choices use")+" fair rotation because a reliable growth estimate is missing.";
+  return result+" Train each person in Torn, then refresh receipts to confirm.";
  }
  private static (decimal Gain,string Reason) Priority(CompanyEmployeeScan e,CompanyJobScan? job){
   if(e.Stats==null||job?.Required==null)return(-1,"Current stats or job requirements are missing. Scan staff before using this recommendation.");

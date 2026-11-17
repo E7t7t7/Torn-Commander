@@ -1,3 +1,12 @@
+v0.6.106 - Fill training groups and add remaining people (2026-11-17)
+- Fix recommended-growth mode silently reducing a requested group when some employees lack scorable stats or role requirements. Rank known growth first, then fill remaining places through fair rotation with an explicit no-estimate explanation.
+- Report genuine shortages as saved N of requested M instead of suggesting a complete group. Keep one distinct, untrained person per choice.
+- Add remaining people to today's saved group, preserving confirmed recipients and receipt history. Fresh company budget checks subtract still-untrained saved choices to avoid assigning the same available train twice.
+- Record per-choice selection timestamps so a topup does not reset earlier progress or count old training as a newly added person's receipt. Existing plans use their original plan timestamp.
+- Show requested/saved people, confirmed receipts, pending people and remaining unassigned train capacity. Clear untrained choices now retains confirmed group members.
+- Tests reproduce a request for four with only three scorable employees, fallback honesty, real roster shortages, three confirmed plus one remaining, duplicate exclusion, capacity reservation, old/new receipt progress and restart; dashboard topup controls and Release build are checked.
+- Training is still performed through Torn's native Train controls; Commander only recommends, highlights and imports official receipts. No live trains consumed in tests.
+
 v0.6.105 - Loss X-change handoff and order creation (2026-11-16)
 - Replace the separate modal account picker with a highlighted Loss Desk import card. Claim in Commander brings the COMMANDER panel forward, opens Loss Desk and shows buyer/target, quoted price, total count and saved account selectors.
 - Confirm creates and atomically saves a local runnable order, selects it and refreshes sales/orders. Start A / Start Both remains explicit. The total is shared between accounts; this action does not remotely reserve a Loss X-change listing.

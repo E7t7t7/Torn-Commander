@@ -411,3 +411,11 @@ assert.equal(Number(nodes.lossXCount.value),5);
 assert(ledgerRequests.some(r=>r.cmd==='lossXConfirm'&&r.data.count===5&&r.data.accountA==='main'&&r.data.accountB==='wife'&&r.data.nonce==='abc'));
 vm.runInContext("renderLossXChoice({profileId:'wife',profiles:[],lossXChoice:null})",context);assert(nodes.lossXImport.hidden);
 console.log('LOSS X-CHANGE DASHBOARD PASSED: visible in-app chooser, account/count payload, draft preservation and profile clearing.');
+
+vm.runInContext("S={profileId:'main',company:{training:{companyId:17,day:'2026-11-17',planDay:'2026-11-17',available:1,unassigned:1,requested:4,plan:[1,2,3].map(i=>({employee:i,name:'Trained '+i,done:true})),rows:[],events:[]}}};renderCompanyTraining(S.company.training,'main')",context);
+assert(nodes.ctGroupSummary.textContent.includes('3 confirmed')&&nodes.ctGroupSummary.textContent.includes('1 train available'),'Three receipts + one remaining not explained');
+nodes.ctCount.value='4';context.chooseTraining();
+assert(ledgerRequests.some(r=>r.cmd==='trainingAdd'&&r.data.count===1&&r.data.companyId===17),'Topup did not use the single unassigned train');
+vm.runInContext("S.company.training.unassigned=0;S.company.training.plan.push({employee:4,name:'Pending',done:false});renderCompanyTraining(S.company.training,'main')",context);
+assert(nodes.ctChoose.disabled,'Already assigned fourth train could be reserved again');
+console.log('TRAINING TOPUP UI PASSED: 3 confirmed + 1 remaining, bounded Add command and pending-capacity guard.');

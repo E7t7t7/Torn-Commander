@@ -20,7 +20,7 @@ var ai=CompanyTraining.Choose(new(),team,"efficient",4,now,new Random(1));
 Check(ai.Count==4&&ai.All(x=>x.Reason.Contains("50 manual labor")&&x.Reason.Contains("25 intelligence")),"Training growth assumptions or explanation incorrect.");
 var missing=new CompanyTeamScan{EmployeesLoaded=true,Employees=[new(){Id=99,Name="Missing",PositionId=1}]};
 Check(CompanyTraining.Choose(new(),missing,"rotation",1,now,new Random()).Count==1,"Random mode excluded a low-data roster member.");
-try{CompanyTraining.Choose(new(),missing,"efficient",1,now,new Random());throw new Exception("Missing stats received invented efficiency advice.");}catch(InvalidDataException){}
+var unknownGrowth=CompanyTraining.Choose(new(),missing,"efficient",1,now,new Random());Check(unknownGrowth.Count==1&&unknownGrowth[0].Reason.Contains("No reliable current-job")&&!unknownGrowth[0].Reason.Contains("expected to add"),"Missing stats did not get an honest rotation fallback.");
 var stamp=new DateTimeOffset(now).ToUnixTimeSeconds();
 var json=JsonSerializer.Serialize(new{news=new[]{
  new{id="a",timestamp=stamp,text="<a href=\"profiles.php?XID=100\">Director</a> trained <a href=\"profiles.php?XID=2\">Worker 2</a>"},
@@ -38,3 +38,21 @@ Check(CompanyTraining.Total(restored,2)==1&&new CompanyTrainingJournal().Records
 j.Plan=[new(){Employee=1}];j.PlanDay=now.ToString("yyyy-MM-dd");
 try{CompanyTraining.Choose(j,team,"rotation",4,now,new Random());throw new Exception("Saved daily group silently rerolled.");}catch(InvalidOperationException){}
 Console.WriteLine("COMPANY TRAINING PASSED: nine-day fair rotation, distinct daily groups, current-job growth recommendations, missing stats, receipt recipient parsing, deduplication, UTC rollover, restart and saved-plan guard.");
+
+var mixed=new CompanyTeamScan{CompanyId=17,EmployeesLoaded=true,Jobs=team.Jobs,Employees=team.Employees.Take(3).Concat(team.Employees.Skip(3).Select(x=>new CompanyEmployeeScan{Id=x.Id,Name=x.Name,Position=x.Position,PositionId=x.PositionId})).ToList()};
+var four=CompanyTraining.Choose(new(),mixed,"efficient",4,now,new Random(9));
+Check(four.Count==4&&four.Take(3).All(x=>x.Employee<=3)&&four[3].Reason.StartsWith("No reliable current-job"),"Three scored staff silently reduced a four-person request.");
+var partial=CompanyTraining.Choose(new(),mixed,"efficient",20,now,new Random(9));
+Check(partial.Count==9&&CompanyTraining.Summary(new(){Plan=partial},20,9,false).Contains("Saved 9 of 20"),"Genuine roster shortage was not explicit.");
+var topup=new CompanyTrainingJournal{PlanDay=now.ToString("yyyy-MM-dd"),PlanCreatedUtc=now,Plan=four.Take(3).ToList(),Requested=4};
+foreach(var selected in topup.Plan)topup.Records.Add(new(){Id="confirmed-"+selected.Employee,Employee=selected.Employee,Name=selected.Name,At=now.AddMinutes(1)});
+Check(topup.Plan.All(x=>CompanyTraining.Done(topup,x))&&CompanyTraining.FreeChoices(topup,1,now.AddMinutes(2))==1,"Three confirmed plus one available did not leave one free choice.");
+var extra=CompanyTraining.Choose(topup,mixed,"efficient",1,now.AddMinutes(2),new Random(5),true);
+Check(extra.Count==1&&topup.Plan.All(x=>x.Employee!=extra[0].Employee),"Topup duplicated a trained/saved employee.");
+topup.Plan.AddRange(extra);
+Check(topup.Plan.Count(x=>CompanyTraining.Done(topup,x))==3&&!CompanyTraining.Done(topup,extra[0]),"Topup reset old receipt progress or counted an unperformed train.");
+Check(CompanyTraining.FreeChoices(topup,1,now.AddMinutes(2))==0,"Pending choice did not reserve remaining train capacity.");
+var restartPlan=JsonSerializer.Deserialize<CompanyTrainingJournal>(JsonSerializer.Serialize(topup))!;
+Check(restartPlan.Plan.Count==4&&restartPlan.Plan.Count(x=>CompanyTraining.Done(restartPlan,x))==3,"Restart lost mixed old/new group progress.");
+Check(CompanyTraining.FreeChoices(topup,4,now.AddDays(1))==4,"Yesterday's pending group reserved today's trains.");
+Console.WriteLine("TRAINING COUNT / TOPUP PASSED: request four with three scored, honest fallback, genuine shortages, 3 confirmed + 1 remaining, preserved per-choice receipts, no duplicate assignment, budget and restart.");
