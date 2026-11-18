@@ -8,6 +8,19 @@ Check(SlotsData.Limit(1000,100,32,true)==32,"All-tokens captured incorrectly");
 Check(SlotsData.Limit(1000,100,12000,true)==10000,"All-tokens upper bound");
 Reject(()=>SlotsData.Limit(2500,100,100,false),"Unknown denomination accepted");
 Reject(()=>SlotsData.Limit(1000,0,100,false),"Zero count accepted");
+using(var command=JsonDocument.Parse("""{"bet":10000,"count":100,"stopLoss":0,"target":0,"all":true}""")){
+ Check(SlotsData.MoneyField(command.RootElement,"stopLoss")==0&&SlotsData.MoneyField(command.RootElement,"target")==0&&SlotsData.CountField(command.RootElement)==100,"Screenshot zero limits/all-tokens command");
+}
+foreach(var invalid in new[]{"null","\"bad\"","true","[]","{}","-1","0.001","1000000000001"}){
+ using var command=JsonDocument.Parse("{\"stopLoss\":"+invalid+"}");
+ Reject(()=>SlotsData.MoneyField(command.RootElement,"stopLoss"),"Invalid/null money escaped command validation");
+}
+foreach(var invalid in new[]{"null","\"100\"","false","0","1.5","10001"}){
+ using var command=JsonDocument.Parse("{\"count\":"+invalid+"}");
+ Reject(()=>SlotsData.CountField(command.RootElement),"Invalid/null count escaped validation");
+}
+Reject(()=>SlotsData.Account("""{"profile":{"id":123},"casino":{"tokens":null},"money":{"wallet":100000}}"""),"Null tokens leaked numeric exception");
+Reject(()=>SlotsData.Account("""{"profile":{"id":123},"casino":{"tokens":100},"money":{"wallet":null}}"""),"Null wallet leaked numeric exception");
 var account=SlotsData.Account("""{"profile":{"id":123},"casino":{"tokens":100},"money":{"wallet":100000}}""");
 Check(account.Owner==123&&account.Tokens==100&&account.Wallet==100000,"Combined API snapshot");
 var stamp=DateTimeOffset.UtcNow.ToUnixTimeSeconds();var at=DateTimeOffset.FromUnixTimeSeconds(stamp).UtcDateTime;

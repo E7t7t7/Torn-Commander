@@ -28,9 +28,13 @@ public sealed partial class MainForm {
     if(string.IsNullOrWhiteSpace(key))throw new InvalidDataException("Save this account's Torn API key in Settings. Slots batches need access to personal logs (Full access).");
     if(action=="slotsStart"){
      if(active!=null)throw new InvalidDataException("Finish or stop the existing casino session first.");
-     decimal Number(string field){if(!request.TryGetProperty(field,out var x)||!x.TryGetDecimal(out var n))throw new InvalidDataException("Enter "+field+".");CasinoTracking.Money(n);return n;}
-     var bet=Number("bet");var loss=Number("stopLoss");var target=Number("target");
-     int count=request.GetProperty("count").GetInt32();bool all=request.TryGetProperty("all",out var a)&&a.GetBoolean();
+     var bet=SlotsData.MoneyField(request,"bet");var loss=SlotsData.MoneyField(request,"stopLoss");var target=SlotsData.MoneyField(request,"target");
+     int count=SlotsData.CountField(request);
+     bool all=false;if(request.TryGetProperty("all",out var a)){
+      if(a.ValueKind is not (JsonValueKind.True or JsonValueKind.False))throw new InvalidDataException("Choose whether to use all starting tokens. No bet placed.");
+      all=a.GetBoolean();
+     }
+     SlotsData.Limit(bet,count,0,all); // Validate the command before making API requests.
      var account=SlotsData.Account(await _api.FetchEndpointAsync("user?selections=profile,casino,money",key,fresh:true));
      // Permission/schema preflight must succeed before creating a runnable batch or clicking a bet.
      var baseline=SlotsData.Baseline(await _api.FetchEndpointAsync("user/log?log=8300,8301&limit=100",key,fresh:true));

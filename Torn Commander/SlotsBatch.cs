@@ -42,10 +42,28 @@ internal static class SlotsData {
   if(!Bets.Contains(bet)||requested is <1 or >10000||available<0)throw new InvalidDataException("Choose a listed denomination and 1–10,000 spins.");
   return Math.Min(available,all?10000:requested);
  }
+ public static decimal MoneyField(JsonElement request,string field){
+  if(request.ValueKind!=JsonValueKind.Object||!request.TryGetProperty(field,out var value)||value.ValueKind!=JsonValueKind.Number||
+   !value.TryGetDecimal(out var amount)||amount<0||amount>1000000000000m||decimal.Round(amount,2)!=amount)
+   throw new InvalidDataException("Enter a valid "+field+" amount (0 turns off an optional money limit). No bet placed.");
+  return amount;
+ }
+ public static int CountField(JsonElement request){
+  if(request.ValueKind!=JsonValueKind.Object||!request.TryGetProperty("count",out var value)||value.ValueKind!=JsonValueKind.Number||
+   !value.TryGetInt32(out var count)||count is <1 or >10000)
+   throw new InvalidDataException("Choose 1–10,000 spins. No bet placed.");
+  return count;
+ }
  public static SlotsAccount Account(string json){
   using var d=JsonDocument.Parse(json);var r=d.RootElement;
-  int owner=r.GetProperty("profile").GetProperty("id").GetInt32(),tokens=r.GetProperty("casino").GetProperty("tokens").GetInt32();
-  decimal wallet=r.GetProperty("money").GetProperty("wallet").GetDecimal();
+  JsonElement Field(string section,string name){
+   if(r.ValueKind!=JsonValueKind.Object||!r.TryGetProperty(section,out var part)||part.ValueKind!=JsonValueKind.Object||
+    !part.TryGetProperty(name,out var value)||value.ValueKind!=JsonValueKind.Number)
+    throw new InvalidDataException("Torn did not supply "+section+"."+name+". Check this profile's API permissions and refresh before starting Slots. No bet placed.");
+   return value;
+  }
+  if(!Field("profile","id").TryGetInt32(out var owner)||!Field("casino","tokens").TryGetInt32(out var tokens)||
+   !Field("money","wallet").TryGetDecimal(out var wallet))throw new InvalidDataException("Torn returned an unreadable casino snapshot. No bet placed.");
   if(owner<=0||tokens<0||wallet<0||wallet>1000000000000000m)throw new InvalidDataException("Torn returned an invalid casino account snapshot.");
   return new(owner,tokens,wallet);
  }

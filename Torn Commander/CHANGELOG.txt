@@ -1,3 +1,11 @@
+v0.6.108 - Repair Slots Start numeric payload (2026-11-18)
+- Fix the Slots Start form using a generic clamped-number helper without its required bounds. This produced NaN for both optional money limits, serialized them as null, and failed before preflight even when the inputs visibly showed 0.
+- Read and validate the Slots money limits directly. Preserve 0 = off, both specified-count and all-starting-tokens modes, selected denomination and valid two-decimal money limits. Invalid inputs produce a visible form message instead of sending a malformed command.
+- Validate command number types, ranges and all-tokens flag before any API request. Reject null, missing and nonnumeric amounts/counts with actionable messages, avoiding raw JsonElement type exceptions.
+- Detect absent/null account/token/wallet response values and explain the missing field rather than throwing an unhelpful Number/Null error.
+- Add a regression that runs the actual Slots Start function alongside the existing global number helper and round-trips the command through JSON. Reproduce $10,000 / all tokens / zero limits from the screenshot; check specified limits, malformed input and backend null handling.
+- Recheck the 100-spin runner, existing casino ledger, native controls, browser dashboard and Release build. No live spins or tokens consumed.
+
 v0.6.107 - Fixed-denomination Slots batches (2026-11-18)
 - Add Casino > Slots: choose a denomination and number of spins (default $1,000 and 100), then Start once. Optionally capture all currently available tokens, capped at 10,000; never include future token refills.
 - Fixed stake for the whole batch, optional settled-result loss/profit limits, and explicit Pause, Resume and Stop. A final spin can pass a money limit. No token purchases, bank withdrawals, progressive stakes, animation changes, CAPTCHA bypass or outcome prediction.

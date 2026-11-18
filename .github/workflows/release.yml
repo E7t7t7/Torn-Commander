@@ -115,6 +115,8 @@ jobs:
         run: |
           & 'Torn Commander/TEST_SLOTS_BATCH.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Slots batch tests failed; release withheld.' }
+          node 'Torn Commander/TEST_SLOTS_COMMAND.js' 'Torn Commander/MainForm.ModernDashboard.cs'
+          if ($LASTEXITCODE -ne 0) { throw 'Slots command payload failed; release withheld.' }
           node 'Torn Commander/TEST_SLOTS_DOM.js' 'Torn Commander/BundledScripts/Torn_Slots_Batch.js'
           if ($LASTEXITCODE -ne 0) { throw 'Slots native controls failed; release withheld.' }
       - name: Check gear budget optimizer and listing schemas
