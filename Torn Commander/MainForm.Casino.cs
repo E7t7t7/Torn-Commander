@@ -7,13 +7,14 @@ public sealed partial class MainForm {
   var rows=_casino.Where(s=>s.ProfileId==CurrentProfileId).OrderByDescending(s=>s.Date).ToList();
   return new{profileId=CurrentProfileId,note=_casinoNote,sessions=rows.Count(x=>!x.Active),net=rows.Where(x=>!x.Active).Sum(x=>x.ProfitLoss),
    active=rows.Where(x=>x.Active).Select(CasinoTracking.View).ToList(),history=rows.Where(x=>!x.Active).Take(100).Select(CasinoTracking.View).ToList(),
-   legacy=_casino.Count(x=>string.IsNullOrWhiteSpace(x.ProfileId))};
+   slotsBusy=_slotsBusy,legacy=_casino.Count(x=>string.IsNullOrWhiteSpace(x.ProfileId))};
  }
  private async Task HandleCasino(string action,JsonElement r){
   string profile=ReadWorkerString(r,"profileId");if(profile!=CurrentProfileId)throw new InvalidOperationException("Selected account changed. Review its Casino tab.");
   try{
    if(action=="casinoOpen"){await AddBrowserTabAsync(ReadWorkerString(r,"game")=="Blackjack"?"https://www.torn.com/page.php?sid=blackjack":TornRoutes.Casino);return;}
    if(action=="casinoRead"){await ReadCasinoHand(profile);return;}
+   if(_slotsBusy)throw new InvalidOperationException("A Slots operation is settling. Pause or stop the batch before editing casino records.");
    var next=JsonSerializer.Deserialize<List<CasinoSession>>(JsonSerializer.Serialize(_casino))!;
    string id=ReadWorkerString(r,"id");
    decimal N(string name){if(!r.TryGetProperty(name,out var v)||!v.TryGetDecimal(out var number))throw new InvalidDataException("Enter "+name+".");CasinoTracking.Money(number);return number;}

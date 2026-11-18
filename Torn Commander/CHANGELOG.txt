@@ -1,3 +1,14 @@
+v0.6.107 - Fixed-denomination Slots batches (2026-11-18)
+- Add Casino > Slots: choose a denomination and number of spins (default $1,000 and 100), then Start once. Optionally capture all currently available tokens, capped at 10,000; never include future token refills.
+- Fixed stake for the whole batch, optional settled-result loss/profit limits, and explicit Pause, Resume and Stop. A final spin can pass a money limit. No token purchases, bank withdrawals, progressive stakes, animation changes, CAPTCHA bypass or outcome prediction.
+- Verify owning API/browser account, available tokens, wallet and native denomination control before a click. Persist a unique pending operation before dispatch; the browser remembers operation tokens and never duplicates the same click.
+- Match official 8300/8301 slot receipts using unique IDs, timestamps, bet_amount and winning won_amount. Reconcile any pending receipt before another spin, including after Stop, profile changes or restart. Ambiguous, stale, unsupported, missing and mismatched results pause instead of guessing.
+- Store stake, winnings and net separately from wallet movements in the existing profile-isolated casino ledger. Preserve manual sessions/history; prevent manual bankroll edits from overwriting receipt totals.
+- Show confirmed count, denomination, token snapshot, totals, pending verification and finished results. Keep forms responsive at 390–1,100px fixture widths; clear draft state on account switches.
+- Require personal-log API permission (Full key); preflight fails before betting if access or account verification is unavailable. Shared API pacing/backoff remains in force. Keep Slots open while running; closing/minimizing or switching profiles/tabs may pause the next bet.
+- Tests: simulated 100-spin runner, native-control duplicate suppression, exact payouts, depleted tokens/funds, money limits, pause/stop settling, restart, account isolation, stale/duplicate/ambiguous receipts, wrong denomination, uncertain dispatch and failed durable save; existing casino/progression and Release checks. Edge DOM/dashboard fixtures test native clicks and responsive controls.
+- Live read-only verification confirmed official log types and combined profile/casino/money response. No live spins or token consumption performed. Slot receipt payloads are fixture-tested against published primary-service examples; exact current live DOM/payout matching remains unverified until user use. Unsupported formats pause with a useful message.
+
 v0.6.106 - Fill training groups and add remaining people (2026-11-17)
 - Fix recommended-growth mode silently reducing a requested group when some employees lack scorable stats or role requirements. Rank known growth first, then fill remaining places through fair rotation with an explicit no-estimate explanation.
 - Report genuine shortages as saved N of requested M instead of suggesting a complete group. Keep one distinct, untrained person per choice.

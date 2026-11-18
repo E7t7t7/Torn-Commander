@@ -1,0 +1,73 @@
+using TornCommander;
+using System.Text.Json;
+void Check(bool value,string why){if(!value)throw new Exception(why);}
+void Reject(Action action,string why){try{action();}catch(InvalidDataException){return;}throw new Exception(why);}
+SlotsBatch Batch(int count=100)=>new(){Owner=123,Profile="main",Bet=1000,Limit=count,Requested=count,StartTokens=100,LastTokens=100,StartedUtc=DateTime.UtcNow};
+Check(SlotsData.Limit(1000,100,75,false)==75,"Token cap missed");
+Check(SlotsData.Limit(1000,100,32,true)==32,"All-tokens captured incorrectly");
+Check(SlotsData.Limit(1000,100,12000,true)==10000,"All-tokens upper bound");
+Reject(()=>SlotsData.Limit(2500,100,100,false),"Unknown denomination accepted");
+Reject(()=>SlotsData.Limit(1000,0,100,false),"Zero count accepted");
+var account=SlotsData.Account("""{"profile":{"id":123},"casino":{"tokens":100},"money":{"wallet":100000}}""");
+Check(account.Owner==123&&account.Tokens==100&&account.Wallet==100000,"Combined API snapshot");
+var stamp=DateTimeOffset.UtcNow.ToUnixTimeSeconds();var at=DateTimeOffset.FromUnixTimeSeconds(stamp).UtcDateTime;
+string Logs(string data,string title="Casino slots win",int type=8300)=>JsonSerializer.Serialize(new{log=new[]{new{id="receipt",timestamp=stamp,details=new{id=type,title},data=JsonSerializer.Deserialize<JsonElement>(data)}}});
+var win=SlotsData.ReadReceipts(Logs("""{"bet_amount":1000,"won_amount":6000,"combination":29}"""),at).Single();
+Check(win.Won-win.Bet==5000,"Payout included stake incorrectly");
+Check(SlotsData.ReadReceipts(Logs("""{"bet_amount":1000,"barrel_positions":[4,1,2]}""","Casino slots lose",8301),at).Single().Won==0,"Loss receipt");
+Check(SlotsData.ReadReceipts(Logs("""{"bet_amount":1000,"won_amount":6000}"""),at.AddSeconds(1)).Count==0,"Old receipt counted");
+Reject(()=>SlotsData.ReadReceipts(Logs("""{"bet_amount":1000}"""),at),"Unknown win payout guessed");
+Reject(()=>SlotsData.ReadReceipts(Logs("""{"bet_amount":1000,"won_amount":6000}""","Casino slots win",8301),at),"Mismatched type accepted");
+var b=Batch();var f=new Fake(b);await SlotsRunner.Run(b,f.Runtime());
+Check(f.Clicks==100&&b.Receipts.Count==100&&b.Staked==100000&&b.Won==250000&&b.Net==150000&&b.Status=="Complete","100-spin batch / receipt totals / overrun");
+Check(b.Pending==null&&b.EndedUtc!=null,"Batch not completed");
+b=Batch(4);f=new(b){Tokens=2};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==2&&b.Receipts.Count==2,"Token exhaustion refilled or continued");
+b=Batch(4);f=new(b){Wallet=999};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==0&&b.Status=="Complete","Insufficient wallet bet");
+b=Batch(4);f=new(b){Owner=456};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==0&&b.Status=="Paused","Wrong API owner");
+b=Batch(4);f=new(b){BoardOwner=456};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==0,"Wrong browser owner");
+b=Batch(4);f=new(b){Payout=0};b.StopLoss=2000;await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==2&&b.Net==-2000,"Stop loss");
+b=Batch(4);f=new(b){Payout=5000};b.ProfitTarget=3000;await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Net==4000,"Profit target");
+b=Batch(4);f=new(b){AfterClick=()=>b.PauseRequested=true};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Receipts.Count==1&&b.Pending==null&&b.Status=="Paused","Pause failed to settle");
+b=Batch(4);f=new(b){AfterClick=()=>b.StopRequested=true};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Receipts.Count==1&&b.Status=="Stopped"&&b.EndedUtc!=null,"Stop failed to settle");
+b=Batch(4);f=new(b){SuppressReceipt=true};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Pending!=null&&b.Status=="Needs review","Missing receipt retried");
+var restored=JsonSerializer.Deserialize<SlotsBatch>(JsonSerializer.Serialize(b))!;Check(restored.Pending?.Token==b.Pending!.Token,"Restart lost dispatch token");
+restored.PauseRequested=true;var recovered=new Fake(restored){PendingReceipt=new("recovered",restored.Pending!.StartedUtc,1000,0)};
+await SlotsRunner.Run(restored,recovered.Runtime());Check(recovered.Clicks==0&&restored.Receipts.Count==1&&restored.Pending==null,"Resume repeated pending spin");
+b=Batch(4);f=new(b){Ambiguous=true};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Pending!=null&&b.Status=="Needs review","Ambiguous results counted");
+b=Batch(4);f=new(b){ReceiptBet=100};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Receipts.Count==0,"Wrong stake counted");
+b=Batch(4);f=new(b){Current=false};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==0&&b.Status=="Paused","Inactive profile clicked");
+b=Batch(4);f=new(b){AfterClick=()=>f!.Current=false};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Receipts.Count==1,"Profile switch lost receipt or clicked again");
+b=Batch(4);f=new(b){DispatchFalse=true};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==0&&b.Pending==null,"Explicit no-click left phantom bet");
+b=Batch(4);f=new(b){ThrowAfterClick=true};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==1&&b.Pending!=null&&b.Status=="Needs review","Uncertain dispatch retried");
+b=Batch(4);f=new(b){FailSave=true};await SlotsRunner.Run(b,f.Runtime());Check(f.Clicks==0,"Bet occurred without durable journal");
+b=Batch(4);b.KnownIds.Add("old");b.Pending=new(){Token="t",StartedUtc=at};
+Check(SlotsData.Find(b,new[]{new SlotReceipt("old",at,1000,0)})==null,"Old result reused");
+Check(SlotsData.Find(b,new[]{win,win})==win,"Duplicate receipt counted twice");
+var other=Batch(1);other.Profile="wife";other.Owner=456;var otherFake=new Fake(other){Owner=456,BoardOwner=456};
+await SlotsRunner.Run(other,otherFake.Runtime());Check(b.Receipts.Count==0&&other.Receipts.Count==1,"Profiles mixed");
+Console.WriteLine("SLOTS BATCH PASSED: 100 fixed-stake spins, exact payouts, token/fund caps, stop limits, paused/stopped pending reconciliation, restart, duplicate/ambiguous/stale receipts, wrong account/stake, uncertain dispatch and durable-before-click.");
+
+sealed class Fake{
+ public Fake(SlotsBatch _){}
+ public int Clicks,Tokens=100,Owner=123,BoardOwner=123;
+ public decimal Wallet=1000000,Payout=-1,ReceiptBet=1000;
+ public bool Current=true,SuppressReceipt,Ambiguous,DispatchFalse,ThrowAfterClick,FailSave;
+ public Action? AfterClick;public SlotReceipt? PendingReceipt;
+ DateTime now=DateTime.UtcNow;
+ public SlotsRuntime Runtime()=>new(){
+  Current=()=>Current,Now=()=>now,
+  Delay=ms=>{now=now.AddMilliseconds(ms);return Task.CompletedTask;},
+  Account=()=>Task.FromResult(new SlotsAccount(Owner,Tokens,Wallet)),
+  Board=()=>Task.FromResult(new SlotsBoard{Ok=true,Ready=true,Owner=BoardOwner,Tokens=Tokens}),
+  Dispatch=p=>{
+   if(DispatchFalse)return Task.FromResult(new SlotsDispatch{Dispatched=false,Note="No click"});
+   Clicks++;Tokens--;var payout=Payout<0?(Clicks%2==0?5000:0):Payout;Wallet+=payout-1000;
+   PendingReceipt=new("spin-"+Clicks,p.StartedUtc,ReceiptBet,payout);AfterClick?.Invoke();
+   if(ThrowAfterClick)throw new IOException("Uncertain");
+   return Task.FromResult(new SlotsDispatch{Dispatched=true});
+  },
+  Receipts=()=>Task.FromResult(SuppressReceipt||PendingReceipt==null?new List<SlotReceipt>():Ambiguous?new(){PendingReceipt,PendingReceipt with{Id="other"}}:new List<SlotReceipt>{PendingReceipt}),
+  Acknowledge=_=>Task.CompletedTask,
+  Save=()=>{if(FailSave)throw new IOException("Disk failure");}
+ };
+}

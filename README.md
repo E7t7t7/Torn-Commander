@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.106. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.107. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -212,3 +212,6 @@ v0.6.105: Loss X-change Claim in Commander now opens an account/count chooser di
 
 
 v0.6.106: Company recommended-growth training fills unscored places by explicitly labeled fair rotation instead of silently returning fewer people. Existing daily groups can add remaining unassigned trains without clearing confirmed recipients. The screen separates requested/saved people, confirmed receipts, pending choices and unassigned capacity; per-choice timestamps preserve progress during topups. Choosing people remains advisory; native Torn training clicks and imported receipts confirm actual use.
+
+
+v0.6.107: Casino → Slots now runs a fixed-denomination batch after one Start. Choose $10–$10 million per spin, a count (default 100), or the tokens available at Start. Pause, Resume and Stop preserve any pending bet; each next spin waits for its official slot receipt. Results show confirmed spins, staked, winnings and net in the existing account-isolated casino ledger. Requires the profile's Full-access Torn API key and the owning Slots page open. No refill, withdrawal, stake escalation, outcome manipulation or unverified automatic retry. See [Slots batch usage and verification](Torn%20Commander/SLOTS_BATCH.md). Local tests use simulated games; no live tokens were spent.

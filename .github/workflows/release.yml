@@ -110,6 +110,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Casino sessions failed; release withheld.' }
           node 'Torn Commander/TEST_CASINO_READ.js' 'Torn Commander/BundledScripts/Torn_Casino_Read.js'
           if ($LASTEXITCODE -ne 0) { throw 'Casino reader failed; release withheld.' }
+      - name: Check fixed-stake Slots batches and native controls
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_SLOTS_BATCH.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Slots batch tests failed; release withheld.' }
+          node 'Torn Commander/TEST_SLOTS_DOM.js' 'Torn Commander/BundledScripts/Torn_Slots_Batch.js'
+          if ($LASTEXITCODE -ne 0) { throw 'Slots native controls failed; release withheld.' }
       - name: Check gear budget optimizer and listing schemas
         shell: pwsh
         run: |

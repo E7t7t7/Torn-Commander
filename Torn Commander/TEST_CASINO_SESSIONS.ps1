@@ -2,6 +2,7 @@ $ErrorActionPreference='Stop'
 $project=Join-Path $env:RUNNER_TEMP ('CommanderCasino'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $project -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'CasinoTracking.cs') -Destination $project
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'SlotsBatch.cs') -Destination $project
 $models=Get-Content (Join-Path $PSScriptRoot 'Models.cs') -Raw
 $casino=[regex]::Match($models,'(?s)public sealed class CasinoReading.*?(?=public sealed class RacingNote)').Value
 if(!$casino){throw 'Casino models missing.'}

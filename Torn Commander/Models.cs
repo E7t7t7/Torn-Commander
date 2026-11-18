@@ -127,7 +127,8 @@ public sealed class CasinoSession
     public decimal StartBankroll { get; set; }
     public decimal EndBankroll { get; set; }
     public string Notes { get; set; } = "";
-    public decimal ProfitLoss => EndBankroll + Withdrawals - StartBankroll - Deposits;
+    public SlotsBatch? Slots {get;set;}
+    public decimal ProfitLoss => Slots?.Net ?? (EndBankroll + Withdrawals - StartBankroll - Deposits);
 }
 
 public sealed class RacingNote

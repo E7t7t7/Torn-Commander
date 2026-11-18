@@ -80,6 +80,7 @@ public sealed partial class MainForm
                 case "levelScoutKey": case "levelScoutSave": case "levelScoutSearch": case "levelScoutScan": case "levelLoadBaldr": case "levelSave": case "levelSources": case "levelMedical": case "levelReadInventory": case "levelSkip": case "levelRound": case "levelResult": case "levelCheck": case "levelOpen":
                     await HandleLevelingAsync(cmd,root); break;
                 case "gearScan": case "gearCancel": case "gearOpen": await HandleGear(cmd,root); break;
+                case "slotsOpen": case "slotsStart": case "slotsPause": case "slotsResume": case "slotsStop": await HandleSlots(cmd,root); break;
                 case "casinoOpen": case "casinoRead": case "casinoStart": case "casinoUpdate": case "casinoEnd": case "casinoAdopt": case "casinoDelete": await HandleCasino(cmd,root); break;
                 case "financeSync": case "financeSettings": case "financeEntry": case "financeDelete": case "financeExport": await HandleFinance(cmd,root); break;
                 case "progressionGoals": SaveProgressionGoals(root); break;
@@ -360,7 +361,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.106",
+                    version = "0.6.107",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -673,13 +674,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="city"><i>⌖</i>City Scanner</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.106</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.107</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.106</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.107</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -857,14 +858,31 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <div class="card" style="margin-top:12px"><div class="section">Listings from the completed scan</div><div class="sub">Filter the most recent 200 affordable results. Missing stats or bonus information are marked for review. Opening a result takes you to the item or seller page; match its UID and confirm the current price there.</div>
  <label style="margin-top:10px">Find an item<input id="gearFilter" placeholder="Search name or slot" oninput="renderGearOffers()"></label><div id="gearOffers"></div></div>
  </section>
- <section class="page" id="casino"><div class="top"><div><div class="eyebrow">Manual play · clear session limits</div><div class="bigtitle">Casino desk</div><div class="sub">Set your budget, track settled results and keep each account separate.</div></div></div>
+ <section class="page" id="casino"><div class="top"><div><div class="eyebrow">Fixed-stake Slots batches · hand advisers</div><div class="bigtitle">Casino desk</div><div class="sub">Run a Slots batch, track results and keep each account separate.</div></div></div>
  <div class="actions"><button class="btn primary" onclick="casinoAction('casinoOpen',{game:'Blackjack'})">Open Blackjack</button><button class="btn" onclick="casinoAction('casinoOpen',{game:'Poker'})">Open casino / Poker</button></div>
  <div class="notice info" id="casinoSessionNote" role="status"></div>
+ <div class="card" style="margin:14px 0"><div class="section">Slots · choose once, run the batch</div>
+ <div class="sub">One Start runs the selected number of spins at a fixed stake. Leave Commander running with Slots open. No token refills, withdrawals or stake increases. A Full-access Torn API key is needed to verify results.</div>
+ <div id="slotsSetup"><div class="formgrid">
+ <label>Denomination per spin<select id="slotsBet" onchange="slotsPreview()"><option value="10">$10</option><option value="100">$100</option><option value="1000" selected>$1,000</option><option value="10000">$10,000</option><option value="100000">$100,000</option><option value="1000000">$1,000,000</option><option value="10000000">$10,000,000</option></select></label>
+ <label>Number of spins<input id="slotsCount" type="number" min="1" max="10000" step="1" value="100" oninput="slotsPreview()"></label>
+ <label class="toggle"><input id="slotsAll" type="checkbox" onchange="slotsPreview()">Use all tokens available at Start</label></div>
+ <div id="slotsPreview" class="sub"></div>
+ <details><summary>Optional money limits</summary><div class="formgrid">
+ <label>Stop after losing ($; 0 = off)<input id="slotsLoss" type="number" min="0" step="1" value="0"></label>
+ <label>Stop after profiting ($; 0 = off)<input id="slotsTarget" type="number" min="0" step="1" value="0"></label></div>
+ <div class="sub">Checked after each settled spin. A final spin can pass the chosen limit.</div></details>
+ <div class="actions"><button class="btn" onclick="casinoAction('slotsOpen')">Open Slots</button><button class="btn primary" id="slotsStart" onclick="slotsStart()">Start batch</button></div></div>
+ <div id="slotsSession" hidden><div id="slotsState" class="notice info" role="status"></div>
+ <div class="grid"><div class="card span6"><div class="eyebrow">Confirmed spins</div><div class="metric s" id="slotsProgress"></div></div><div class="card span6"><div class="eyebrow">Net result</div><div class="metric s" id="slotsNet"></div></div></div>
+ <div id="slotsTotals" class="sub"></div>
+ <div class="actions"><button class="btn" id="slotsPause" onclick="casinoAction('slotsPause')">Pause</button><button class="btn primary" id="slotsResume" onclick="casinoAction('slotsResume')">Resume / check pending result</button><button class="btn" id="slotsStop" onclick="casinoAction('slotsStop')">Stop batch</button><button class="btn" onclick="casinoAction('slotsOpen')">Open Slots</button></div></div>
+ <div class="sub">Use this account on one device while a batch runs. Manual or phone spins make result matching ambiguous and pause the batch. Closing Commander pauses new bets; an uncertain spin is checked before Resume can place another.</div></div>
  <div class="grid"><div class="card span6"><div class="eyebrow">Finished sessions · this account</div><div class="metric" id="casinoSessions">0</div></div><div class="card span6"><div class="eyebrow">Recorded net P/L · finished sessions</div><div class="metric s money" id="casinoNet">—</div></div></div>
  <div class="card" style="margin-top:14px"><div class="section">Session limits &amp; results</div>
- <div class="sub">Use money at the table, not your whole wallet. Update only after a hand settles. Alerts depend on your recorded updates; Commander does not place bets, stop the game, or cash you out.</div>
+ <div class="sub">For manually played games, use money at the table rather than your whole wallet. Update after a hand settles. These manual session limits only alert; the Slots batch above has its own automatic stop controls.</div>
  <div class="formgrid adviser-fields" id="casinoStartFields">
- <label>Game<select id="casinoGame"><option>Blackjack</option><option>Poker</option><option>High-Low</option><option>Other</option></select></label>
+ <label>Game<select id="casinoGame"><option>Blackjack</option><option>Poker</option><option>High-Low</option><option>Slots</option><option>Other</option></select></label>
  <label>Starting table bankroll ($)<input id="casinoStartBank" type="number" min="0.01" step="0.01"></label>
  <label>Stop after losing ($; 0 = off)<input id="casinoStopLoss" type="number" min="0" step="0.01" value="1000000"></label>
  <label>Stop after profiting ($; 0 = off)<input id="casinoTarget" type="number" min="0" step="0.01" value="1000000"></label>
@@ -1668,13 +1686,40 @@ function casinoUpdate(finish){
  const num=id=>{const value=$(id).value;if(value==='')throw Error('Enter current bankroll and total additions/cash-outs.');const n=Number(value);if(!Number.isFinite(n)||n<0||n>1e12)throw Error('Invalid session amount.');return n;};
  try{casinoAction(finish?'casinoEnd':'casinoUpdate',{id:active.id,bankroll:num('casinoCurrent'),deposits:num('casinoDeposits'),withdrawals:num('casinoWithdrawals'),note:$('casinoSessionMemo').value});}catch(e){$('casinoSessionNote').textContent=e.message;}
 }
+function slotsPreview(){
+ const bet=Number($('slotsBet').value),count=Number($('slotsCount').value),all=$('slotsAll').checked;
+ $('slotsCount').disabled=all;
+ $('slotsPreview').textContent=all?'Uses the starting token balance (up to 10,000), at '+casinoMoney(bet)+' per spin.':count+' spins × '+casinoMoney(bet)+' = '+casinoMoney(bet*count)+' total stake before winnings. Capped at tokens available at Start.';
+}
+function slotsStart(){
+ try{
+  const count=Number($('slotsCount').value);
+  if(!Number.isSafeInteger(count)||count<1||count>10000)throw Error('Choose 1–10,000 spins.');
+  casinoAction('slotsStart',{bet:Number($('slotsBet').value),count,all:$('slotsAll').checked,stopLoss:num('slotsLoss'),target:num('slotsTarget')});
+  $('casinoSessionNote').textContent='Checking tokens, account and receipt access. No spin until preflight succeeds.';
+ }catch(e){$('casinoSessionNote').textContent=e.message;}
+}
+function renderSlots(d){
+ const active=d.active?.[0],a=active?.automatedSlots?active:null,b=a?.slots;
+ $('slotsSetup').hidden=!!active;$('slotsSession').hidden=!b;
+ $('slotsStart').disabled=!!d.slotsBusy;
+ if(b){
+  $('slotsState').textContent=(d.slotsBusy?b.status:(b.pending?'Needs result check':'Paused'))+' · '+b.note;
+  $('slotsProgress').textContent=b.completed+' / '+b.limit;
+  $('slotsNet').textContent=casinoMoney(b.net);
+  $('slotsTotals').textContent='Stake '+casinoMoney(b.bet)+' each · Total staked '+casinoMoney(b.staked)+' · Winnings '+casinoMoney(b.won)+' · Last token balance '+b.lastTokens+(b.pending?' · One attempted spin awaits verification.':'');
+  $('slotsPause').disabled=!d.slotsBusy;$('slotsResume').disabled=!!d.slotsBusy;$('slotsStop').disabled=false;
+ }
+ slotsPreview();
+}
 function renderCasino(d){
  if(!d)return;
  const switched=renderCasino.profile!==d.profileId;renderCasino.profile=d.profileId;
- if(switched){casinoStartReceipt='';casinoSessionIdentity='';for(const id of ['casinoStartBank','casinoCurrent','casinoSessionMemo'])$(id).value='';$('casinoDeposits').value=0;$('casinoWithdrawals').value=0;$('casinoStopLoss').value=1000000;$('casinoTarget').value=1000000;}
+ if(switched){$('slotsBet').value='1000';$('slotsCount').value='100';$('slotsAll').checked=false;$('slotsLoss').value='0';$('slotsTarget').value='0';casinoStartReceipt='';casinoSessionIdentity='';for(const id of ['casinoStartBank','casinoCurrent','casinoSessionMemo'])$(id).value='';$('casinoDeposits').value=0;$('casinoWithdrawals').value=0;$('casinoStopLoss').value=1000000;$('casinoTarget').value=1000000;}
  $('casinoSessions').textContent=d.sessions||0;$('casinoNet').textContent=casinoMoney(d.net||0);$('casinoSessionNote').textContent=d.note||'Record settled table bankroll after each hand.';
- const a=d.active?.[0];$('casinoStartFields').hidden=!!a;$('casinoActive').hidden=!a;
- if(a){
+ renderSlots(d);
+ const a=d.active?.[0];$('casinoStartFields').hidden=!!a;$('casinoActive').hidden=!a||!!a.automatedSlots;
+ if(a&&!a.automatedSlots){
   if(casinoStartReceipt===a.id)casinoStartReceipt='';
   const key=JSON.stringify([d.profileId,a.id,a.endBankroll,a.deposits,a.withdrawals,a.notes]);
   if(casinoSessionIdentity!==key){casinoSessionIdentity=key;$('casinoCurrent').value=a.endBankroll;$('casinoDeposits').value=a.deposits;$('casinoWithdrawals').value=a.withdrawals;$('casinoSessionMemo').value=a.notes||'';}
@@ -1682,7 +1727,7 @@ function renderCasino(d){
   $('casinoLimitAlert').hidden=!a.limitReached;$('casinoLimitAlert').textContent=(a.limitReached||'')+' — stop playing manually in Torn and finish this session.';
   const chart=JSON.stringify(a.points||[]);if(renderCasino.chart!==chart||switched){renderCasino.chart=chart;$('casinoChart').innerHTML=(a.points||[]).length>1?insightChart(a.points,'at',[{key:'net',label:'Recorded session P/L',color:'#69b9ff'}],true,0.34):'<div class="sub">The chart begins after your next changed bankroll reading.</div>';}
  }else{$('casinoLimitAlert').hidden=true;$('casinoChart').innerHTML='';}
- const key=JSON.stringify([d.profileId,d.history]);if(renderCasino.history!==key){renderCasino.history=key;$('casinoHistory').innerHTML=(d.history||[]).map(x=>'<div class="card" style="margin-top:8px"><b>'+esc(x.game)+'</b> · '+esc(new Date(x.date).toLocaleString())+'<div class="sub">Net '+esc(casinoMoney(x.profitLoss))+' · Start '+esc(casinoMoney(x.startBankroll))+' · End '+esc(casinoMoney(x.endBankroll))+' · '+esc(x.limitReached||'Session ended')+'</div><div class="sub">'+esc(x.notes||'')+'</div><button class="btn small" data-casino-delete="'+esc(x.id)+'">Delete record</button></div>').join('')||'<div class="empty">No finished sessions for this account. Start and finish a tracked session above.</div>';}
+ const key=JSON.stringify([d.profileId,d.history]);if(renderCasino.history!==key){renderCasino.history=key;$('casinoHistory').innerHTML=(d.history||[]).map(x=>'<div class="card" style="margin-top:8px"><b>'+esc(x.game)+'</b> · '+esc(new Date(x.date).toLocaleString())+'<div class="sub">Net '+esc(casinoMoney(x.profitLoss))+ (x.automatedSlots?' · '+x.slots.completed+'/'+x.slots.limit+' confirmed spins · Staked '+esc(casinoMoney(x.slots.staked))+' · Winnings '+esc(casinoMoney(x.slots.won)):' · Start '+esc(casinoMoney(x.startBankroll))+' · End '+esc(casinoMoney(x.endBankroll)))+' · '+esc(x.limitReached||'Session ended')+'</div><div class="sub">'+esc(x.notes||'')+'</div><button class="btn small" data-casino-delete="'+esc(x.id)+'">Delete record</button></div>').join('')||'<div class="empty">No finished sessions for this account. Start and finish a tracked session above.</div>';}
  $('casinoHistory').onclick=e=>{const button=e.target.closest('[data-casino-delete]');if(button)casinoAction('casinoDelete',{id:button.dataset.casinoDelete});};
  $('casinoLegacyNote').textContent=d.legacy?d.legacy+' older records have no account identity. They are excluded from all account totals until explicitly assigned.':'';
  $('casinoAdopt').hidden=!d.legacy;
@@ -1743,7 +1788,7 @@ function renderSection(name,fn){
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('bjDouble').checked=true;$('bjSplit').checked=true;$('bjSurrender').checked=false;$('pkOpponents').value=1;$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.106';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.107';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -1751,7 +1796,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.106 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.107 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 renderSection('Leveling',()=>renderLeveling(d.leveling));renderLossStatus(d);renderSection('Loss orders',()=>{renderLossOrders(d);renderLossXChoice(d);});renderSection('Item intelligence',()=>renderItemIntelligence(d.itemIntelligence,d.profileId));

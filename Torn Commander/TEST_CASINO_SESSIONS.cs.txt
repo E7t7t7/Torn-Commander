@@ -30,3 +30,14 @@ Check(rows.Where(x=>x.ProfileId=="main").Count()==1&&rows.Where(x=>x.ProfileId==
 p.Active=false;
 try{CasinoTracking.Update(p,1,0,0,now);throw new Exception("Closed session changed.");}catch(InvalidOperationException){}
 Console.WriteLine("CASINO SESSIONS PASSED: exact thresholds, latched alerts, top-up/cash-out neutrality, replay, fractional stakes, legacy ownership, profile boundaries, restart and closed-session guard.");
+
+var slots=CasinoTracking.Start("main","slots","Slots",100000,0,0,now);
+slots.Slots=new(){Owner=123,Profile="main",Limit=100,Receipts=new(){new("a",now,1000,5000),new("b",now,1000,0)}};
+slots.EndBankroll=999999;
+Check(slots.ProfitLoss==3000,"Unrelated wallet changes contaminated slot results");
+try{CasinoTracking.Update(slots,1,0,0,now);throw new Exception("Manual update changed automated slot session");}catch(InvalidOperationException){}
+var restoredSlots=JsonSerializer.Deserialize<CasinoSession>(JsonSerializer.Serialize(slots))!;
+Check(restoredSlots.Slots!.Receipts.Count==2&&restoredSlots.ProfitLoss==3000,"Slots lost after saved casino restart");
+var view=JsonSerializer.Serialize(CasinoTracking.View(slots));
+Check(view.Contains("automatedSlots")&&!view.Contains("KnownIds"),"Slots view leaked internal journal");
+Console.WriteLine("SLOTS LEDGER PASSED: existing casino storage, receipt-only P/L, protected manual edits and restart.");

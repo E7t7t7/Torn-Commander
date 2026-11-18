@@ -1,6 +1,6 @@
 namespace TornCommander;
 public static class CasinoTracking {
- public static readonly string[] Games=["Blackjack","Poker","High-Low","Other"];
+ public static readonly string[] Games=["Blackjack","Poker","High-Low","Slots","Other"];
  public static void Money(decimal value){if(value<0||value>1000000000000m||decimal.Round(value,2)!=value)throw new InvalidDataException("Enter a nonnegative amount with at most two decimal places.");}
  public static CasinoSession Start(string profile,string id,string game,decimal bankroll,decimal stopLoss,decimal target,DateTime now){
   foreach(var v in new[]{bankroll,stopLoss,target})Money(v);
@@ -9,6 +9,7 @@ public static class CasinoTracking {
   s.Readings.Add(new(){At=now,Bankroll=bankroll,Net=0});return s;
  }
  public static void Update(CasinoSession s,decimal bankroll,decimal deposited,decimal withdrawn,DateTime now){
+  if(s.Slots!=null)throw new InvalidOperationException("Slot batch totals come from verified receipts; use its Pause / Stop controls.");
   foreach(var v in new[]{bankroll,deposited,withdrawn})Money(v);
   if(!s.Active)throw new InvalidOperationException("This session has ended. Start a new session.");
   // Funding figures are lifetime session totals, not deltas: replaying the same update cannot add money twice.
@@ -23,5 +24,5 @@ public static class CasinoTracking {
    s.Readings.Add(new(){At=now,Bankroll=bankroll,Net=s.ProfitLoss});
   s.Readings=s.Readings.TakeLast(500).ToList();
  }
- public static object View(CasinoSession s)=>new{s.Id,s.Date,s.Game,s.Active,s.StartBankroll,s.EndBankroll,s.Deposits,s.Withdrawals,s.ProfitLoss,s.StopLoss,s.ProfitTarget,s.LimitReached,s.LimitReachedUtc,s.EndedUtc,s.Notes,points=s.Readings};
+ public static object View(CasinoSession s)=>new{s.Id,s.Date,s.Game,s.Active,s.StartBankroll,s.EndBankroll,s.Deposits,s.Withdrawals,s.ProfitLoss,s.StopLoss,s.ProfitTarget,s.LimitReached,s.LimitReachedUtc,s.EndedUtc,s.Notes,automatedSlots=s.Slots!=null,slots=s.Slots is {} b?new{b.Status,b.Note,b.Bet,completed=b.Receipts.Count,b.Limit,b.Staked,b.Won,b.Net,b.LastTokens,pending=b.Pending!=null}:null,points=s.Readings};
 }
