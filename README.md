@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.110. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.111. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -224,3 +224,6 @@ v0.6.109: Slots **Reset batch / change denomination** closes a blocked session w
 
 
 v0.6.110: Fix Slots dispatch using a full native mouse press/release/click sequence. Detect when a click produces no visible token/reel change instead of waiting indefinitely for a nonexistent result. Keep official receipt verification and one-operation duplicate protection. Read-only diagnosis confirmed unchanged tokens/no receipt; no live test bets were placed.
+
+
+v0.6.111: **Honors / Missions → Missions** scans the current agent, accepts supported contracts, reuses the existing fight/medical worker with exact Leave/Mug/Hospitalize outcomes, and checks Torn before claiming. Run one or a budgeted batch of up to five supported contracts. Exact linked one-item deliveries require explicit permission and a verified native Send form; special/ambiguous tasks remain manual. Pending fights and transfers persist per profile and never auto-replay on restart. [Mission desk usage and limitations](Torn%20Commander/MISSIONS.md).

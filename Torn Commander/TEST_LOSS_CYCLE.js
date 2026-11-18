@@ -6,7 +6,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  let energy=options.energy??Infinity;
  let clock=1700000000000,interval,h,scene='home',hospital=Boolean(options.initialHospital),stock=options.lastMedicalItem||options.switchMedicalAfterFirst?1:(options.stock??20),remaining=options.losses??2,expanded=false,fightHits=0,fightJoinAt=0,attackPageAt=0;
  let lossChecks=0;let levelChoiceDone=false,apiWaited=false,depleted=false;let serverRecovered=false;let targetWaits=0;let expandAt=0;let hospitalRace=0,forcedHeal=false;let ownerGlitchAt=0;let activeLease='',medicalToken='',cooldownWaits=0,medicalPlans=0,levelPending=0,medicalPending=0;
- const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[],medicalPlanModes:[]},local=new Map(),session=new Map();
+ const messages=[],replies=[],counts={pillow:0,join:0,medicine:0,wrong:0,leave:0,mug:0,hospital:0,levelCommits:0,scroll:0,expand:0,pillowTimes:[],joinTimes:[],medicalVerifyTimes:[],medicalPlanModes:[]},local=new Map(),session=new Map();
  class Node{
   constructor(tag,text='',attrs={},children=[]){this.tagName=tag.toUpperCase();this.text=text;this.attrs=attrs;this.className=attrs.class||'';this.children=children;for(const c of children)c.parentElement=this;}
   get textContent(){return [this.text,...this.children.map(c=>c.textContent)].join(' ').trim()}
@@ -72,7 +72,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
    const area=node('div','',{class:'playerArea___wkSjF'},[weapon,cont]);
    return node('body','Someone else finished this target.',{},[area]);
   }
-  if(scene==='victory')return node('body',options.noVictoryText?'Choose an outcome':'Seller defeated Target.',{},[button('Leave',()=>{counts.leave++;scene='finished'}),button('Mug',()=>counts.wrong++)]);
+  if(scene==='victory')return node('body',options.noVictoryText?'Choose an outcome':'Seller defeated Target.',{},[button('Leave',()=>{counts.leave++;scene='finished'}),button('Mug',()=>{if(options.mission&&options.finishAction==='mug'){counts.mug++;scene='finished';}else counts.wrong++;}),button('Hospitalize',()=>{if(options.mission&&options.finishAction==='hospitalize'){counts.hospital++;scene='finished';}else counts.wrong++;})]);
   if(scene==='finished')return node('body','You left Target on the street.');
   if(scene==='loss')return node('body','Seller lost to Target.');
   if(scene==='attack'&&options.missionOnly)return node('body','A MISSION IS NEEDED TO BE ACTIVATED IN ORDER TO ATTACK THIS NPC!');
@@ -184,7 +184,7 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  }}}};
  const context={window,document,location,URL,Date:Clock,Math,console,localStorage:store(local),sessionStorage:store(session),getComputedStyle:()=>({visibility:'visible',display:'block'}),setInterval:fn=>{interval=fn},setTimeout:()=>{}};
  vm.createContext(context);vm.runInContext(source,context);h=window.TornCommanderLossCycle;
- h.start({localLossTracking:!!options.localLossTracking,requireOfficialLoss:!!options.requireOfficialLoss,externalDeadline:options.expiredExternal?clock-1:0,acceptLevelUps:!!options.acceptLevelUps,mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
+ h.start({mission:!!options.mission,finishAction:options.finishAction,localLossTracking:!!options.localLossTracking,requireOfficialLoss:!!options.requireOfficialLoss,externalDeadline:options.expiredExternal?clock-1:0,acceptLevelUps:!!options.acceptLevelUps,mode:options.leveling?'level':'loss',weaponSlot:options.configuredWeaponSlot||'weapon_primary',profileId:options.slot||'one',slot:options.slot||'A',orderId:'fixture',targetId:'123',selfName:'Seller',smartMedical:!!options.smartMedical,playerId:321,medicalSession:'session-'+(options.slot||'A'),maxKits:4,attackDelayMs:options.delay??1900});
  return {h,counts,messages,async step(milliseconds=1000){h.pump();while(replies.length)replies.shift()();clock+=milliseconds;await Promise.resolve()}};
 }
 (async()=>{
@@ -449,6 +449,17 @@ function fixture(ambiguous=false,missingMedical=false,missingJoin=false,options=
  const badWeapon=fixture(false,false,false,{leveling:true,smartMedical:true,pillowLevelWeapon:true});
  for(let i=0;i<300&&badWeapon.h.getState().stage!=='paused';i++)await badWeapon.step(250);
  assert.equal(badWeapon.h.getState().stage,'paused');assert.equal(badWeapon.counts.pillow,0,'Pillow used for leveling');
+ for(const action of ['mug','hospitalize']){
+  const missionFinish=fixture(false,false,false,{leveling:true,mission:true,finishAction:action,smartMedical:true,pillowHits:2});
+  for(let i=0;i<2400&&missionFinish.h.getState().stage!=='complete';i++)await missionFinish.step(250);
+  assert.equal(missionFinish.h.getState().stage,'complete',missionFinish.h.getState().status);
+  assert.equal(missionFinish.counts[action==='mug'?'mug':'hospital'],2,'Mission finish missing/repeated');
+  assert.equal(missionFinish.counts.leave,0,'Mission defaulted to Leave');assert.equal(missionFinish.counts.wrong,0);
+ }
+ const ordinary=fixture(false,false,false,{leveling:true,finishAction:'mug',smartMedical:true,pillowHits:2});
+ for(let i=0;i<2400&&ordinary.h.getState().stage!=='complete';i++)await ordinary.step(250);
+ assert.equal(ordinary.counts.leave,2,'Normal leveling finish changed');assert.equal(ordinary.counts.mug,0);
+ console.log('MISSION SHARED WORKER PASSED: repeated fights and recovery with exact Mug/Hospitalize endings, no wrong finish, unchanged ordinary Leave.');
  console.log('AUTOMATIC LEVELING WORKER PASSED: repeated weapon attacks, distinct target grants, Leave only, cached receipt wait/resume, medical recovery, no loss-ledger writes and Pillow refusal.');
  console.log('LOSS FULL CYCLE PASSED: shared combatant classes, opponent Pillow in either DOM order, ambiguous-slot refusal, two solo losses, nested player roots, image identity, scroll, medical tab, label-only FAK row, confirmation, return, final recovery collapsed-kit expansion, bounded expansion failure, ambiguous-kit refusal, adjustable attack spacing and ambiguous-player refusal.');
 })().catch(e=>{console.error(e);process.exitCode=1});

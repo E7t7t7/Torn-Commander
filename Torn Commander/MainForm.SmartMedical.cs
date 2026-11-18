@@ -11,7 +11,7 @@ public sealed partial class MainForm
         public MedicalObservation? Observation;
         public MedicalPlan? Plan;
         public MedicalItem? Item;
-        public bool Busy,Issued,Verified,Leveling;
+        public bool Busy,Issued,Verified,Leveling,Mission;
         public Dictionary<int,int> Before=new();
     }
     private readonly Dictionary<LossAutoCycleWorker,MedicalSession> _medicalSessions=new();
@@ -46,10 +46,10 @@ public sealed partial class MainForm
         var mods=SmartMedicalOptimizer.Modifiers(session.Perks,settings);session.ModifierNote=mods.Status;
         // Manual mode still cannot assert blood eligibility; auto detection must prove it.
         var observed=new MedicalObservation(worker.ProfileId,session.Player,DateTime.UtcNow,until,seconds,mods.Maximum,mods.Bonus,mods.Iv,mods.Status,inventory,session.Leveling?p.GetProperty("life").GetProperty("current").GetInt32():0,session.Leveling?p.GetProperty("life").GetProperty("maximum").GetInt32():0);
-        if(session.Leveling&&_levelingAccounts.TryGetValue(worker.ProfileId,out var account))_levelingAccounts[worker.ProfileId]=account with{Life=observed.Life,Maximum=observed.MaximumLife,Status=state??"Unknown",Medical=observed,Recovery=LevelingPlanner.Recovery(observed,settings,observed.Life,observed.MaximumLife,LevelingFor(worker.ProfileId).LifePercent,DateTime.UtcNow),At=DateTime.UtcNow};
+        if(session.Leveling&&!session.Mission&&_levelingAccounts.TryGetValue(worker.ProfileId,out var account))_levelingAccounts[worker.ProfileId]=account with{Life=observed.Life,Maximum=observed.MaximumLife,Status=state??"Unknown",Medical=observed,Recovery=LevelingPlanner.Recovery(observed,settings,observed.Life,observed.MaximumLife,LevelingFor(worker.ProfileId).LifePercent,DateTime.UtcNow),At=DateTime.UtcNow};
         return observed;
     }
-    private bool MedicalContext(LossAutoCycleWorker worker,MedicalSession s,JsonElement request)=>worker.IsArmed&&ReferenceEquals(worker,worker.Slot=="A"?_lossWorkerA:_lossWorkerB)&&(s.Leveling?(_levelingRuns.TryGetValue(worker,out var run)&&run.Active&&run.Id==s.Order):_lossOrders.Any(o=>o.Id==s.Order&&o.Status!="Paused"&&(worker.Slot=="A"?o.ProfileAId:o.ProfileBId)==worker.ProfileId))&&ReadWorkerString(request,"medicalSession")==s.Id&&ReadWorkerString(request,"profileId")==worker.ProfileId&&ReadWorkerString(request,"orderId")==s.Order&&request.TryGetProperty("browserPlayerId",out var p)&&p.TryGetInt32(out int id)&&id==s.Player;
+    private bool MedicalContext(LossAutoCycleWorker worker,MedicalSession s,JsonElement request)=>worker.IsArmed&&ReferenceEquals(worker,worker.Slot=="A"?_lossWorkerA:_lossWorkerB)&&(s.Mission?(_missionRuns.TryGetValue(worker,out var mission)&&mission.Active&&mission.Id==s.Order):s.Leveling?(_levelingRuns.TryGetValue(worker,out var run)&&run.Active&&run.Id==s.Order):_lossOrders.Any(o=>o.Id==s.Order&&o.Status!="Paused"&&(worker.Slot=="A"?o.ProfileAId:o.ProfileBId)==worker.ProfileId))&&ReadWorkerString(request,"medicalSession")==s.Id&&ReadWorkerString(request,"profileId")==worker.ProfileId&&ReadWorkerString(request,"orderId")==s.Order&&request.TryGetProperty("browserPlayerId",out var p)&&p.TryGetInt32(out int id)&&id==s.Player;
     private static Dictionary<int,int> ReadMedicalInventory(JsonElement r){
         var result=new Dictionary<int,int>();foreach(var row in r.GetProperty("inventory").EnumerateArray()){
             int id=row.GetProperty("id").GetInt32(),q=row.GetProperty("quantity").GetInt32();
@@ -88,7 +88,7 @@ public sealed partial class MainForm
                 if(!settings.Enabled&&s.Plan.State!="Recovered")throw new InvalidDataException("Smart Medical Management is disabled. Heal manually; no automatic fallback is permitted.");
                 if(s.Plan.State!="Ready"){
                     s.Item=null;if(s.Plan.State=="Recovered"){s.EpisodeBaseline=0;s.EpisodeCost=0;}
-                    await worker.ReplyMedicalAsync(rid,new{state=s.Plan.State,reason=s.Plan.Reason,waitUntil=s.Plan.AvailableUtc,autoResume=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings)&&(s.Leveling?LevelingFor(worker.ProfileId).AutoResumeMedical:settings.AutoResume)});return;
+                    await worker.ReplyMedicalAsync(rid,new{state=s.Plan.State,reason=s.Plan.Reason,waitUntil=s.Plan.AvailableUtc,autoResume=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings)&&(s.Mission?settings.AutoResume:s.Leveling?LevelingFor(worker.ProfileId).AutoResumeMedical:settings.AutoResume)});return;
                 }
                 s.Item=SmartMedicalOptimizer.Item(s.Plan.Items[0]);s.Before=inventory;s.Pending=Guid.NewGuid().ToString("N");s.PendingUntil=DateTime.UtcNow.AddSeconds(40);
                 await worker.ReplyMedicalAsync(rid,new{state="Ready",reason=s.Plan.Reason,token=s.Pending,itemId=s.Item.Id,name=s.Item.Name,quantity=inventory.GetValueOrDefault(s.Item.Id),expires=s.PendingUntil,automatic=settings.Enabled&&WorkerAutomaticMedical(worker,s,settings),medicalSession=s.Id});

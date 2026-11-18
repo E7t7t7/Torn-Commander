@@ -15,6 +15,7 @@ internal static class TornRoutes
     public const string Items = "https://www.torn.com/item.php";
     public const string Bazaar = "https://www.torn.com/page.php?sid=bazaar";
     public const string Slots = "https://www.torn.com/page.php?sid=slots";
+    public const string Missions = "https://www.torn.com/page.php?sid=missions";
     public const string Casino = "https://www.torn.com/casino.php";
     public const string Awards = "https://www.torn.com/awards.php";
     public const string ItemMarket = "https://www.torn.com/page.php?sid=ItemMarket";

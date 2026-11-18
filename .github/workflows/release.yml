@@ -182,6 +182,11 @@ jobs:
         run: |
           & 'Torn Commander/TEST_SMART_MEDICAL.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Smart Medical regression failed; release withheld.' }
+      - name: Check mission planning, budgets and interruption journals
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_MISSIONS.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Mission regression failed; release withheld.' }
       - name: Check guided leveling and recovery
         shell: pwsh
         run: |

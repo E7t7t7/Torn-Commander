@@ -151,6 +151,7 @@ public sealed partial class MainForm
         {
             ReleaseClaimsForWorker(existing);
             if(_levelingRuns.TryGetValue(existing,out var oldLevelRun))oldLevelRun.Active=false;
+            if(_missionRuns.TryGetValue(existing,out var oldMissionRun)){oldMissionRun.Active=false;oldMissionRun.Finished.TrySetResult(false);}
             _medicalSessions.Remove(existing);
             existing.Dispose();
         }
@@ -545,6 +546,10 @@ public sealed partial class MainForm
 
     private void ReleaseClaimsForWorker(LossAutoCycleWorker worker)
     {
+        if(_missionRuns.TryGetValue(worker,out var mission)){
+            mission.Active=false;mission.Status="Stopped from worker controls";mission.Finished.TrySetResult(false);
+            if(_missionJobProfile==worker.ProfileId)_missionStop=true;
+        }
         lock (_lossClaimGate)
         {
             foreach (var id in _lossClaims.Values.Where(x => x.Slot == worker.Slot && x.ProfileId == worker.ProfileId).Select(x => x.Id).ToList())

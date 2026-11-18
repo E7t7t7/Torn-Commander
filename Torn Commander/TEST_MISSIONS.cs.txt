@@ -1,0 +1,39 @@
+using TornCommander;using System.Text.Json;
+void Check(bool v,string message){if(!v)throw new Exception(message);}
+MissionCard Card(string name,string text="Defeat the linked target",params int[] targets)=>new(){Id="mission1",Title=name,Objective=text,Text=text,Targets=targets.Length>0?targets:[123],Active=true};
+var plan=MissionPlanner.Plan(Card("Forgotten Bills"));Check(plan.Supported&&plan.Action=="leave"&&plan.Steps.SequenceEqual(new[]{123}),"Simple exact target plan");
+Check(MissionPlanner.Plan(Card("Rolling in It","Mug the linked target")).Action=="mug","Mug mission chose Leave");
+Check(MissionPlanner.Plan(Card("Family Ties","Hospitalize the target 3 times")).Steps.Length==3,"Repeated hospital mission");
+Check(MissionPlanner.Plan(Card("Family Ties")).Action=="hospitalize","Hospital finish");
+var attack=MissionPlanner.Plan(Card("Show Some Muscle","Attack target"));Check(attack.AttackOnly&&MissionPlanner.Matches(attack,"Lost"),"Attack-only mission required a win");
+Check(MissionPlanner.Plan(Card("Battering Ram")).Steps.SequenceEqual(new[]{123,123,123}),"Three exact attacks");
+Check(!MissionPlanner.Plan(Card("Battering Ram","Attack",123,456)).Supported,"Ambiguous repeated target authorized");
+Check(MissionPlanner.Plan(Card("Against the Odds","Defeat targets",123,456)).Steps.SequenceEqual(new[]{123,456}),"Multiple exact targets");
+foreach(var name in new[]{"Red Faced","Hammer Time","Bare Knuckle","Inside Job","Bring It!","Unknown mission"})
+ Check(!MissionPlanner.Plan(Card(name)).Supported,"Special/unknown mission authorized: "+name);
+Check(!MissionPlanner.Plan(Card("Forgotten Bills","Defeat using only a hammer")).Supported,"Weapon restriction ignored");
+Check(!MissionPlanner.Plan(new(){Title="Forgotten Bills",Targets=[]}).Supported,"Missing targets authorized");
+Check(MissionPlanner.Plan(new(){Title="Unknown mission",CanComplete=true}).Kind=="claim","Visible Complete did not allow claim-only");
+var mug=MissionPlanner.Plan(Card("Charity Work","Mug targets",123,456));
+Check(MissionPlanner.Matches(mug,"Mugged")&&!MissionPlanner.Matches(mug,"Attacked")&&!MissionPlanner.Matches(mug,"Lost"),"Mug receipt semantics");
+Check(MissionPlanner.Matches(MissionPlanner.Plan(Card("Family Ties")),"Hospitalized"),"Hospital receipt semantics");
+Check(!MissionPlanner.Matches(plan,"Mugged"),"Leave mission counted wrong finish");
+var delivery=Card("Item delivery","Send one First Aid Kit to target");delivery.ItemId=67;delivery.ItemName="First Aid Kit";
+Check(MissionPlanner.Plan(delivery).Supported&&MissionPlanner.Plan(delivery).Kind=="delivery","Exact one-item delivery");
+delivery.Objective="Send 2 First Aid Kits to target";Check(!MissionPlanner.Plan(delivery).Supported,"Multiple item transfer authorized");
+delivery.Objective="Send a parcel to target";Check(!MissionPlanner.Plan(delivery).Supported,"Unprepared parcel authorized");
+delivery.Objective="Send one First Aid Kit to target";delivery.Targets=[123,456];Check(!MissionPlanner.Plan(delivery).Supported,"Ambiguous recipient authorized");
+delivery.Targets=[123];delivery.ItemId=0;Check(!MissionPlanner.Plan(delivery).Supported,"Unverified item ID authorized");
+new MissionOptions().Validate();Check(!new MissionOptions().Heal&&!new MissionOptions().AllowItemSend,"Automatic resource permissions enabled by default");
+foreach(var o in new[]{new MissionOptions{Weapon="fists"},new MissionOptions{MaximumAttacks=0},new MissionOptions{Reserve=-1},new MissionOptions{Delay=1},new MissionOptions{LifePercent=101}}){bool rejected=false;try{o.Validate();}catch(InvalidDataException){rejected=true;}Check(rejected,"Invalid options");}
+var j=new MissionJournal{Contract="c",CompletedSteps=1,PendingFight=new(123,DateTime.UtcNow,"lease","c",1,"mug",false),PendingAction="native-token",PendingKind="delivery-sent"};
+j.Attacks.Add(new(99,"c",456,"Mugged",DateTime.UtcNow));
+var copy=JsonSerializer.Deserialize<MissionJournal>(JsonSerializer.Serialize(j))!;
+Check(copy.PendingFight?.Claim=="lease"&&copy.PendingAction=="native-token"&&copy.Attacks.Single().Id==99&&copy.CompletedSteps==1,"Restart lost attack/transfer lease or receipt");
+Console.WriteLine("MISSIONS PASSED: exact targets, attack/defeat/mug/hospital semantics, bounded repeats, restrictions/unknown refusal, exact one-item delivery, opt-in permissions and restart journals.");
+
+var ready=new MissionCard{Id="ready",Title="Unknown",CanComplete=true};var fight=Card("Forgotten Bills");var special=Card("Bring It!");
+Check(MissionPlanner.Next(new[]{special,fight,ready},new HashSet<string>(),0,false)==ready,"Zero budget selected a fight");
+Check(MissionPlanner.Next(new[]{special,fight},new HashSet<string>(),2,false)==fight,"Batch did not skip unsupported mission");
+Check(MissionPlanner.Next(new[]{fight},new HashSet<string>{fight.Key},10,false)==null,"Batch repeated a processed contract");
+Console.WriteLine("MISSION BATCH PASSED: budget-aware selection, claim-only at zero energy budget, unsupported exclusion and processed-contract deduplication.");

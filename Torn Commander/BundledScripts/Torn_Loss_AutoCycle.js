@@ -189,9 +189,10 @@
     const buttons=Array.from(roots[0].querySelectorAll('button,a,[role="button"]')).filter(el=>visible(el)&&enabledControl(el,el.parentElement)&&/^continue$/i.test(labelOf(el)));
     return buttons.length===1?buttons[0]:null;
   }
-  function levelingLeaveControl(requireChoices=false){
+  function levelingLeaveControl(requireChoices=false,action="leave"){
     const controls=Array.from(document.querySelectorAll('button,a,[role="button"],input[type="button"]')).filter(el=>visible(el)&&enabledControl(el,el.parentElement));
-    const leave=controls.filter(el=>/^leave(?:\s+(?:them|him|her|target|on the street).*)?$/i.test(labelOf(el)));
+    const pattern=action==='mug'?/^mug(?:\s+(?:them|him|her|target).*)?$/i:action==='hospitalize'?/^hospitali[sz]e(?:\s+(?:them|him|her|target).*)?$/i:/^leave(?:\s+(?:them|him|her|target|on the street).*)?$/i;
+    const leave=controls.filter(el=>pattern.test(labelOf(el)));
     if(requireChoices&&!controls.some(el=>/^(?:mug|hospitalize|hospitalise)$/i.test(labelOf(el))))return null;
     return leave.length===1?leave[0]:null;
   }
@@ -673,9 +674,9 @@
       if(state.mode==='level'&&state.claimId&&['level-finish','level-verify'].includes(state.stage)&&levelingContinueControl())state.levelTerminalSeen=true;
       if(state.mode==='level'&&state.stage==='level-finish'){
         if(levelingContinueControl()){levelCommit(state,true);return;}
-        const leave=levelingLeaveControl();
-        if(leave){state.levelLeaveClicked=true;save(state);if(click(leave))levelCommit(state);else pauseState(state,'Leave control changed before dispatch. Review the fight.',false);return;}
-        if(now()-state.levelFinishAt>20000)pauseState(state,'A single verified Leave control did not appear. Finish the fight manually, then Resume to verify its receipt.',false);return;
+        const leave=levelingLeaveControl(false,state.finishAction||'leave');
+        if(leave){state.levelLeaveClicked=true;save(state);if(click(leave))levelCommit(state);else pauseState(state,'Selected finish control changed before dispatch. Review the fight.',false);return;}
+        if(now()-state.levelFinishAt>20000)pauseState(state,'A single verified '+(state.finishAction||'leave')+' control did not appear. Finish manually, then Resume to verify the receipt.',false);return;
       }
       if(state.mode==='level'&&state.stage==='level-verify'){
         if(now()<state.levelVerifyAt)return;
@@ -751,7 +752,7 @@
           return;
         }
         if(state.mode==='level'&&levelingContinueControl()){levelCommit(state,true);return;}
-        if(state.mode==='level'&&levelingLeaveControl(true)){state.stage='level-finish';state.levelFinishAt=now();state.status='Finishing choices are visible. Preparing Leave.';save(state);return;}
+        if(state.mode==='level'&&levelingLeaveControl(true,state.finishAction||'leave')){state.stage='level-finish';state.levelFinishAt=now();state.status='Finishing choices are visible. Preparing Leave.';save(state);return;}
         const outcome = detectFightResult(state);
         if (outcome === 'loss'&&state.requireOfficialLoss){lossTerminalCheck(state);return;}
         if (outcome === 'loss') {
@@ -988,7 +989,7 @@
       const token = 'sess_' + now() + '_' + Math.random().toString(36).slice(2);
       sessionStorage.setItem(SESSION_KEY, token);
       const state = {
-        requireOfficialLoss:config.requireOfficialLoss===true,localLossTracking:config.localLossTracking===true,externalDeadline:Number(config.externalDeadline)||0,mode:config.mode==='level'?'level':'loss',acceptLevelUps:config.acceptLevelUps===true,weaponSlot:String(config.weaponSlot||'weapon_primary'),
+        requireOfficialLoss:config.requireOfficialLoss===true,localLossTracking:config.localLossTracking===true,externalDeadline:Number(config.externalDeadline)||0,mode:config.mode==='level'?'level':'loss',acceptLevelUps:config.acceptLevelUps===true,mission:config.mission===true,finishAction:config.mission===true&&['leave','mug','hospitalize'].includes(config.finishAction)?config.finishAction:'leave',weaponSlot:String(config.weaponSlot||'weapon_primary'),
         profileId: String(config.profileId || ''),
         slot: String(config.slot || ''),
         orderId: String(config.orderId || ''),

@@ -7,12 +7,13 @@ public sealed partial class MainForm {
   public string LastMessage="",Status="Starting automatic leveling";
  }
  private readonly Dictionary<LossAutoCycleWorker,LevelingRun> _levelingRuns=new();
- private bool WorkerAutomaticMedical(LossAutoCycleWorker worker,MedicalSession s,SmartMedicalSettings cfg)=>s.Leveling?LevelingFor(worker.ProfileId).AutoHeal:cfg.Automatic;
+ private bool WorkerAutomaticMedical(LossAutoCycleWorker worker,MedicalSession s,SmartMedicalSettings cfg)=>s.Mission?(_missionRuns.TryGetValue(worker,out var mission)&&mission.Options.Heal&&cfg.Automatic):s.Leveling?LevelingFor(worker.ProfileId).AutoHeal:cfg.Automatic;
  private MedicalPlan WorkerMedicalPlan(LossAutoCycleWorker worker,MedicalSession session,MedicalObservation o,SmartMedicalSettings cfg){
   if(!session.Leveling)return SmartMedicalOptimizer.Plan(o,cfg,DateTime.UtcNow);
-  var p=LevelingPlanner.Recovery(o,cfg,o.Life,o.MaximumLife,LevelingFor(worker.ProfileId).LifePercent,DateTime.UtcNow);
+  int percent=session.Mission&&_missionRuns.TryGetValue(worker,out var mr)?mr.Options.LifePercent:LevelingFor(worker.ProfileId).LifePercent;
+  var p=LevelingPlanner.Recovery(o,cfg,o.Life,o.MaximumLife,percent,DateTime.UtcNow);
   DateTime? available=p.State=="Cooldown"?DateTime.UtcNow.AddSeconds(Math.Max(1,o.CooldownSeconds-(o.MaximumSeconds-cfg.ReserveMinutes*60)+1)):null;
-  if(p.State=="Supplies / capacity"&&o.CooldownSeconds>0){var later=LevelingPlanner.Recovery(o with{CooldownSeconds=0},cfg,o.Life,o.MaximumLife,LevelingFor(worker.ProfileId).LifePercent,DateTime.UtcNow);if(later.Items.Length>0){int needed=cfg.ReserveMinutes>0?later.CooldownSeconds:later.CooldownSeconds-later.Items.Max(id=>SmartMedicalOptimizer.Item(id).CooldownSeconds)+1;available=DateTime.UtcNow.AddSeconds(Math.Max(1,needed-(o.MaximumSeconds-cfg.ReserveMinutes*60-o.CooldownSeconds)));p=p with{State="Cooldown",Reason="Waiting for enough medical capacity to reach the configured life target. Drugs remain excluded."};}}
+  if(p.State=="Supplies / capacity"&&o.CooldownSeconds>0){var later=LevelingPlanner.Recovery(o with{CooldownSeconds=0},cfg,o.Life,o.MaximumLife,percent,DateTime.UtcNow);if(later.Items.Length>0){int needed=cfg.ReserveMinutes>0?later.CooldownSeconds:later.CooldownSeconds-later.Items.Max(id=>SmartMedicalOptimizer.Item(id).CooldownSeconds)+1;available=DateTime.UtcNow.AddSeconds(Math.Max(1,needed-(o.MaximumSeconds-cfg.ReserveMinutes*60-o.CooldownSeconds)));p=p with{State="Cooldown",Reason="Waiting for enough medical capacity to reach the configured life target. Drugs remain excluded."};}}
   return new(p.State=="Ready"?"Recovered":p.State=="Heal first"?"Ready":p.State,p.Reason,p.Items,p.CooldownSeconds,Math.Max(0,(int)(o.HospitalUntilUtc-DateTime.UtcNow).TotalSeconds),0,available);
  }
  private async Task LevelingWorkerControlAsync(string action,JsonElement request){
@@ -43,6 +44,7 @@ public sealed partial class MainForm {
  }
  private bool LevelingRunContext(LossAutoCycleWorker worker,LevelingRun run,JsonElement request)=>worker.IsArmed&&run.Active&&ReferenceEquals(worker,worker.Slot=="A"?_lossWorkerA:_lossWorkerB)&&ReadWorkerString(request,"profileId")==worker.ProfileId&&ReadWorkerString(request,"orderId")==run.Id;
  private async Task HandleLevelingWorkerAsync(LossAutoCycleWorker worker,JsonElement request){
+  if(_missionRuns.TryGetValue(worker,out var missionRun)&&ReadWorkerString(request,"orderId")==missionRun.Id){await HandleMissionWorker(worker,request);return;}
   if(!_levelingRuns.TryGetValue(worker,out var run)||!LevelingRunContext(worker,run,request))return;
   string type=ReadWorkerString(request,"type"),rid=ReadWorkerString(request,"requestId"),claim=ReadWorkerString(request,"claimId");
   if(type=="tc-level-status"){run.Status=ReadWorkerString(request,"stage")+": "+ReadWorkerString(request,"status");if(DateTime.UtcNow-run.LastStatus>TimeSpan.FromSeconds(1)){run.LastStatus=DateTime.UtcNow;UpdateLossDashboardStatus();}return;}
