@@ -11,6 +11,7 @@ public sealed class SlotsBatch {
  public decimal StopLoss{get;set;}public decimal ProfitTarget{get;set;}
  public string Status{get;set;}="Paused";public string Note{get;set;}="";
  public bool PauseRequested{get;set;}public bool StopRequested{get;set;}
+ public bool ResetRequested{get;set;}
  public DateTime StartedUtc{get;set;}public DateTime? EndedUtc{get;set;}
  public string ConfirmedToken{get;set;}="";
  public SlotPending? Pending{get;set;}public List<string> KnownIds{get;set;}=new();
@@ -98,18 +99,28 @@ internal static class SlotsData {
  }
 }
 internal static class SlotsRunner {
+ public static void Reset(SlotsBatch b,DateTime now){
+  b.ResetRequested=true;b.StopRequested=true;b.PauseRequested=true;b.EndedUtc=now;b.Status="Reset";
+  b.Note=b.Pending!=null?"Batch reset. One attempted spin remains unverified and is excluded from totals. You can choose a new denomination and start a fresh batch.":"Batch reset. Verified results were saved. Choose a denomination and start a fresh batch.";
+ }
  public static async Task Run(SlotsBatch b,SlotsRuntime r){
   void Save(string status,string note){b.Status=status;b.Note=note;r.Save();}
   void Finish(string note){b.EndedUtc=r.Now();Save(b.StopRequested?"Stopped":"Complete",note);}
+  bool ResetIfRequested(){if(!b.ResetRequested)return false;Reset(b,r.Now());r.Save();return true;}
   try{
+   if(ResetIfRequested()||b.EndedUtc!=null)return;
    if(b.Owner<=0||!SlotsData.Bets.Contains(b.Bet)||b.Limit is <1 or >10000)throw new InvalidDataException("Saved slots batch settings are invalid.");
    while(true){
+    if(ResetIfRequested())return;
     // A pending click is always reconciled before considering any new click,
     // including after Pause, Stop, profile changes and application restarts.
     if(b.Pending!=null){
      var until=r.Now().AddSeconds(90);bool found=false;
      for(int attempt=0;attempt<30&&r.Now()<=until;attempt++){
-      var receipt=SlotsData.Find(b,await r.Receipts());
+      if(ResetIfRequested())return;
+      var results=await r.Receipts();
+      if(ResetIfRequested())return;
+      var receipt=SlotsData.Find(b,results);
       if(receipt!=null){
        string token=b.Pending.Token;b.ConfirmedToken=token;b.LastTokens=Math.Max(0,b.Pending.BeforeTokens-1);b.Receipts.Add(receipt);b.KnownIds.Add(receipt.Id);b.Pending=null;
        Save("Running",$"Confirmed {b.Receipts.Count}/{b.Limit} spins.");
@@ -127,6 +138,7 @@ internal static class SlotsRunner {
     if(b.ProfitTarget>0&&b.Net>=b.ProfitTarget){Finish("Profit target reached.");return;}
     if(b.PauseRequested||!r.Current()){Save("Paused","Paused before the next bet. Keep the owning profile and Slots tab open to resume.");return;}
     var account=await r.Account();
+    if(ResetIfRequested())return;
     if(account.Owner!=b.Owner)throw new InvalidDataException("Torn API key belongs to a different player. No next spin authorized.");
     b.LastTokens=account.Tokens;
     if(b.PauseRequested||b.StopRequested||!r.Current())continue;
@@ -136,6 +148,7 @@ internal static class SlotsRunner {
     for(int check=0;check<100&&r.Now()<readyUntil;check++){
      if(b.PauseRequested||b.StopRequested||!r.Current())break;
      board=await r.Board();
+     if(ResetIfRequested())return;
      if(board.Ok&&board.Owner==b.Owner&&board.Ready)break;
      if(!board.Retryable&&!board.Ok)throw new InvalidDataException(board.Note);
      await r.Delay(400);
@@ -147,12 +160,15 @@ internal static class SlotsRunner {
     if(board.Tokens<=0){Finish("No casino tokens remain on the game page.");return;}
     b.Pending=new(){Token=Guid.NewGuid().ToString("N"),StartedUtc=r.Now(),BeforeTokens=board.Tokens.Value};
     Save("Dispatching","Placing one fixed-denomination spin. Its result must settle before another.");
+    if(ResetIfRequested())return;
     var click=await r.Dispatch(b.Pending);
+    if(ResetIfRequested())return;
     if(!click.Dispatched){b.Pending=null;Save("Paused",click.Note.Length>0?click.Note:"Slots changed before the click. No bet was placed.");return;}
     Save("Verifying","One spin dispatched. Waiting for its official receipt.");
     await r.Delay(1200);
    }
   }catch(Exception ex){
+   if(b.ResetRequested){Reset(b,r.Now());try{r.Save();}catch{}return;}
    b.Status=b.Pending!=null?"Needs review":"Paused";
    b.Note=ex is InvalidDataException?ex.Message:"Slots verification or local saving failed. Check API access/connection and resume; no bet was retried.";
    try{r.Save();}catch{}

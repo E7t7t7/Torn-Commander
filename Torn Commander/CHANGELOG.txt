@@ -1,3 +1,11 @@
+v0.6.109 - Reset blocked Slots batches and change denomination (2026-11-18)
+- Add Reset batch / change denomination next to Slots Stop. Stop continues to reconcile its final attempted spin; Reset explicitly closes the batch even when that receipt does not exist or cannot be retrieved.
+- Preserve the unresolved pending operation and exclude it from confirmed counts, winnings and net. Keep verified results and a clear unknown-attempt note in saved history; never claim an unresolved bet was refunded or retry it.
+- Reset works without an API key or a readable game tab. When a runner is active, request its retirement and check after each awaited operation; stop receipt polling before accepting another result or dispatching another spin. Allow an already-running HTTP/script operation to return before releasing the runner.
+- Bind retirement to the specific running batch, so resetting a paused account cannot cancel another account's job. Retired batches remain inert after restart.
+- Start each new batch in a fresh native Slots tab so a previous page's pending-operation marker cannot block the new denomination.
+- Tests cover reset during missing-receipt polling, dispatch and failed HTTP reads; retained unknown attempts, unchanged confirmed earnings, restart refusal, and a fresh denomination. Release build and browser controls checked; no live spins/tokens consumed.
+
 v0.6.108 - Repair Slots Start numeric payload (2026-11-18)
 - Fix the Slots Start form using a generic clamped-number helper without its required bounds. This produced NaN for both optional money limits, serialized them as null, and failed before preflight even when the inputs visibly showed 0.
 - Read and validate the Slots money limits directly. Preserve 0 = off, both specified-count and all-starting-tokens modes, selected denomination and valid two-decimal money limits. Invalid inputs produce a visible form message instead of sending a malformed command.

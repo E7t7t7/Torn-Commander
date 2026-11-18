@@ -2,6 +2,7 @@ using System.Text.Json;
 namespace TornCommander;
 public sealed partial class MainForm {
  private bool _slotsBusy;
+ private SlotsBatch? _slotsRunningBatch;
  private static bool IsSlotsPage(BrowserTab? tab){
   var u=tab?.WebView.Source;return u!=null&&u.Scheme=="https"&&TornRoutes.IsTornHost(u.Host)&&
    (u.AbsolutePath=="/loader.php"||u.AbsolutePath=="/page.php")&&u.Query.Split('&','?').Contains("sid=slots");
@@ -12,6 +13,13 @@ public sealed partial class MainForm {
   try{
    if(action=="slotsOpen"){if(!IsSlotsPage(Active()))await AddBrowserTabAsync(TornRoutes.Slots);return;}
    var active=_casino.SingleOrDefault(x=>x.ProfileId==profile&&x.Active);
+   if(action=="slotsReset"){
+    if(active?.Slots is not {} reset||reset.Profile!=profile)throw new InvalidDataException("No active Slots batch belongs to this account.");
+    reset.ResetRequested=true;reset.StopRequested=true;reset.PauseRequested=true;
+    if(ReferenceEquals(reset,_slotsRunningBatch)){reset.Status="Resetting";reset.Note="Stopping this batch. Waiting only for its current operation to return; no more receipt polling or bets.";}
+    else SlotsRunner.Reset(reset,DateTime.UtcNow);
+    SaveSlots(active);return;
+   }
    if(action=="slotsPause"){
     if(active?.Slots is not {} paused)throw new InvalidDataException("No active Slots batch.");
     paused.PauseRequested=true;paused.Status=_slotsBusy?"Pausing":"Paused";paused.Note="Pause requested. Any pending spin will be checked first.";
@@ -49,7 +57,7 @@ public sealed partial class MainForm {
     if(active?.Slots is not {} batch||batch.Profile!=profile)throw new InvalidDataException("No active Slots batch belongs to this account.");
     if(action=="slotsResume"){batch.PauseRequested=false;batch.Note="Resuming: any unfinished result is checked before another bet.";}
     // Reconcile pending receipts even if the game tab is gone. Navigation is only needed for a new click.
-    if(batch.Pending==null&&!batch.StopRequested&&!IsSlotsPage(Active()))await AddBrowserTabAsync(TornRoutes.Slots);
+    if(batch.Pending==null&&!batch.StopRequested&&(action=="slotsStart"||!IsSlotsPage(Active())))await AddBrowserTabAsync(TornRoutes.Slots);
     var tab=Active();string name=CurrentProfile.Name;
     bool Current()=>!IsDisposed&&profile==CurrentProfileId&&tab!=null&&tab==Active()&&_browserTabObjects.Contains(tab)&&_casino.Contains(active)&&active.Active;
     string code=await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory,"BundledScripts","Torn_Slots_Batch.js"));
@@ -59,6 +67,7 @@ public sealed partial class MainForm {
      var raw=await tab.ExecuteScriptAsync(code.Replace("__SLOTS_REQUEST__",payload));
      return JsonSerializer.Deserialize<T>(raw??"null",new JsonSerializerOptions{PropertyNameCaseInsensitive=true})??throw new InvalidDataException("Slots page did not respond. No repeated click was attempted.");
     }
+    _slotsRunningBatch=batch;
     await SlotsRunner.Run(batch,new(){
      Current=Current,
      Account=async()=>SlotsData.Account(await _api.FetchEndpointAsync("user?selections=profile,casino,money",key,fresh:true)),
@@ -79,7 +88,7 @@ public sealed partial class MainForm {
      Acknowledge=async token=>{await Browser<SlotsBoard>("ack",token);},
      Save=()=>SaveSlots(active)
     });
-   }finally{_slotsBusy=false;RebindCasino();UpdateModernDashboard();}
+   }finally{_slotsRunningBatch=null;_slotsBusy=false;RebindCasino();UpdateModernDashboard();}
   }catch(Exception ex){
    _casinoNotes[profile]=ex is InvalidDataException or InvalidOperationException?ex.Message:"Slots could not start or verify its result. Check this profile's Full API access and connection. No bet was retried.";
    FlashStatus(_casinoNotes[profile]);

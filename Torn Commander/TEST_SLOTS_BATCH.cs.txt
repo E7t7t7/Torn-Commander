@@ -58,10 +58,28 @@ Check(SlotsData.Find(b,new[]{new SlotReceipt("old",at,1000,0)})==null,"Old resul
 Check(SlotsData.Find(b,new[]{win,win})==win,"Duplicate receipt counted twice");
 var other=Batch(1);other.Profile="wife";other.Owner=456;var otherFake=new Fake(other){Owner=456,BoardOwner=456};
 await SlotsRunner.Run(other,otherFake.Runtime());Check(b.Receipts.Count==0&&other.Receipts.Count==1,"Profiles mixed");
+// Reset ends an unverified dispatch without counting, replaying or polling it forever.
+b=Batch(4);f=new(b){SuppressReceipt=true,OnRead=()=>b.ResetRequested=true};
+await SlotsRunner.Run(b,f.Runtime());
+Check(f.Clicks==1&&f.Reads==1&&b.Pending!=null&&b.Receipts.Count==0&&b.EndedUtc!=null&&b.Status=="Reset","Reset did not close pending wait");
+var unknown=b.Pending!.Token;var resetSaved=JsonSerializer.Deserialize<SlotsBatch>(JsonSerializer.Serialize(b))!;
+Check(resetSaved.Pending!.Token==unknown&&resetSaved.Net==0&&resetSaved.ResetRequested,"Reset erased or counted the unknown attempt");
+var replay=new Fake(resetSaved);await SlotsRunner.Run(resetSaved,replay.Runtime());
+Check(replay.Clicks==0&&replay.Reads==0,"Ended reset batch ran again");
+b=Batch(4);f=new(b){AfterClick=()=>b.ResetRequested=true};await SlotsRunner.Run(b,f.Runtime());
+Check(f.Clicks==1&&f.Reads==0&&b.Status=="Reset"&&b.Pending!=null,"Reset during dispatch replayed or lost pending");
+b=Batch(4);f=new(b){SuppressReceipt=true,OnRead=()=>{b.ResetRequested=true;throw new IOException("Read interrupted");}};
+await SlotsRunner.Run(b,f.Runtime());Check(b.Status=="Reset"&&b.EndedUtc!=null,"Read failure defeated requested reset");
+b=Batch(4);b.Receipts.Add(new("confirmed",DateTime.UtcNow,1000,5000));SlotsRunner.Reset(b,DateTime.UtcNow);
+Check(b.Status=="Reset"&&b.Net==4000&&b.Pending==null,"Reset changed confirmed earnings");
+var fresh=Batch(2);fresh.Bet=10000;var freshFake=new Fake(fresh){ReceiptBet=10000};
+await SlotsRunner.Run(fresh,freshFake.Runtime());Check(freshFake.Clicks==2&&fresh.Staked==20000,"New denomination failed after reset");
+Console.WriteLine("SLOTS RESET PASSED: reset mid-receipt, mid-dispatch and failed request; unknown attempt retained, totals honest, restart inert and fresh denomination.");
 Console.WriteLine("SLOTS BATCH PASSED: 100 fixed-stake spins, exact payouts, token/fund caps, stop limits, paused/stopped pending reconciliation, restart, duplicate/ambiguous/stale receipts, wrong account/stake, uncertain dispatch and durable-before-click.");
 
 sealed class Fake{
  public Fake(SlotsBatch _){}
+ public int Reads;public Action? OnRead;
  public int Clicks,Tokens=100,Owner=123,BoardOwner=123;
  public decimal Wallet=1000000,Payout=-1,ReceiptBet=1000;
  public bool Current=true,SuppressReceipt,Ambiguous,DispatchFalse,ThrowAfterClick,FailSave;
@@ -79,7 +97,7 @@ sealed class Fake{
    if(ThrowAfterClick)throw new IOException("Uncertain");
    return Task.FromResult(new SlotsDispatch{Dispatched=true});
   },
-  Receipts=()=>Task.FromResult(SuppressReceipt||PendingReceipt==null?new List<SlotReceipt>():Ambiguous?new(){PendingReceipt,PendingReceipt with{Id="other"}}:new List<SlotReceipt>{PendingReceipt}),
+  Receipts=()=>{Reads++;OnRead?.Invoke();return Task.FromResult(SuppressReceipt||PendingReceipt==null?new List<SlotReceipt>():Ambiguous?new(){PendingReceipt,PendingReceipt with{Id="other"}}:new List<SlotReceipt>{PendingReceipt});},
   Acknowledge=_=>Task.CompletedTask,
   Save=()=>{if(FailSave)throw new IOException("Disk failure");}
  };

@@ -4,7 +4,7 @@ In **Casino → Slots**, choose a denomination, enter **100**, then press **Star
 
 Keep the selected account's Slots tab open and Commander running. The runner places one ordinary native spin, verifies its official result, then proceeds. No clicks are needed between successful spins. A Full-access Torn API key saved for that Commander profile is required for personal logs. The first API checks must succeed before any spin.
 
-Use **Pause** to pause after the pending result settles, **Resume / check pending result** to continue, or **Stop batch** to end early after checking a pending result. Restarting Commander never restarts betting automatically. An uncertain bet remains pending and is not clicked a second time.
+Use **Pause** to pause after the pending result settles, **Resume / check pending result** to continue, or **Stop batch** to end early after checking a pending result. If Stop is blocked on a receipt, use **Reset batch / change denomination**. Reset closes the batch, preserves its unknown attempt in history without counting it, and unlocks a new batch. A current network/script request may need to return first; no additional polling or clicks follow. New batches open a fresh Slots tab. Reset cannot undo a bet already accepted by Torn. Restarting Commander never restarts betting automatically. An uncertain bet remains pending and is not clicked a second time.
 
 The finished record shows confirmed spins, total stake, gross winnings and net winnings minus stake. These figures use slot receipts, not unrelated wallet changes. Old manually tracked casino sessions remain unchanged. An interrupted record can have one pending spin whose stake/payout is deliberately excluded until verified.
 
