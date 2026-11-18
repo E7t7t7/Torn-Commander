@@ -44,6 +44,10 @@
   if(state.busy===request.token)state.busy=null;
   return {ok:true,owner,tokens,ready:false};
  }
+ if(request.action==='progress'){
+  const op=state.ops.get(request.token);
+  return {ok:true,owner,tokens,activity:!!op&&(tokens<op.tokens||state.changed>op.at),note:op?'Watching the dispatched spin.':'This page has no matching dispatch marker.'};
+ }
  const disabled=button.disabled||button.getAttribute('aria-disabled')==='true'||button.classList.contains('disabled')||!!button.closest('[inert]'),
  ready=!disabled&&!state.busy&&Date.now()-state.changed>=800;
  const board={ok:true,owner,tokens,ready,retryable:!ready,note:ready?'Slots ready.':'Waiting for the current spin/animation to settle.'};
@@ -53,6 +57,15 @@
  if(!/^[a-f0-9]{32}$/.test(request.token||''))return fail('Invalid spin operation.');
  // Persist the operation in the page BEFORE the only game-control click.
  state.ops.set(request.token,{tokens,at:Date.now()});state.busy=request.token;state.changed=Date.now();
- try{button.scrollIntoView({block:'center'});button.click();return {dispatched:true,owner,tokens,note:'One spin clicked.'};}
+ try{
+  button.scrollIntoView({block:'center'});
+  const rect=button.getBoundingClientRect(),options={bubbles:true,cancelable:true,view:window,button:0,clientX:rect.left+rect.width/2,clientY:rect.top+rect.height/2};
+  // Torn's denomination controls use the ordinary mouse press/release lifecycle.
+  // One sequence per operation; never follow it with a second .click().
+  button.dispatchEvent(new MouseEvent('mousedown',{...options,buttons:1}));
+  button.dispatchEvent(new MouseEvent('mouseup',{...options,buttons:0}));
+  button.dispatchEvent(new MouseEvent('click',{...options,buttons:0}));
+  return {dispatched:true,owner,tokens,note:'Bet control pressed once; awaiting visible spin activity and receipt.'};
+ }
  catch{return {dispatched:true,owner,tokens,note:'Dispatch outcome uncertain. Verify the log; never repeat this token.'};}
 })()

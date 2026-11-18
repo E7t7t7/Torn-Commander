@@ -2,6 +2,7 @@ using System.Text.Json;
 namespace TornCommander;
 public sealed record SlotReceipt(string Id,DateTime At,decimal Bet,decimal Won);
 public sealed class SlotPending {
+ public bool StartObserved{get;set;}
  public string Token{get;set;}="";public DateTime StartedUtc{get;set;}public int BeforeTokens{get;set;}
 }
 public sealed class SlotsBatch {
@@ -26,12 +27,16 @@ public sealed class SlotsBoard {
 public sealed class SlotsDispatch {
  public bool Dispatched{get;set;}public string Note{get;set;}="";
 }
+public sealed class SlotsProgress {
+ public bool Ok{get;set;}public int? Owner{get;set;}public int? Tokens{get;set;}public bool Activity{get;set;}public string Note{get;set;}="";
+}
 internal sealed class SlotsRuntime {
  public required Func<bool> Current{get;init;}
  public required Func<Task<SlotsAccount>> Account{get;init;}
  public required Func<Task<SlotsBoard>> Board{get;init;}
  public required Func<SlotPending,Task<SlotsDispatch>> Dispatch{get;init;}
  public required Func<Task<List<SlotReceipt>>> Receipts{get;init;}
+ public Func<SlotPending,Task<SlotsProgress>>? Progress{get;init;}
  public required Func<string,Task> Acknowledge{get;init;}
  public required Action Save{get;init;}
  public Func<DateTime> Now{get;init;}=()=>DateTime.UtcNow;
@@ -127,7 +132,17 @@ internal static class SlotsRunner {
        try{await r.Acknowledge(token);}catch{} // The durable API receipt is authoritative.
        found=true;break;
       }
-      Save(b.StopRequested?"Stopping":b.PauseRequested?"Pausing":"Verifying","Waiting for Torn's slot receipt. No second spin will be clicked.");
+      if(r.Progress!=null){
+       var progress=await r.Progress(b.Pending!);
+       if(ResetIfRequested())return;
+       if(!progress.Ok)throw new InvalidDataException(progress.Note.Length>0?progress.Note:"Spin activity could not be observed. No repeated bet.");
+       if(progress.Owner!=b.Owner)throw new InvalidDataException("The Slots browser account changed. No repeated bet.");
+       b.Pending!.StartObserved|=progress.Activity||(progress.Tokens.HasValue&&progress.Tokens.Value<b.Pending.BeforeTokens);
+       if(!b.Pending.StartObserved&&(r.Now()-b.Pending.StartedUtc).TotalSeconds>=12){
+        Save("Needs review","No token decrease or reel movement was observed after pressing the bet control. No spin confirmed or retried. Use Reset batch to start fresh.");return;
+       }
+      }
+      Save(b.StopRequested?"Stopping":b.PauseRequested?"Pausing":"Verifying",b.Pending!.StartObserved?"Spin activity observed; waiting for Torn's slot receipt. No second spin will be clicked.":"Waiting for the bet control to start a spin; no token/reel change observed yet. No second click.");
       await r.Delay(2500);
      }
      if(!found){Save("Needs review","The attempted spin is still unverified. Resume will check its receipt; it will never re-click that bet.");return;}

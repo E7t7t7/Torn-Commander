@@ -58,6 +58,11 @@ Check(SlotsData.Find(b,new[]{new SlotReceipt("old",at,1000,0)})==null,"Old resul
 Check(SlotsData.Find(b,new[]{win,win})==win,"Duplicate receipt counted twice");
 var other=Batch(1);other.Profile="wife";other.Owner=456;var otherFake=new Fake(other){Owner=456,BoardOwner=456};
 await SlotsRunner.Run(other,otherFake.Runtime());Check(b.Receipts.Count==0&&other.Receipts.Count==1,"Profiles mixed");
+b=Batch(4);f=new(b){SuppressReceipt=true,CheckPage=true};await SlotsRunner.Run(b,f.Runtime());
+Check(f.Clicks==1&&b.Pending!=null&&!b.Pending.StartObserved&&b.Status=="Needs review"&&f.Reads<10,"Unaccepted click waited forever or retried");
+Check(b.Note.Contains("No token decrease"),"Unaccepted spin has no useful explanation");
+b=Batch(4);f=new(b){CheckPage=true};await SlotsRunner.Run(b,f.Runtime());
+Check(f.Clicks==4&&b.Receipts.Count==4,"Normal receipts regressed with progress observation");
 // Reset ends an unverified dispatch without counting, replaying or polling it forever.
 b=Batch(4);f=new(b){SuppressReceipt=true,OnRead=()=>b.ResetRequested=true};
 await SlotsRunner.Run(b,f.Runtime());
@@ -79,6 +84,7 @@ Console.WriteLine("SLOTS BATCH PASSED: 100 fixed-stake spins, exact payouts, tok
 
 sealed class Fake{
  public Fake(SlotsBatch _){}
+ public bool CheckPage;
  public int Reads;public Action? OnRead;
  public int Clicks,Tokens=100,Owner=123,BoardOwner=123;
  public decimal Wallet=1000000,Payout=-1,ReceiptBet=1000;
@@ -97,6 +103,7 @@ sealed class Fake{
    if(ThrowAfterClick)throw new IOException("Uncertain");
    return Task.FromResult(new SlotsDispatch{Dispatched=true});
   },
+  Progress=CheckPage?_=>Task.FromResult(new SlotsProgress{Ok=true,Owner=Owner,Tokens=100,Activity=false}):null,
   Receipts=()=>{Reads++;OnRead?.Invoke();return Task.FromResult(SuppressReceipt||PendingReceipt==null?new List<SlotReceipt>():Ambiguous?new(){PendingReceipt,PendingReceipt with{Id="other"}}:new List<SlotReceipt>{PendingReceipt});},
   Acknowledge=_=>Task.CompletedTask,
   Save=()=>{if(FailSave)throw new IOException("Disk failure");}

@@ -22,3 +22,6 @@ No refill purchases, withdrawals, direct game-network calls, animation accelerat
 Tests use mocked API responses and local browser pages. Full 100-spin simulated runs, interruption recovery, exact accounting, identity boundaries and responsive controls are checked. No real tokens were consumed during development. First live use still needs to confirm that Torn's current rendered controls and receipt payloads match the documented/published forms. A discrepancy pauses instead of spending more tokens.
 
 Storage is the existing local casino ledger; keys stay in Windows Credential Manager. Pending operation IDs and receipts persist per account. Nothing runs while Commander is closed.
+
+
+The denomination helper sends one ordinary mouse press/release/click sequence, preserving the native control's event lifecycle ([primary author example](https://greasyfork.org/en/scripts/550157-torn-slots-autoclicker/code)). It never adds a fallback second click. While checking the official receipt, Commander also observes visible tokens/reels; no observed activity after 12 seconds produces a clear paused state and leaves Reset available. Fixtures require press and release so an inert bare click cannot falsely pass the acceptance test. Live execution remains unverified; read-only diagnosis found no token consumption from the blocked attempt.

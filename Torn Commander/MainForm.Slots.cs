@@ -80,6 +80,7 @@ public sealed partial class MainForm {
       if(!Current())return new(){Dispatched=false,Note="Selected browser or account changed. No click."};
       return await Browser<SlotsDispatch>("spin",pending.Token);
      },
+     Progress=pending=>Browser<SlotsProgress>("progress",pending.Token),
      Receipts=async()=>{
       var since=batch.Pending?.StartedUtc??batch.StartedUtc;
       var json=await _api.FetchEndpointAsync("user/log?log=8300,8301&limit=100&from="+new DateTimeOffset(since).ToUnixTimeSeconds(),key,fresh:true);

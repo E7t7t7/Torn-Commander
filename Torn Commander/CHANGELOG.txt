@@ -1,3 +1,11 @@
+v0.6.110 - Start Slots with native mouse press/release (2026-11-18)
+- Investigate the real blocked batch through saved state and read-only API checks. Its token count remained unchanged and no new official slot result existed: the previous bare element.click() was treated as a dispatch even though a spin was not observed.
+- Send one ordinary mousedown/mouseup/click sequence to the verified denomination control, matching its mouse-driven lifecycle. Keep the durable operation token before the sequence, duplicate suppression and official receipt verification. Never follow the sequence with another click or retry an uncertain bet.
+- Observe visible token decrease/reel activity while awaiting receipts. If no activity is observed after 12 seconds, explain that the bet did not visibly start and offer Reset, rather than spending the full receipt timeout. A dispatched spin still needs an official receipt before the next bet.
+- Distinguish waiting for visible spin start from waiting for its official result. Observe only DOM state; no direct game requests, animation changes, disabled-control overrides or token purchases.
+- Regression fixture requires a mouse press and release before its click can activate; a bare click is rejected. Check 100 accepted native sequences, duplicate suppression, no extra click, no-activity pause, normal receipt progression and reset recovery. Edge DOM fixture and Release build checked.
+- No live bets executed or tokens consumed during diagnosis/testing. Current game behavior after the mouse-lifecycle correction remains to be verified by use; unsupported/uncertain behavior pauses without retrying.
+
 v0.6.109 - Reset blocked Slots batches and change denomination (2026-11-18)
 - Add Reset batch / change denomination next to Slots Stop. Stop continues to reconcile its final attempted spin; Reset explicitly closes the batch even when that receipt does not exist or cannot be retrieved.
 - Preserve the unresolved pending operation and exclude it from confirmed counts, winnings and net. Keep verified results and a clear unknown-attempt note in saved history; never claim an unresolved bet was refunded or retry it.
