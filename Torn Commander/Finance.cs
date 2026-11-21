@@ -9,9 +9,11 @@ public sealed class FinanceEntry {
  public string Currency {get;set;}="cash";
  public string Note {get;set;}="";
  public string Source {get;set;}="manual";
+ public string Direction {get;set;}="";
 }
 public sealed class FinanceBalance {
  public DateTime At {get;set;}
+ public long? Company {get;set;}
  public long Wallet {get;set;} public long Vault {get;set;} public long Cayman {get;set;}
  public long Bank {get;set;} public long BankProfit {get;set;} public long BankUntil {get;set;}
  public long? Faction {get;set;} public long? Networth {get;set;}
@@ -28,6 +30,7 @@ public sealed class FinanceJournal {
  public List<FinanceEntry> Entries {get;set;}=new();
  public List<FinanceBalance> Balances {get;set;}=new();
  public DateTime? LastSync {get;set;}
+ public DateTime? LastLogSync {get;set;}public string BalanceStatus{get;set;}="Not synced";public string LogStatus{get;set;}="History not scanned";public int LogRowsScanned{get;set;}public int LogPages{get;set;}public int LogCategories{get;set;}public int PartialCategories{get;set;}
  public string Note {get;set;}="Sync balances and recent logs, then review uncategorized receipts. History starts with real observations.";
 }
 public sealed record FinanceSummary(decimal Income,decimal Spending,decimal Net,decimal XanaxIncome,decimal XanaxSpending,int Review,decimal Savings,decimal Remaining,decimal Percent,decimal? ScenarioDays,decimal? ObservedDaily);
@@ -42,6 +45,7 @@ public static class FinanceData {
   using var doc=JsonDocument.Parse(json);var r=doc.RootElement;var m=r.GetProperty("money");
   long N(JsonElement x,string k)=>x.GetProperty(k).GetInt64();
   var b=new FinanceBalance{At=at,Wallet=N(m,"wallet"),Vault=N(m,"vault"),Cayman=N(m,"cayman_bank")};
+  if(m.TryGetProperty("company",out var co)&&co.ValueKind==JsonValueKind.Number)b.Company=co.GetInt64();
   if(m.TryGetProperty("city_bank",out var bank)&&bank.ValueKind==JsonValueKind.Object){b.Bank=N(bank,"amount");b.BankProfit=N(bank,"profit");b.BankUntil=N(bank,"until");}
   if(m.TryGetProperty("faction",out var f)&&f.ValueKind==JsonValueKind.Object)b.Faction=N(f,"money");
   if(r.TryGetProperty("networth",out var nw))b.Networth=N(nw,"total");
@@ -52,19 +56,67 @@ public static class FinanceData {
  public static List<FinanceEntry> Logs(string json,DateTime now) {
   using var doc=JsonDocument.Parse(json);var list=new List<FinanceEntry>();
   foreach(var row in doc.RootElement.GetProperty("log").EnumerateArray()){
-   var data=row.GetProperty("data");var title=row.GetProperty("details").GetProperty("title").GetString()??"";
-   if(!data.TryGetProperty("money",out var money)||money.ValueKind!=JsonValueKind.Number||!money.TryGetDecimal(out var amount)||amount<=0||amount>1000000000000m)continue;
-   string id=row.GetProperty("id").GetString()??"";if(id.Length is <1 or >200)continue;
-   var e=new FinanceEntry{Id="torn:"+id,At=DateTimeOffset.FromUnixTimeSeconds(row.GetProperty("timestamp").GetInt64()).UtcDateTime,
-    Amount=amount,Source="Torn log",Note=title.Length>240?title[..240]:title};
-   switch(title.ToLowerInvariant()){
-    case "job pay":case "job wage":e.Kind="income";e.Category="Job";break;
-    case "bank interest":e.Kind="income";e.Category="Bank interest";break;
-    case "vault deposit":case "vault withdraw":case "bank investment":case "bank withdraw":case "cayman bank deposit":case "cayman bank withdraw":case "faction deposit":case "faction withdraw":
-     e.Kind="transfer";e.Category="Transfers";break;
+   try{
+    var data=row.GetProperty("data");string title=row.GetProperty("details").GetProperty("title").GetString()??"",t=title.ToLowerInvariant();
+    string id=row.GetProperty("id").GetString()??"";if(id.Length is <1 or >200)continue;
+    var at=DateTimeOffset.FromUnixTimeSeconds(row.GetProperty("timestamp").GetInt64()).UtcDateTime;
+    decimal? Amount(params string[] names){foreach(string name in names)if(data.TryGetProperty(name,out var v)&&v.ValueKind==JsonValueKind.Number&&v.TryGetDecimal(out var n)&&n>0&&n<=1000000000000m&&decimal.Truncate(n)==n)return n;return null;}
+    void Add(decimal? amount,string kind,string category,string direction,string suffix=""){
+     if(!amount.HasValue)return;var e=new FinanceEntry{Id="torn:"+id+suffix,At=at,Amount=amount.Value,Kind=kind,Category=category,Direction=direction,Source="Torn log",Note=title.Length>240?title[..240]:title};
+     Validate(e,now);list.Add(e);
+    }
+    switch(t){
+     case "item market buy":case "item market buy (old)":case "bazaar buy":case "bazaar buy (legacy)":
+      Add(Amount("cost_total","money"),"expense","Trading","out");break;
+     case "bazaar sell":case "bazaar sell (legacy)":
+      Add(Amount("cost_total","money_received","money"),"income","Item sales","in");break;
+     case "item market sell":case "item market sell (old)":
+      // Prefer an explicit received amount. Otherwise fees are unknown and need review.
+      var received=Amount("money_received");Add(received??Amount("cost_total","money"),received.HasValue?"income":"review","Item sales","in");break;
+     case "job pay":case "job wage":case "job special gain money":
+      Add(Amount("money","pay","money_gained"),"income","Job","in");break;
+     case "bank interest":case "offshore bank interest":
+      Add(Amount("interest","money"),"income","Bank interest","in");break;
+     case "vault deposit":case "bank invest":case "bank investment":case "offshore bank deposit":case "cayman bank deposit":case "faction deposit money":case "faction deposit":case "company deposit":
+      Add(Amount("money","money_deposited","deposited","amount"),"transfer","Transfers","out");break;
+     case "vault withdraw":case "bank withdraw":case "offshore bank withdraw":case "cayman bank withdraw":case "faction withdraw":case "company withdraw":
+      Add(Amount("money","money_withdrawn","withdrawn","amount"),"transfer","Transfers","in");break;
+     case "money receive":case "faction give money receive":case "faction payout money receive":
+      Add(Amount("money","money_given","money_received"),"review","Other","in");break;
+     case "money send":case "faction give money send":case "faction payout money send":
+      Add(Amount("money","money_given","money_sent"),"review","Other","out");break;
+     case "faction payout money balance receive":case "faction payout money balance send":
+      // Faction book credit is not wallet cash; do not import it as received money.
+      break;
+     case "property upkeep":Add(Amount("cost","money","upkeep"),"expense","Property","out");break;
+     case "crime success money gain":case "crime success money gain (new)":
+      Add(Amount("money_gained","money"),"income","Crimes","in");break;
+     case "crime success money paid":case "crime critical fail money loss":case "crime fail money loss":
+      Add(Amount("money_lost","money_paid","money"),"expense","Crimes","out");break;
+     case "casino slots win":
+      Add(Amount("bet_amount"),"expense","Other","out",":stake");Add(Amount("won_amount"),"income","Other","in",":payout");break;
+     case "casino slots lose":Add(Amount("bet_amount"),"expense","Other","out",":stake");break;
+     default:Add(Amount("money"),"review","Other","");break;
+    }
+   }catch(Exception ex) when(ex is InvalidDataException or InvalidOperationException or KeyNotFoundException or ArgumentOutOfRangeException or FormatException){
+    // A new/invalid log shape must not discard the rest of the financial scan.
    }
-   Validate(e,now);list.Add(e);
   }return list;
+ }
+ public static string? PreviousLogPage(string json){
+  using var d=JsonDocument.Parse(json);
+  if(!d.RootElement.TryGetProperty("_metadata",out var m)||!m.TryGetProperty("links",out var links)||!links.TryGetProperty("prev",out var p)||p.ValueKind!=JsonValueKind.String)return null;
+  if(!Uri.TryCreate(p.GetString(),UriKind.Absolute,out var u)||u.Scheme!="https"||u.Host!="api.torn.com"||u.AbsolutePath!="/v2/user/log"||u.Fragment.Length>0)throw new InvalidDataException("Untrusted financial pagination link.");
+  foreach(string field in u.Query.TrimStart('?').Split('&',StringSplitOptions.RemoveEmptyEntries)){
+   var pair=field.Split('=',2);if(pair.Length!=2||pair[0] is not ("cat" or "limit" or "from" or "to" or "nanostamp" or "timestamp" or "sort")||
+    !System.Text.RegularExpressions.Regex.IsMatch(Uri.UnescapeDataString(pair[1]),@"^[0-9.,\-A-Za-z]+$"))throw new InvalidDataException("Unsupported financial pagination parameters.");
+  }
+  return "user/log"+u.Query;
+ }
+ public static List<(int Id,string Name)> FinancialCategories(string json){
+  string[] names=["Money","Money outgoing","Money incoming","Item market","Bazaars","Bank","Vault","Offshore bank","Company","Job","Trades","Property","Upkeep","Property rental","Stocks","Crime success","Crime critical failure","Slots","Blackjack","Roulette","High-low","Keno","Craps","Bookie"];
+  using var d=JsonDocument.Parse(json);return d.RootElement.GetProperty("logcategories").EnumerateArray().Where(x=>names.Contains(x.GetProperty("title").GetString(),StringComparer.OrdinalIgnoreCase))
+   .Select(x=>(Id:x.GetProperty("id").GetInt32(),Name:x.GetProperty("title").GetString()??"")).Where(x=>x.Id>0).OrderBy(x=>Array.FindIndex(names,n=>n.Equals(x.Name,StringComparison.OrdinalIgnoreCase))).ToList();
  }
  public static void Merge(FinanceJournal journal,IEnumerable<FinanceEntry> rows) {
   var known=journal.Entries.Select(e=>e.Id).ToHashSet(StringComparer.Ordinal);

@@ -82,7 +82,7 @@ public sealed partial class MainForm
                 case "gearScan": case "gearCancel": case "gearOpen": await HandleGear(cmd,root); break;
                 case "slotsOpen": case "slotsStart": case "slotsPause": case "slotsResume": case "slotsStop": case "slotsReset": await HandleSlots(cmd,root); break;
                 case "casinoOpen": case "casinoRead": case "casinoStart": case "casinoUpdate": case "casinoEnd": case "casinoAdopt": case "casinoDelete": await HandleCasino(cmd,root); break;
-                case "financeSync": case "financeSettings": case "financeEntry": case "financeDelete": case "financeExport": await HandleFinance(cmd,root); break;
+                case "financeSync": case "financeStop": case "financeSettings": case "financeEntry": case "financeDelete": case "financeExport": await HandleFinance(cmd,root); break;
                 case "progressionGoals": SaveProgressionGoals(root); break;
                 case "progressionDone": MarkProgressionTask(root); break;
                 case "openGym": NavigateActive(TornRoutes.Gym); break;
@@ -368,7 +368,7 @@ public sealed partial class MainForm
                 type = "state",
                 data = new
                 {
-                    version = "0.6.115",
+                    version = "0.6.116",
                     buildPath = Environment.ProcessPath ?? AppContext.BaseDirectory,
                     profiles = _settings.Profiles.Select(x => new { id = x.Id, name = x.Name }).ToList(),
                     profileLimit = MaxSavedProfiles,
@@ -687,13 +687,13 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
  <button class="nav" data-page="city"><i>⌖</i>City Scanner</button>
  <button class="nav" data-page="scripts"><i>⚙</i>Scripts</button>
  <button class="nav" data-page="settings"><i>☷</i>Settings</button>
- <div class="sidefoot">Independent companion • v<span id="ver">0.6.115</span></div>
+ <div class="sidefoot">Independent companion • v<span id="ver">0.6.116</span></div>
 </div>
 </aside>
 <div class="content">
  <header class="bar">
   <div class="barleft"><span class="eyebrow">ACTIVE PROFILE</span><select id="profileSelect" class="selectmini" aria-label="Active Torn profile"></select><button class="btn small" id="profileAdd" title="Add a separate browser login" onclick="send('profileAdd')">+ Add</button><button class="btn small" title="Rename selected profile" onclick="send('profileRename')">Rename</button><button class="btn small" id="profileDelete" title="Remove this Commander profile (not the Torn game account)" onclick="send('profileDelete')">Remove</button><span id="apiBadge" class="pill muted">API not connected</span></div>
-  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.115</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
+  <div class="bar-actions"><span id="buildBadge" class="pill muted">Build v0.6.116</span><button class="btn small" id="fastSyncButton" onclick="send('fastSync')">Fast Sync</button><button class="btn small primary" id="fullSyncButton" onclick="send('fullSync')">Full Sync</button></div>
  </header>
  <div class="notice" id="dashboardRenderWarning" hidden role="status"></div>
  <section class="page active" id="dashboard">
@@ -942,9 +942,9 @@ html[data-theme] .toggle input{accent-color:var(--blue)}
 </details><div id="casinoAdvice" class="notice info" role="status">Choose a hand above.</div><div class="sub">Rules: <a href="https://wiki.torn.com/wiki/Black_Jack" target="_blank">Torn Blackjack</a> / <a href="https://wiki.torn.com/wiki/Poker" target="_blank">Poker</a> / <a href="https://wiki.torn.com/wiki/High-Low" target="_blank">High-Low</a></div></div><div class="card" style="margin-top:14px"><div class="section">This account's saved sessions</div><div id="casinoHistory"></div><div id="casinoLegacyNote" class="sub"></div><button class="btn" id="casinoAdopt" hidden onclick="casinoAction('casinoAdopt')">Assign unclaimed old records to this account…</button></div></section>
  <section class="page" id="finance">
  <div class="top"><div><div class="eyebrow">Cash now. Wealth for later.</div><div class="bigtitle">Finance &amp; Private Island</div><div class="sub">Your account only · cash flow, savings and the next earning step</div></div></div>
- <div class="actions"><button class="btn primary" id="finSync" onclick="financeAction('financeSync')">Sync balances &amp; recent logs</button><button class="btn" onclick="financeAction('financeExport')">Export my records</button></div>
+ <div class="actions"><button class="btn primary" id="finSync" onclick="financeAction('financeSync')">Refresh cash &amp; financial history</button><button class="btn" onclick="financeAction('financeStop')">Stop history scan</button><button class="btn" onclick="financeAction('financeExport')">Export my records</button></div>
  <div class="notice info" id="finNote"></div>
- <div class="grid" id="finCards"></div>
+ <div class="grid" id="finCashCards"></div><div id="finCoverage" class="sub"></div><div class="grid" id="finCards" style="margin-top:12px"></div>
  <div class="card" style="margin-top:14px"><div class="section">Your Private Island fund</div><div id="finGoalStatus" class="sub"></div><progress id="finProgress" max="100" value="0" style="width:100%;height:16px"></progress>
  <div class="formgrid adviser-fields">
   <label>Island + upgrades budget ($)<input id="finGoal" type="number" min="1" max="1000000000000"></label>
@@ -1093,7 +1093,7 @@ function chooseTheme(theme){
 function classic(p){send('classic',{page:p})}
 function copyPath(){const p=S.buildPath||'';if(p){navigator.clipboard?.writeText(p).catch(()=>{});}}
 function restoreCommander(){const v=$('rollbackVersion').value;if(v)send('restoreCommanderVersion',{version:v});}
-function page(p){if(!$(p))return;document.querySelectorAll('.page').forEach(e=>e.classList.toggle('active',e.id===p));document.querySelectorAll('.nav[data-page]').forEach(e=>e.classList.toggle('active',e.dataset.page===p));$('navCurrent').textContent=document.querySelector('.nav.active')?.textContent?.trim()||p;$('navSide').classList.remove('expanded');$('navToggle').setAttribute('aria-expanded','false');document.querySelector('.content').scrollTop=0;if($('mobilePageSelect'))$('mobilePageSelect').value=p;if(p==='losses'){send('lossLedgerRefresh');ffAction('ffState');}}
+function page(p){if(!$(p))return;document.querySelectorAll('.page').forEach(e=>e.classList.toggle('active',e.id===p));document.querySelectorAll('.nav[data-page]').forEach(e=>e.classList.toggle('active',e.dataset.page===p));$('navCurrent').textContent=document.querySelector('.nav.active')?.textContent?.trim()||p;$('navSide').classList.remove('expanded');$('navToggle').setAttribute('aria-expanded','false');document.querySelector('.content').scrollTop=0;if($('mobilePageSelect'))$('mobilePageSelect').value=p;if(p==='finance'&&S.profileId&&!S.finance?.busy&&(!S.finance?.lastSync||Date.now()-Date.parse(S.finance.lastSync)>300000)){send('financeSync',{profileId:S.profileId});}if(p==='losses'){send('lossLedgerRefresh');ffAction('ffState');}}
 document.querySelectorAll('.nav[data-page]').forEach(e=>e.addEventListener('click',()=>page(e.dataset.page)));
 $('navToggle').addEventListener('click',()=>{const open=$('navSide').classList.toggle('expanded');$('navToggle').setAttribute('aria-expanded',String(open))});
 $('profileSelect').addEventListener('change',e=>{if(e.target.value!==S.profileId)send('switchProfile',{profileId:e.target.value})});
@@ -1704,14 +1704,17 @@ function renderFinance(d){
   renderFinance.profile=d.profileId;
  }
  if(financeEntryId&&(d.entries||[]).some(e=>e.id===financeEntryId)){financeEntryId='';$('finAmount').value='';$('finEntryNote').value='';}
- $('finSync').disabled=!!d.busy;$('finSync').textContent=d.busy?'Syncing through the API queue…':'Sync balances & recent logs';
+ $('finSync').disabled=!!d.busy;$('finSync').textContent=d.busy?'Syncing through the API queue…':'Refresh cash & financial history';
  $('finNote').textContent=(d.note||'')+(d.lastSync?' · Last sync '+new Date(d.lastSync).toLocaleString():' · No finance sync yet');
  const x=d.summary||{},b=d.balance;
- const cards=[['Cash income · 30 days',money(x.income||0)],['Spending · 30 days',money(x.spending||0)],['Recorded net cash flow',money(x.net||0)],['Needs review',x.review||0]];
+ const cashCards=[['Cash on hand',b?money(b.wallet):'Not synced'],['Ready cash · wallet + vault',b?money(Number(b.wallet)+Number(b.vault)):'Not synced'],['City bank principal',b?money(b.bank):'Not synced'],['Cash savings · includes Cayman/bank',b?money(Number(b.wallet)+Number(b.vault)+Number(b.cayman)+Number(b.bank)):'Not synced']];
+ $('finCashCards').innerHTML=cashCards.map(c=>'<div class="card span3"><div class="eyebrow">'+esc(c[0])+'</div><div class="metric s">'+esc(c[1])+'</div></div>').join('');
+ $('finCoverage').textContent=(d.balanceStatus||'Balances have not been verified by the new collector.')+' · '+(d.logStatus||'Financial history coverage is not known. Refresh to scan financial categories.')+(d.lastLogSync?' · History checked '+new Date(d.lastLogSync).toLocaleString():'');
+ const cards=[['Classified income · saved 30-day records',d.lastLogSync||d.entries?.length?money(x.income||0):'Not scanned'],['Classified spending · saved records',d.lastLogSync||d.entries?.length?money(x.spending||0):'Not scanned'],['Recorded net · coverage may be partial',d.lastLogSync||d.entries?.length?money(x.net||0):'Not scanned'],['Needs review',x.review||0]];
  $('finCards').innerHTML=cards.map(c=>'<div class="card span3"><div class="eyebrow">'+esc(c[0])+'</div><div class="metric s">'+esc(c[1])+'</div></div>').join('');
  $('finProgress').value=x.percent||0;
  $('finGoalStatus').textContent=b?money(x.savings)+' after reserve / '+money(d.goal)+' · '+money(x.remaining)+' remaining · '+(x.scenarioDays==null?'No positive daily savings in scenario':x.scenarioDays+' days at your entered scenario')+' · Not a guaranteed purchase date':'Sync first to measure your fund. Scenario excludes unobserved current savings.';
- $('finBalances').textContent=b?'Wallet '+money(b.wallet)+' · Vault '+money(b.vault)+' · Cayman '+money(b.cayman)+' · City bank principal '+money(b.bank)+' · Interest at maturity '+money(b.bankProfit)+' · Faction credit '+(b.faction==null?'unavailable':money(b.faction))+' (excluded) · Net worth '+(b.networth==null?'unavailable':money(b.networth))+' · Observed '+new Date(b.at).toLocaleString():'No saved balances. Manual ledger entries do not change your actual account balance.';
+ $('finBalances').textContent=b?'Wallet '+money(b.wallet)+' · Vault '+money(b.vault)+' · Cayman '+money(b.cayman)+' · City bank principal '+money(b.bank)+' · Interest at maturity '+money(b.bankProfit)+' · Company funds '+(b.company==null?'unavailable':money(b.company))+' (excluded) · Faction credit '+(b.faction==null?'unavailable':money(b.faction))+' (excluded) · Net worth '+(b.networth==null?'unavailable':money(b.networth))+' · Observed '+new Date(b.at).toLocaleString():'No saved balances. Manual ledger entries do not change your actual account balance.';
  $('finChart').innerHTML=(d.history||[]).length>=2?insightChart(d.history,'at',[{key:'cash',label:'Cash savings',color:'#65dcb0'},{key:'networth',label:'Net worth (assets included)',color:'#69b9ff'}],true,0.36):'<div class="empty">History begins with your first sync. A chart appears after observations on two different UTC days.</div>';
  $('finAdvice').innerHTML=(d.advice||[]).map(a=>'<p class="sub">'+esc(a)+'</p>').join('');
  const rows=(d.entries||[]).filter(e=>$('finFilter').value==='all'||e.kind===$('finFilter').value);
@@ -1906,7 +1909,7 @@ function renderSection(name,fn){
 }
 function render(d){if(!d)return;const previous=S.profileId;S=d;
 if(previous&&previous!==d.profileId){casinoAdviceGeneration++;for(const id of ['bjCards','bjDealer','pkHole','pkBoard','pkPot','pkCall','hlCard','evChance','evPayout','evStake'])$(id).value='';$('bjDouble').checked=true;$('bjSplit').checked=true;$('bjSurrender').checked=false;$('pkOpponents').value=1;$('casinoAdvice').textContent='Profile changed. Enter the current hand.';}
-$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.115';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
+$('dashboardRenderWarning').hidden=true;applyTheme(d.theme||"midnight");$('ver').textContent=d.version||'0.6.116';$('buildBadge').textContent='Build v'+(d.version||'?');$('buildBadge').title=d.buildPath||'';$('actualBuildPath').textContent=d.buildPath||'Unknown';$('profileSelect').replaceChildren(...(d.profiles||[]).map(p=>new Option(p.name,p.id)));$('profileSelect').value=d.profileId;$('profileAdd').disabled=(d.profiles||[]).length>=(d.profileLimit||10);$('profileDelete').disabled=(d.profiles||[]).length<=1;if(document.activeElement!==$('githubRepo'))$('githubRepo').value=d.updateGithubRepo||'';const savedVersions=d.rollbackVersions||[];
 const restorePicker=$('rollbackVersion');
 const lastSelection=restorePicker.value;
 restorePicker.replaceChildren(...(savedVersions.length?savedVersions.map(x=>new Option(x.label,x.version)):[new Option('No local version backups yet','')]));
@@ -1914,7 +1917,7 @@ if(savedVersions.some(x=>x.version===lastSelection))restorePicker.value=lastSele
 $('restoreVersionBtn').disabled=savedVersions.length===0;
 $('rollbackHelp').textContent=savedVersions.length?
   'Saved locally: '+savedVersions.length+' version(s). Your active installation folder uses the version number. Older source ZIPs live outside it in LOCALAPPDATA.' :
-  'No rollback history yet. Your first update using v0.6.115 will save the version you are leaving.';
+  'No rollback history yet. Your first update using v0.6.116 will save the version you are leaving.';
 $('profilesSummary').textContent=`${(d.profiles||[]).length} of ${d.profileLimit||10} saved profiles • 1 main browser active • 2 Loss Desk worker slots`;$('profilesList').innerHTML=(d.profiles||[]).map(p=>`<div class="profile-entry ${p.id===d.profileId?'active':''}"><div><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></div>${p.id===d.profileId?'<span class="pill good">Active</span>':'<button class="btn small" data-profile-id="'+esc(p.id)+'">Switch</button>'}</div>`).join('');renderApiActivity(d);$('player').textContent=(d.player||d.profile||'Torn Commander')+(d.playerId?' ['+d.playerId+']':'');$('profileMeta').textContent='Profile: '+(d.profile||'—')+' · Level '+(d.level??'—');$('nerve').textContent=(d.nerve?.current??'—')+' / '+(d.nerve?.max??'—');$('nnb').textContent='Estimated natural nerve: '+(d.nerve?.nnb??'unknown');$('energy').textContent=(d.energy?.current??'—')+' / '+(d.energy?.max??'—');$('wallet').textContent=money(d.wallet);$('merits').textContent=(d.merits?.earned??0)+' / '+(d.merits?.total??0);$('meritAvailable').textContent=(d.merits?.available??0)+' points available';$('phase').textContent=d.phase||'Crime Coach';$('headline').textContent=d.headline||'Run Full Sync';$('why').textContent=d.why||'';$('guide').textContent=d.guide?'Recommended: '+d.guide.summary+' · saved Classic Coach mode: '+d.guide.mode+' (dashboard Run Once is always an explicit single-action request)':'No guided action yet';$('graffitiStatus').textContent=d.graffitiStatus||'Idle';$('crimeActionStatus').textContent=d.graffitiStatus||'Idle';$('runGuideButton').disabled=!!d.guideBusy||!d.guide||d.guide.crime!=='Graffiti';$('crimeRunGuideButton').disabled=$('runGuideButton').disabled;$('runGuideButton').title=d.guide?.crime==='Graffiti'?'Attempt one Graffiti Spray after verifying both selections':'One-click action not available for this recommendation';$('cartMini').textContent=(d.cart?.items??0)+' items · '+(d.cart?.remaining??0)+' units';$('lossMini').textContent=d.loss?(d.loss.completed+'/'+d.loss.requested+' · '+d.loss.status):'No active order';$('travelMini').textContent=(d.travel?.rows?.length??0)+' routes';
 $('crimeGuide').textContent=d.guide?.summary||d.headline||'Sync to receive advice';$('crimeRows').innerHTML=(d.crimes?.length?d.crimes.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${Number(x.skill).toFixed(1)} skill · ${Number(x.nerve||0).toLocaleString()} nerve</div></div><span class="pill">${x.success}% success</span></div>`).join(''):'<div class="empty">Full Sync to load crimes.</div>');$('meritRows').innerHTML=(d.merits?.rows?.length?d.merits.rows.map(x=>`<div class="minirow"><div><b>${esc(x.name)}</b><div class="sub">${esc(x.advice)}</div></div><span class="pill">${esc(x.progress)}</span></div>`).join(''):'<div class="empty">Full Sync to load merit progress.</div>');$('cartItems').textContent=d.cart?.items??0;$('cartRemain').textContent=Number(d.cart?.remaining??0).toLocaleString();$('cartEstimate').textContent=money(d.cart?.estimate);$('cartLimits').textContent=d.cart?.ignoreLimits?'NUKE MY PILE enabled':'Spending limits active';$('workerA').textContent=d.workers?.a||'Not initialized';$('workerB').textContent=d.workers?.b||'Not initialized';
 renderSection('Leveling',()=>renderLeveling(d.leveling));renderLossStatus(d);renderSection('Loss orders',()=>{renderLossOrders(d);renderLossXChoice(d);});renderSection('Item intelligence',()=>renderItemIntelligence(d.itemIntelligence,d.profileId));

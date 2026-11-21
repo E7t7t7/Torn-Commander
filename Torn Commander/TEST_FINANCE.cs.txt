@@ -37,3 +37,30 @@ foreach(var e in new[]{new FinanceEntry{At=now,Amount=-1},new FinanceEntry{At=no
 Check(FinanceData.Advice(j,summary,now).Any(x=>x.Contains("Training / drugs")),"Advice missed actual largest expense.");
 Check(FinanceData.Balance("""{"money":{"wallet":1,"vault":0,"cayman_bank":0,"city_bank":null,"faction":null}}""",now).Faction==null,"Missing bank/faction fabricated.");
 Console.WriteLine("FINANCE PASSED: balance ownership boundaries, principal, transfers, receipt deduplication, review, cash/Xanax isolation, scenario/observed math, persistence, date ranges and recommendations.");
+
+string Logs(object[] data)=>JsonSerializer.Serialize(new{log=data});
+object Log(string id,string title,object fields)=>new{id,timestamp=new DateTimeOffset(now).ToUnixTimeSeconds(),details=new{title},data=fields};
+var realShapes=FinanceData.Logs(Logs(new[]{
+ Log("purchase","Item market buy",new{cost_total=1000,cost_each=100}),
+ Log("deposit","Company deposit",new{deposited=2000,balance=3000}),
+ Log("factioncash","Faction give money receive",new{money_given=3000}),
+ Log("factioncredit","Faction payout money balance receive",new{balance_change=5000}),
+ Log("slotswin","Casino slots win",new{bet_amount=1000,won_amount=5000}),
+ Log("slotslose","Casino slots lose",new{bet_amount=1000}),
+ Log("salegross","Item market sell",new{cost_total=6000}),
+ Log("salenet","Item market sell",new{money_received=5700,cost_total=6000}),
+ Log("bad","Item market buy",new{cost_total="not a number"})
+}),now);
+Check(realShapes.Count==8,"Real log fields missing, faction credit treated as cash, or malformed row broke scan.");
+var actual=new FinanceJournal();FinanceData.Merge(actual,realShapes);FinanceData.Merge(actual,realShapes);
+Check(actual.Entries.Count==8&&FinanceData.Summary(actual,now).Income==10700&&FinanceData.Summary(actual,now).Spending==3000,"Wagers/payouts, net received or purchase costs counted incorrectly.");
+Check(actual.Entries.Single(x=>x.Id=="torn:deposit").Kind=="transfer"&&actual.Entries.Single(x=>x.Id=="torn:factioncash").Kind=="review"&&actual.Entries.Single(x=>x.Id=="torn:salegross").Kind=="review","Transfers or unverified cash/fees silently classified as profit.");
+var missing=FinanceData.FinancialCategories("""{"logcategories":[{"id":11,"title":"Item market"},{"id":180,"title":"Attacking"},{"id":138,"title":"Vault"},{"id":184,"title":"Slots"}]}""");
+Check(missing.Count==3&&missing.All(x=>x.Id!=180),"Fights included in financial category scan.");
+var cursor=FinanceData.PreviousLogPage("""{"_metadata":{"links":{"prev":"https://api.torn.com/v2/user/log?cat=11&limit=100&from=1&nanostamp=1790000000123456789"}}}""");
+Check(cursor=="user/log?cat=11&limit=100&from=1&nanostamp=1790000000123456789","Nanosecond pagination was rounded or lost.");
+foreach(var link in new[]{"https://evil.example/v2/user/log?cat=11","https://api.torn.com/v2/user/log?key=secret","https://api.torn.com/v2/faction/log?cat=11"}){
+ bool refused=false;try{FinanceData.PreviousLogPage(JsonSerializer.Serialize(new{_metadata=new{links=new{prev=link}}}));}catch(InvalidDataException){refused=true;}Check(refused,"Foreign or credential-bearing pagination accepted.");
+}
+Check(FinanceData.PreviousLogPage("""{"_metadata":{"links":{"prev":null}}}""")==null,"End of pagination not recognized.");
+Console.WriteLine("FINANCE CASH COLLECTION PASSED: actual market/faction/company/slots fields, principal transfers, fee review, faction-credit exclusion, multi-leg deduplication, malformed row isolation, targeted categories and safe nanostamp pagination.");

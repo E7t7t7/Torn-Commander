@@ -1,0 +1,6 @@
+# Finance collection
+Open Finance to refresh cash if the last balance is over five minutes old, or press Refresh cash & financial history. The current wallet, wallet+vault ready cash, bank principal and total cash savings appear independently of transaction collection.
+Torn money access requires Limited/Full or an authorized custom selection. User logs require Full access. A permission failure reports the affected data; existing balances and history remain available.
+The collector discovers category IDs from the official logcategories endpoint, requests a rolling 30-day window and checks up to two 100-row pages per financial category. History may be partial for busy categories or unsupported log fields; coverage is shown explicitly. Faction account credit is not treated as wallet money. Direct cash receipts and sale amounts with unknown fees remain for review.
+Bank/vault/company principal movements are transfers, not profit. Slot stakes and payouts are separate deduplicated records. Manual classifications survive subsequent imports. Do not re-enter a payment already imported.
+Stop history scan preserves completed pages and current balances. Refreshing does not change any Torn funds or perform purchases/transfers. Source: https://www.torn.com/swagger/openapi.json (user/money, user/networth, user/log and torn/logcategories).
