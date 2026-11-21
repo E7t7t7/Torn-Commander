@@ -7,6 +7,15 @@ const {chromium}=require(process.env.COMMANDER_PLAYWRIGHT||'playwright'),fs=requ
  await page.route('**/*',r=>r.abort());await page.setContent(src.slice(src.indexOf('<!doctype html>'),src.indexOf('<script>')));
  await page.evaluate(()=>{window.__requests=[];window.chrome=window.chrome||{};window.chrome.webview={addEventListener(){},postMessage:m=>__requests.push(JSON.parse(JSON.stringify(m)))};});
  await page.addScriptTag({content:src.slice(src.indexOf('<script>')+8,src.indexOf('</script>')).replace('/*CASINO_COACH*/',()=>coach)});
+ await page.evaluate(()=>{S.profileId='main';renderCargo({enabled:true,note:'Fixture quotes',items:[{id:2,name:'Flower'}],excluded:[{id:3,name:'Excluded'}],quotes:[{country:'Mexico',name:'Flower',units:10,purchase:1100,revenue:3000,margin:1900,marketAt:new Date().toISOString(),shopAt:new Date().toISOString(),rule:'75% buyback',source:'fixture'}]});page('travel');});
+ await page.locator('#cargoScan').click();assert(await page.evaluate(()=>__requests.some(x=>x.cmd==='cargoScan'&&x.profileId==='main')));
+ await page.getByText('Exclude items from all travel plans',{exact:true}).click();
+ await page.getByRole('button',{name:'Exclude selected item',exact:true}).click();assert(await page.evaluate(()=>__requests.some(x=>x.cmd==='cargoExclude'&&x.itemId===2&&x.exclude===true)));
+ await page.getByRole('button',{name:'Restore Excluded',exact:true}).click();assert(await page.evaluate(()=>__requests.some(x=>x.cmd==='cargoExclude'&&x.itemId===3&&x.exclude===false)));
+ assert((await page.locator('#cargoQuotes').innerText()).includes('1,900'));
+ for(const width of [1100,600,390]){await page.setViewportSize({width,height:950});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Cargo UI overflow '+width);}
+ await page.evaluate(()=>renderCargo({items:[],quotes:[],excluded:[]}));assert.equal(await page.locator('#cargoExcluded button').count(),0);
+ await page.setViewportSize({width:1100,height:950});
  await page.evaluate(()=>{S.profileId='main';renderSales({profileId:'main',inventoryUtc:'2026-11-20T12:00:00Z',rows:[{id:1,name:'One',amount:10,selected:0},{id:2,name:'Two',amount:20,selected:0}],minimumRating:0,maxTraders:3,onlineOnly:false});page('trading');});
  await page.locator('[data-sale-id="1"]').fill('5');await page.locator('[data-sale-id="2"]').fill('8');await page.locator('#saleCompare').click();
  const command=await page.evaluate(()=>__requests.find(x=>x.cmd==='saleCompare'));assert(command?.profileId==='main'&&command.pool.length===2&&command.pool[0].quantity===5&&command.rating===0&&command.maxTraders===3);

@@ -56,6 +56,8 @@ namespace TornCommander{
  public string TravelFlightType{get;set;}="Airstrip";
  }
  public sealed class TravelForecastItem{
+ public long CashRequired{get;set;}
+ public string Direction{get;set;}="import";public string OutboundItem{get;set;}="";public int OutboundUnits{get;set;}public long OutboundCost{get;set;}public long OutboundRevenue{get;set;}public DateTime? OutboundQuoteUtc{get;set;}
  public int ItemId{get;set;}
  public string Country{get;set;}="";
  public string ItemName{get;set;}="";

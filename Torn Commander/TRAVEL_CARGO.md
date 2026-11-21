@@ -1,0 +1,5 @@
+# Outbound travel cargo
+Refresh travel stocks, set capacity/cash/flight settings, then **Scan outbound purchase prices** in Travel. Exclude unwanted items under the cargo section; restore them there.
+Purchase books come from official Torn item-market listings. Only goods in a destination's observed shop inventory are considered sellable there. Black Market drugs/contraband use full observed shop price; General/Arms use 75%. Sources: https://wiki.torn.com/wiki/Travel and https://wiki.torn.com/wiki/Contraband.
+A combined route buys one outbound item type in Torn, sells it abroad, then loads return imports. Required starting cash allows reusing overseas sale proceeds and reserves standard return airfare. No purchase or flight is booked.
+Quotes expire after 15 minutes and foreign price observations after 30. Only the first departure can use them. Prices can move before arrival, listing depth is limited, and quantities are not reserved. Conservative 100/item cap; mixed outbound baskets, existing owned cargo and speculative future purchase books are not optimized.

@@ -152,7 +152,7 @@ jobs:
       - name: Check actual-flight and custom-departure plans
         shell: pwsh
         run: |
-          & 'Torn Commander/TEST_TRAVEL_TIMING.ps1'
+          & 'Torn Commander/TEST_TRAVEL_CARGO.ps1'
           if ($LASTEXITCODE -ne 0) { throw 'Flight timing test failed; release withheld.' }
       - name: Check passive city-map scanner
         shell: pwsh

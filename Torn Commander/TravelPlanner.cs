@@ -41,6 +41,7 @@ public sealed partial class MainForm
                 $"(arrive {leg.ArriveUtc.ToLocalTime():h:mm tt}) -> Torn by {leg.ReturnUtc.ToLocalTime():h:mm tt}; " +
                 $"{leg.Units}x {leg.Item}, budget ${leg.CashRequired:N0}, scenario upside ${leg.EstimatedProfit:N0}, model score ${leg.RiskAdjustedProfit:N0}, {leg.Availability}");
         }
+        foreach(var leg in plan.Legs.Where(x=>x.OutboundUnits>0)) lines.Add($"#{leg.Number} outbound: {leg.OutboundUnits}x {leg.OutboundItem}; purchase ${leg.OutboundCost:N0}, overseas proceeds ${leg.OutboundRevenue:N0}.");
         lines.Add($"Scenario upside: ${plan.EstimatedProfit:N0}; risk-weighted ranking score: ${plan.RiskWeightedScore:N0}. {plan.Note}");
         try { Clipboard.SetText(string.Join(Environment.NewLine, lines)); FlashStatus("24-hour travel itinerary copied."); }
         catch (Exception ex) { FlashStatus("Could not copy travel plan: " + ex.Message); }
@@ -433,7 +434,7 @@ public sealed partial class MainForm
         item.ConfidenceLabel = item.Confidence >= 0.75 ? "High" : item.Confidence >= 0.45 ? "Medium" : item.Confidence > 0 ? "Low" : "Unrated";
         if (item.ProfitPerItem == 0 && item.MarketValue > 0 && item.BuyPrice > 0)
         {
-            var sell = _settings.TravelApplyMarketTax ? (long)Math.Floor(item.MarketValue * 0.95) : item.MarketValue;
+            var sell = _settings.TravelApplyMarketTax && item.Direction!="export" ? (long)Math.Floor(item.MarketValue * 0.95) : item.MarketValue;
             item.ProfitPerItem = sell - item.BuyPrice;
         }
         return item;
@@ -672,7 +673,7 @@ public sealed partial class MainForm
         if (_travelGrid is null || _travelSummary is null) return;
         var age = _travelForecast.RetrievedAtUtc == DateTime.MinValue ? "never" : ToAge(DateTime.UtcNow - _travelForecast.RetrievedAtUtc);
         _travelSummary.Text = $"{_travelForecast.Source} • {_travelForecast.Items.Count:N0} ranked routes • last good refresh {age} ago" + (string.IsNullOrWhiteSpace(_travelForecast.Error) ? "" : " • partial feed / cached data");
-        _travelGrid.DataSource = _travelForecast.Items.Select(x => new
+        _travelGrid.DataSource = TravelIntelligenceCandidates().Select(x => new
         {
             Item = x.ItemName,
             x.Country,

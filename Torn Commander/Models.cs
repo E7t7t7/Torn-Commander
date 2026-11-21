@@ -367,6 +367,12 @@ public sealed class TravelObservation
 
 public sealed class TravelForecastItem
 {
+    public string Direction {get;set;}="import";
+    public string OutboundItem {get;set;}="";
+    public int OutboundUnits {get;set;}
+    public long OutboundCost {get;set;}
+    public long OutboundRevenue {get;set;}
+    public DateTime? OutboundQuoteUtc {get;set;}
     public int ItemId { get; set; }
     public string ItemName { get; set; } = "";
     public string Country { get; set; } = "";

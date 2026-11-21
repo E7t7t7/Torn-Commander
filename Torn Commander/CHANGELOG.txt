@@ -1,3 +1,12 @@
+v0.6.113 - Outbound cargo and travel exclusions
+- Add Travel > Buy in Torn, sell abroad: scan actual official market purchase tiers for goods accepted by each destination's observed shop. Compare purchase depth and 75% General/Arms or 100% Black Market buyback; classify current contraband independently of API item types.
+- Show item, destination, quoted units, total purchase, overseas proceeds, margin, both observation times and source. Exclude/restore items per profile across modern/classic routes and sequences.
+- Combine first-departure outbound sales with return imports, reuse sale proceeds for affordability, count standard fares once, and calculate required starting cash. Support outbound-only routes.
+- Purchase books expire after 15 minutes; shop observations after 30. Later trips and delayed departures cannot reuse outbound quotes. Quotes are scenarios, never reservations; no buying, selling or travel is automated. Conservatively cap outbound units at 100 per item. One outbound item type per combined route; mixtures are not optimized.
+- Distinguish used observed stock from a separately modeled restock. Keep actual-flight anchoring, rehab-first and existing travel features.
+- Fix Windows PowerShell 5.1 updater ZIP extraction incompatibility; isolated upgrade/rollback passed. v0.6.112 was initially withheld by this test.
+- Tests: bounded tier calculations, shop classification, budgets/cash reuse, stale/future/unknown inputs, paired and export-only trips, delayed departures, no repeated export gain, fares, flight anchoring, dashboard and public inventory/paint regression fixtures. No live purchases, transfers or flights.
+
 v0.6.112 - Inventory sale comparisons and hideable paint window
 - Add Trading > Sell my inventory: scan the selected account's official inventory, choose up to 20 item types/quantities, then compare one complete buyer with a split across 1–5 buyers.
 - Exclude equipped, faction-owned and unique-stat rows from generic commodity quotes; preserve selected quantities within fresh inventory bounds and keep profiles isolated. Inventory pagination is bounded at 5,000 rows and reports partial scans.

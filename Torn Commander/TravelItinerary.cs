@@ -8,6 +8,10 @@ public sealed class TravelItineraryLeg
     public int Number { get; set; }
     public string Country { get; set; } = "";
     public string Item { get; set; } = "";
+    public string OutboundItem { get; set; } = "";
+    public int OutboundUnits { get; set; }
+    public long OutboundCost { get; set; }
+    public long OutboundRevenue { get; set; }
     public int Units { get; set; }
     public DateTime DepartUtc { get; set; }
     public DateTime ArriveUtc { get; set; }
@@ -91,6 +95,11 @@ public static class TravelItineraryEngine
                 var depart = startUtc.AddMinutes(slot * SlotMinutes);
                 foreach (var item in candidates)
                 {
+                    bool exportOnly = item.Direction == "export";
+                    bool outbound = state.Legs.Count == 0 && item.OutboundQuoteUtc.HasValue &&
+                        depart >= item.OutboundQuoteUtc.Value.AddMinutes(-2) &&
+                        depart <= item.OutboundQuoteUtc.Value.AddMinutes(15);
+                    if (exportOnly && !outbound) continue;
                     var roundtrip = item.FlightMinutesOneWay * 2;
                     var returnMinute = slot * SlotMinutes + roundtrip;
                     if (returnMinute > availableMinutes) continue;
@@ -108,17 +117,24 @@ public static class TravelItineraryEngine
                     if (!observed && !restockProjection) continue;
                     // No model may reuse a static shelf reading as a new replenishment.
                     if (observed && arrive < nowUtc) continue;
-                    var key = item.Country.ToUpperInvariant() + ":" + item.ItemId;
+                    var key = item.Country.ToUpperInvariant() + ":" + item.ItemId + (observed ? ":observed" : ":restock:" + item.RestockAtUtc?.Ticks);
                     var used = state.Used.TryGetValue(key, out var count) ? count : 0;
                     var totalAvailable = observed ? Math.Max(0, item.Stock!.Value) : settings.TravelCapacity;
                     var remaining = totalAvailable - used;
                     if (remaining <= 0) continue;
-                    var funds = settings.TravelCashBudget > 0 ? settings.TravelCashBudget / item.BuyPrice : 1000;
-                    var units = (int)Math.Clamp(Math.Min(Math.Min((long)settings.TravelCapacity, funds), remaining), 0, 1000);
-                    if (units == 0) continue;
-                    var standardFare = settings.TravelFlightType == "Standard" ?
-                        Math.Max(0L, item.ProfitPerItem * item.Units - item.TripProfit) : 0L;
-                    var profit = item.ProfitPerItem * units - standardFare;
+                    long fullMargin = item.OutboundRevenue - item.OutboundCost;
+                    var standardFare = settings.TravelFlightType == "Standard" && !exportOnly ?
+                        Math.Max(0L, item.ProfitPerItem * item.Units + fullMargin - item.TripProfit) : 0L;
+                    long funds = settings.TravelCashBudget > 0 ?
+                        Math.Max(0, settings.TravelCashBudget + (outbound ? fullMargin : 0) - standardFare) / item.BuyPrice : 1000;
+                    var units = exportOnly ? item.Units :
+                        (int)Math.Clamp(Math.Min(Math.Min((long)settings.TravelCapacity, funds), remaining), 0, 1000);
+                    long cash = exportOnly ? item.CashRequired : outbound ?
+                        item.OutboundCost + standardFare / 2 + Math.Max(0, units * item.BuyPrice + standardFare / 2 - item.OutboundRevenue) :
+                        units * item.BuyPrice + standardFare;
+                    if (units <= 0 || (settings.TravelCashBudget > 0 && cash > settings.TravelCashBudget)) continue;
+                    var profit = exportOnly ? item.TripProfit :
+                        item.ProfitPerItem * units - standardFare + (outbound ? fullMargin : 0);
                     if (profit <= 0) continue;
                     // Time-to-arrival reduces observed-stock confidence sharply. A full
                     // airplane trip can outlast a shelf snapshot; never label it certain.
@@ -139,9 +155,14 @@ public static class TravelItineraryEngine
                     next.Used[key] = used + units;
                     next.Legs.Add(new TravelItineraryLeg
                     {
+                        Kind = exportOnly ? "export" : "trade",
+                        OutboundItem = outbound ? item.OutboundItem : "",
+                        OutboundUnits = outbound ? item.OutboundUnits : 0,
+                        OutboundCost = outbound ? item.OutboundCost : 0,
+                        OutboundRevenue = outbound ? item.OutboundRevenue : 0,
                         Number = next.Legs.Count + 1, Country = item.Country, Item = item.ItemName,
                         Units = units, DepartUtc = depart, ArriveUtc = arrive,
-                        ReturnUtc = depart.AddMinutes(roundtrip), CashRequired = units * item.BuyPrice,
+                        ReturnUtc = depart.AddMinutes(roundtrip), CashRequired = cash,
                         EstimatedProfit = profit,
                         RiskAdjustedProfit = (long)Math.Round(profit * certainty),
                         Availability = observed ? "Stock observed earlier — verify on arrival" : "Modeled restock — speculative",
