@@ -1,0 +1,23 @@
+using TornCommander;
+void Check(bool b,string message){if(!b)throw new Exception(message);}
+var inv=InventorySales.Inventory("""{"inventory":{"items":[{"id":1,"amount":10,"name":"One","equipped":false,"faction_owned":false,"uid":null},{"id":1,"amount":5,"name":"One","equipped":false,"faction_owned":false,"uid":null},{"id":2,"amount":1,"name":"Unique","equipped":false,"faction_owned":false,"uid":123},{"id":3,"amount":5,"name":"Faction","equipped":false,"faction_owned":true,"uid":null},{"id":4,"amount":1,"name":"Equipped","equipped":true,"faction_owned":false,"uid":null}]}}""");
+Check(inv.Rows.Single().Amount==15&&inv.Excluded==3&&inv.Count==5,"Inventory ownership/unique/equipment filters");
+var now=DateTime.UtcNow;var j=new SaleJournal{Owner=999,Inventory=new(){new(1,"One",10),new(2,"Two",10)},Selected=new(){{1,10},{2,10}},MaxTraders=2};
+j.Quotes.AddRange(new[]{new BuyerQuote(1,100,"A",100,50,"Online","https://www.tornexchange.com/prices/A/",now),new(2,100,"A",90,50,"Online","https://www.tornexchange.com/prices/A/",now),new(1,200,"B",110,10,"Idle","https://www.tornexchange.com/prices/B/",now),new(2,200,"B",80,10,"Idle","https://www.tornexchange.com/prices/B/",now)});
+var result=InventorySales.Compare(j,now);Check(result.Single!.Total==1900&&result.Split!.Total==2000&&result.Split.Traders==2,"Single/split values or no coverage");
+j.MaxTraders=1;result=InventorySales.Compare(j,now);Check(result.Split!.Total==1900&&result.Split.Traders==1,"Max trader count ignored");
+j.MaxTraders=2;j.OnlineOnly=true;Check(InventorySales.Compare(j,now).Split!.Total==1900,"Online filter");
+j.OnlineOnly=false;j.MinimumRating=20;Check(InventorySales.Compare(j,now).Split!.Total==1900,"Rating filter");
+j.MinimumRating=0;j.Quotes.Add(new(1,300,"Bad",100000,-10,"Online","https://www.tornexchange.com/prices/Bad/",now));Check(InventorySales.Compare(j,now).Split!.Total==2000,"Negative rating included by default");
+j.Quotes.Add(new(1,999,"Self",100000,50,"Online","https://www.tornexchange.com/prices/Self/",now));Check(InventorySales.Compare(j,now).Split!.Total==2000,"Own account quote included");
+Check(InventorySales.Compare(j,now.AddMinutes(11)).Single==null,"Stale quote used");
+j.Quotes.RemoveAll(x=>x.Item==2);result=InventorySales.Compare(j,now);Check(result.Single==null&&result.Split!.Missing.SequenceEqual(new[]{2}),"Missing quote treated as zero/full plan");
+j.Selected[1]=11;bool rejected=false;try{InventorySales.Compare(j,now);}catch(InvalidDataException){rejected=true;}Check(rejected,"Selected more than owned");
+string html="""<div class="listing-container"><div class="card listing-card m-0"><div class="listing-player"><i class="fa-circle text-warning"></i><a href="https://www.torn.com/profiles.php?XID=100">Buyer&nbsp;[100]</a><div class="text-end text-success">17<i></i></div></div><img src="https://www.torn.com/images/items/1/large.png"><div class="listing-price"><strong>$1,234</strong></div><a href="/prices/Buyer/">Price List</a></div></div>""";
+var quote=InventorySales.Listings(html,1,now).Single();Check(quote.Trader==100&&quote.Name=="Buyer"&&quote.Price==1234&&quote.Rating==17&&quote.Status=="Idle","Public listing parser");
+Check(InventorySales.Listings(html,2,now).Count==0,"Substring item search gave wrong ID");
+string list="""<a href="https://www.torn.com/trade.php#step=start&amp;userID=100">Trade</a><table><tr><td><img src="https://www.torn.com/images/items/2/large.png"></td><td class="item-name">Two</td><td>$567</td></tr></table>""";
+Check(InventorySales.PriceList(list,quote,new HashSet<int>{1,2},now).Single().Price==567,"Complete pricelist fill");
+Check(InventorySales.PriceList(list,quote with{Trader=101},new HashSet<int>{2},now).Count==0,"Pricelist owner mismatch");
+rejected=false;try{InventorySales.Listings("<title>Just a moment</title>",1,now);}catch(InvalidDataException){rejected=true;}Check(rejected,"Challenge treated as quote");
+Console.WriteLine("INVENTORY SALES PASSED: inventory filters, single/split optimization, caps, missing quotes, stale/rating/online/self guards, exact public item ID, owner-verified price list and challenge refusal.");

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Commander - Graffiti Paint Helper
 // @namespace    torn.commander
-// @version      1.7.0
+// @version      1.7.1
 // @description  Shows paint charge percentages and supports Torn Commander guided one-action Graffiti setup/submission when the user explicitly presses the guide button.
 // @match        https://www.torn.com/page.php?sid=crimes*
 // @match        https://www.torn.com/loader.php?sid=crimes*
@@ -21,6 +21,16 @@
     };
     const STORE_KEY = 'tcGraffitiPaintStateV1';
     const POS_KEY = 'tcGraffitiPaintHelperPositionV1';
+    const VISIBILITY_KEY = 'tcGraffitiPaintOverlayHiddenV1';
+    let overlayHidden=false;
+    try{overlayHidden=localStorage.getItem(VISIBILITY_KEY)==='1';}catch{}
+    function setOverlayVisible(show){
+        overlayHidden=!show;
+        try{localStorage.setItem(VISIBILITY_KEY,overlayHidden?'1':'0');}catch{}
+        render();return {visible:!overlayHidden};
+    }
+    window.addEventListener?.('storage',e=>{if(e.key===VISIBILITY_KEY){overlayHidden=e.newValue==='1';render();}});
+
     const state = loadState();
     let dirty = false;
     let lastScan = 0;
@@ -290,7 +300,7 @@
     function fmt(n) { return `${Math.round(Number(n) * 10) / 10}%`; }
 
     function createUi() {
-        if (document.getElementById('tc-graffiti-paint-helper')) return;
+        if (overlayHidden || document.getElementById('tc-graffiti-paint-helper')) return;
         const style = document.createElement('style');
         style.textContent = `
 #tc-graffiti-paint-helper{position:fixed;right:8px;top:140px;width:clamp(205px,35vw,385px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);z-index:2147483000;background:#12171d;color:#e8edf2;border:1px solid #42505f;border-radius:10px;box-shadow:0 8px 26px rgba(0,0,0,.5);font:clamp(11px,1.2vw,13px)/1.35 Arial,sans-serif;overflow:hidden;display:flex;flex-direction:column}
@@ -304,19 +314,21 @@
 
         const root = document.createElement('div');
         root.id = 'tc-graffiti-paint-helper';
-        root.innerHTML = `<div id="tc-gph-head"><strong>Commander • Paint</strong><button class="tc-gph-btn" id="tc-gph-collapse" title="Collapse paint window">−</button><button class="tc-gph-btn" id="tc-gph-refresh" title="Refresh">↻</button><button class="tc-gph-btn" id="tc-gph-debugbtn">Debug</button></div><div id="tc-gph-body"></div>`;
+        root.innerHTML = `<div id="tc-gph-head"><strong>Commander • Paint</strong><button class="tc-gph-btn" id="tc-gph-collapse" title="Collapse paint window">−</button><button class="tc-gph-btn" id="tc-gph-refresh" title="Refresh">↻</button><button class="tc-gph-btn" id="tc-gph-debugbtn">Debug</button><button class="tc-gph-btn" id="tc-gph-hide" title="Hide paint window; restore from Commander Crimes" aria-label="Hide paint window">×</button></div><div id="tc-gph-body"></div>`;
         document.body.appendChild(root);
         makeDraggable(root, root.querySelector('#tc-gph-head'));
         root.querySelector('#tc-gph-refresh').addEventListener('click', () => { scanAll(true); });
         root.querySelector('#tc-gph-collapse').addEventListener('click', () => { overlayCollapsed = !overlayCollapsed; root.classList.toggle('tc-gph-collapsed', overlayCollapsed); root.querySelector('#tc-gph-collapse').textContent = overlayCollapsed ? '+' : '−'; clampOverlay(root); });
         root.querySelector('#tc-gph-debugbtn').addEventListener('click', copyDebug);
+        root.querySelector('#tc-gph-hide')?.addEventListener('click', () => setOverlayVisible(false));
         render();
     }
 
     function render() {
-        if (!isGraffitiPage()) {
+        if (overlayHidden || !isGraffitiPage()) {
             const old = document.getElementById('tc-graffiti-paint-helper');
             if (old) old.style.display = 'none';
+            if(dirty){saveState();dirty=false;}
             return;
         }
         createUi();
@@ -405,7 +417,7 @@
                 selected:isSelectedElement(el)
             }));
         return {
-            helperVersion:'1.7.0', route:location.pathname + location.search + location.hash,
+            helperVersion:'1.7.1', route:location.pathname + location.search + location.hash,
             selectionStatus:lastGuideStatus, actionState:lastGuideResult,
             graffitiRoute:/#\/?graffiti(?:$|[/?])/i.test(location.hash || ''),
             districtCandidateCount:findGuideCandidates('Residential District','target').length,
@@ -855,8 +867,10 @@
     }
 
     window.__TornCommanderGraffiti = {
-        version: '1.7.0',
+        version: '1.7.1',
         state,
+        setOverlayVisible,
+        overlayVisible:()=>!overlayHidden,
         scan: () => scanAll(true),
         recommendation,
         debugJson: () => JSON.stringify(getSafeDebug(), null, 2),

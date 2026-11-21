@@ -2,7 +2,7 @@
 'use strict';
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[2],'utf8');
-function fixture(){
+function fixture(storage=new Map()){
  const nodes=[], messages=[];
  class El{
   constructor(text,selected=false){this.tagName='BUTTON';this.innerText=text;this.textContent=text;this.childNodes=[{nodeType:3,textContent:text}];this.className=selected?'selected':'';this.parentElement=null;this.disabled=false;this.isConnected=true;this.attrs={};nodes.push(this);}
@@ -21,7 +21,7 @@ function fixture(){
  const window={chrome:{webview:{postMessage:x=>messages.push(x)}}};
  const document={body:{innerText:'Graffiti'},querySelectorAll:()=>nodes,getElementById:()=>null};
  const context={window,document,location:{href:'https://www.torn.com/page.php?sid=crimes#/graffiti',hash:'#/graffiti'},
-  localStorage:{getItem:()=>null,setItem:()=>{}},getComputedStyle:()=>({display:'block',visibility:'visible',opacity:'1'}),
+  localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},getComputedStyle:()=>({display:'block',visibility:'visible',opacity:'1'}),
   Date,Map,Set,URL,console,setTimeout,clearTimeout};
  vm.createContext(context);
  const instrumented=source.replace('    hookNetwork();','    render=()=>{}; scanAll=()=>{}; window.__test={isSelectedElement,deliberateClick}; return;\n    hookNetwork();');
@@ -72,5 +72,10 @@ async function finish(f,id){for(let i=0;i<160;i++){const r=f.helper.getGuideActi
  f=fixture();const previous=f.helper;
  vm.runInContext(source,f.context);
  assert.strictEqual(f.window.__TornCommanderGraffiti,previous,'Re-injection reset command locks');
+ const savedVisibility=new Map();const hidden=fixture(savedVisibility);
+ assert(hidden.helper.overlayVisible());hidden.helper.setOverlayVisible(false);assert(!hidden.helper.overlayVisible());
+ assert.equal(savedVisibility.get('tcGraffitiPaintOverlayHiddenV1'),'1');
+ const reopened=fixture(savedVisibility);assert(!reopened.helper.overlayVisible(),'Hidden setting lost on reload');reopened.helper.setOverlayVisible(true);assert(reopened.helper.overlayVisible());
+ console.log('PAINT VISIBILITY PASSED: hide/show API and locally persisted reload state without game actions.');
  console.log('GRAFFITI TEST PASSED: native acknowledgement/results, one-click, cooldown, configure, cancellation, final selection/disabled guards, native radios, ambiguous controls and injection lock.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

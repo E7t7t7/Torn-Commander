@@ -3,6 +3,15 @@ namespace TornCommander;
 
 public sealed partial class MainForm
 {
+    private async Task SetPaintOverlayAsync(bool show){
+        var tab=Active();var uri=tab?.WebView.Source;
+        if(tab==null||uri==null||uri.Scheme!="https"||!TornRoutes.IsTornHost(uri.Host)){FlashStatus("Open Torn in the game browser before changing its paint overlay.");return;}
+        string profile=CurrentProfileId;
+        var raw=await tab.ExecuteScriptAsync("(()=>{const show="+(show?"true":"false")+";if(window.__TornCommanderGraffiti?.setOverlayVisible)return window.__TornCommanderGraffiti.setOverlayVisible(show);try{localStorage.setItem('tcGraffitiPaintOverlayHiddenV1',show?'0':'1');return {saved:true};}catch{return {saved:false};}})()");
+        bool accepted=false;try{using var d=JsonDocument.Parse(raw??"null");accepted=d.RootElement.ValueKind==JsonValueKind.Object&&((d.RootElement.TryGetProperty("visible",out var v)&&v.ValueKind is JsonValueKind.True or JsonValueKind.False&&v.GetBoolean()==show)||(d.RootElement.TryGetProperty("saved",out var saved)&&saved.ValueKind==JsonValueKind.True));}catch{}
+        if(!accepted){FlashStatus("Paint visibility could not be saved on this page. Open Graffiti and try again.");return;}
+        if(profile==CurrentProfileId)FlashStatus(show?"Paint overlay enabled for this browser profile. Open Graffiti to see it.":"Paint overlay hidden for this browser profile. Restore it from Crimes → Show paint window.");
+    }
     private bool _guideActionBusy;
     private BrowserTab? _guideCommandTab;
     private string? _guideCommandId;
