@@ -114,7 +114,9 @@ try {
     $staging = Join-Path $root ('UpdateStaging\' + [guid]::NewGuid().ToString('N'))
     $unpacked = Join-Path $staging 'unpacked'
     New-Item -ItemType Directory -Path $unpacked -Force | Out-Null
-    Expand-Archive -LiteralPath $ZipPath -DestinationPath $unpacked -Force
+    # Fresh GUID destination; compatible with Windows PowerShell 5.1.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $unpacked)
     $source = Join-Path $unpacked 'Torn Commander'
     foreach ($required in @('VERSION.txt','TornCommander.csproj','PUBLISH_EXE.bat',
         'REBUILD_AND_LAUNCH.bat','CommanderUpdater.cs','APPLY_COMMANDER_UPDATE.ps1',
