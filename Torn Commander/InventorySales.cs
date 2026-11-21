@@ -9,7 +9,7 @@ public sealed class SalePlan {public List<SaleLine> Lines{get;set;}=new();public
 public sealed class SaleJournal {
  public int Owner{get;set;}public DateTime? InventoryUtc{get;set;}public List<SaleInventory> Inventory{get;set;}=new();
  public Dictionary<int,long> Selected{get;set;}=new();public List<BuyerQuote> Quotes{get;set;}=new();
- public int MinimumRating{get;set;}=0;public int MaxTraders{get;set;}=3;public bool OnlineOnly{get;set;}
+ public int MinimumRating{get;set;}=0;public int MaxTraders{get;set;}=0;public bool OnlineOnly{get;set;}
  public string Note{get;set;}="Scan inventory, choose a pool, then compare buyers.";public int ExcludedRows{get;set;}public bool PartialInventory{get;set;}
 }
 public static class InventorySales {
@@ -59,6 +59,26 @@ public static class InventorySales {
  public static (SalePlan? Single,SalePlan? Split,int Candidates) Compare(SaleJournal j,DateTime now){
   if(j.Selected.Count==0)return(null,null,0);
   var quotes=j.Quotes.Where(q=>q.Trader!=j.Owner&&q.Price>0&&q.Retrieved<=now.AddMinutes(1)&&now-q.Retrieved<=TimeSpan.FromMinutes(10)&&q.Rating.HasValue&&q.Rating>=j.MinimumRating&&(!j.OnlineOnly||q.Status=="Online")&&j.Selected.ContainsKey(q.Item)).GroupBy(q=>(q.Item,q.Trader)).Select(g=>g.OrderByDescending(q=>q.Retrieved).First()).ToList();
+  foreach(var selected in j.Selected){
+   var stock=j.Inventory.SingleOrDefault(x=>x.Id==selected.Key);
+   if(stock==null||selected.Value<=0||selected.Value>stock.Amount)throw new InvalidDataException("Selected inventory changed. Re-scan before comparing.");
+  }
+  SalePlan ForQuotes(IEnumerable<BuyerQuote> source){
+   var p=new SalePlan();
+   foreach(var item in j.Selected){
+    var q=source.Where(x=>x.Item==item.Key).OrderByDescending(x=>x.Price).ThenByDescending(x=>x.Rating).ThenBy(x=>x.Trader).FirstOrDefault();
+    if(q!=null)p.Lines.Add(new(item.Key,j.Inventory.Single(x=>x.Id==item.Key).Name,item.Value,q.Trader,q.Name,q.Price,q.Url));
+   }
+   p.Missing=j.Selected.Keys.Except(p.Lines.Select(x=>x.Item)).ToArray();return p;
+  }
+  var globalSingle=quotes.GroupBy(x=>x.Trader).Select(g=>ForQuotes(g)).Where(p=>p.Missing.Length==0)
+   .OrderByDescending(p=>p.Total).ThenBy(p=>p.Lines.First().Trader).FirstOrDefault();
+  // With no buyer-count cap, assigning each item to its highest quote is exact over the scanned offers.
+  if(j.MaxTraders==0){
+   var unlimited=quotes.Count==0?null:ForQuotes(quotes);
+   if(globalSingle!=null&&unlimited?.Total==globalSingle.Total)unlimited=globalSingle;
+   return(globalSingle,unlimited,quotes.Select(x=>x.Trader).Distinct().Count());
+  }
   var traders=quotes.GroupBy(x=>x.Trader).OrderByDescending(g=>g.Select(x=>x.Item).Distinct().Count()).ThenByDescending(g=>g.Sum(x=>(decimal)x.Price*j.Selected[x.Item])).Take(12).Select(g=>g.Key).ToArray();
   var bits=traders.Select((id,index)=>(id,index)).ToDictionary(x=>x.id,x=>1<<x.index);
   var byItem=quotes.Where(x=>bits.ContainsKey(x.Trader)).GroupBy(x=>x.Item).ToDictionary(g=>g.Key,g=>g.OrderByDescending(x=>x.Price).ThenByDescending(x=>x.Rating).ToList());
@@ -71,13 +91,13 @@ public static class InventorySales {
    }
    plan.Missing=j.Selected.Keys.Except(plan.Lines.Select(x=>x.Item)).ToArray();return plan;
   }
-  SalePlan? single=null,split=null;
+  SalePlan? single=globalSingle,split=globalSingle;
   for(int mask=1;mask<(1<<traders.Length);mask++){
    int n=System.Numerics.BitOperations.PopCount((uint)mask);if(n>Math.Clamp(j.MaxTraders,1,5))continue;
    var plan=Build(mask);
    if(n==1&&plan.Missing.Length==0&&(single==null||plan.Total>single.Total))single=plan;
    if(split==null||plan.Missing.Length<split.Missing.Length||plan.Missing.Length==split.Missing.Length&&(plan.Total>split.Total||plan.Total==split.Total&&plan.Traders<split.Traders))split=plan;
   }
-  return(single,split,traders.Length);
+  return(single,split,quotes.Select(x=>x.Trader).Distinct().Count());
  }
 }

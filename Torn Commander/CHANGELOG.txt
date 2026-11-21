@@ -1,3 +1,13 @@
+v0.6.115 - Torn Exchange best-return sale plans
+- Make Trading's inventory-to-Torn-Exchange flow explicit: scan inventory, tick selected item types or enter quantities, scan public buyer quotes, then follow a grouped sale plan. Add visible-item selection and Clear selection.
+- Add Highest return — any number of traders. This mode assigns each selected item to the highest eligible quote across every scanned trader, removing the old twelve-candidate/five-buyer allocation cap. Best single-buyer comparison also considers every scanned trader. Equal total proceeds prefer one complete buyer.
+- Retain optional 1–5-trader strategies. Those constrained splits still search a twelve-trader shortlist and are labeled best found, not a global optimum.
+- Expand complete public price-list checks from twelve to twenty-four candidate buyers; retain bounded two-page/40-listings-per-item discovery and provider pacing/caching. Older cached price lists cannot replace newer listing quotes.
+- Group item quantities, per-unit offers and subtotals by trader. Explain the better option and extra proceeds versus one buyer. Add Copy sale plan, View Torn Exchange price list and native trade navigation. No automatic transfers or trade acceptance.
+- Totals are advertised sale proceeds, not profit after unknown acquisition costs. Freshness, rating, online-only, exact item IDs, owner verification, missing-price warnings and per-profile isolation remain enforced.
+- Tests cover a synthetic twenty-item/twenty-one-buyer case whose specialists were dropped by the old shortlist, single-buyer limits, tied-return consolidation, stale prices and existing parser/allocation guards. Local Edge checks item ticking, bulk/clear, unlimited scan payload, grouped navigation/copy, recommendation, draft/profile isolation and responsive layout.
+- Live read-only probe parsed twenty exact-item public listings and one owner-verified selected-item price-list quote. No keys, inventory quantities, sales, transfers or trade offers were sent. Release build and dashboard regressions pass.
+
 v0.6.114 - Full-balance multi-train planning and bounded crime sessions
 - Company Training now allocates train quantities rather than one employee per train. Both rotation and recommended growth use the full verified available balance, including more trains than staff.
 - Default to Use all detected, unassigned trains; refresh available balance/receipts when opening Training and recheck the official balance before planning. Preserve a manual smaller-batch option.

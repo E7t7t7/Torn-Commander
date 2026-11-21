@@ -21,3 +21,19 @@ Check(InventorySales.PriceList(list,quote,new HashSet<int>{1,2},now).Single().Pr
 Check(InventorySales.PriceList(list,quote with{Trader=101},new HashSet<int>{2},now).Count==0,"Pricelist owner mismatch");
 rejected=false;try{InventorySales.Listings("<title>Just a moment</title>",1,now);}catch(InvalidDataException){rejected=true;}Check(rejected,"Challenge treated as quote");
 Console.WriteLine("INVENTORY SALES PASSED: inventory filters, single/split optimization, caps, missing quotes, stale/rating/online/self guards, exact public item ID, owner-verified price list and challenge refusal.");
+
+var many=new SaleJournal{Owner=999,MaxTraders=0};
+for(int i=1;i<=20;i++){
+ many.Inventory.Add(new(i,"Item "+i,10));many.Selected[i]=10;
+ many.Quotes.Add(new(i,100,"Bulk buyer",100,10,"Online","https://www.tornexchange.com/prices/Bulk/",now));
+ many.Quotes.Add(new(i,1000+i,"Specialist "+i,1000,10,"Online","https://www.tornexchange.com/prices/S"+i+"/",now));
+}
+var maximum=InventorySales.Compare(many,now);
+Check(maximum.Single!.Total==20000&&maximum.Split!.Total==200000&&maximum.Split.Traders==20&&maximum.Candidates==21,"Unlimited split omitted high-paying specialists outside the old shortlist.");
+many.MaxTraders=1;Check(InventorySales.Compare(many,now).Split!.Total==20000,"One-trader strategy not retained.");
+many.MaxTraders=0;many.Quotes.RemoveAll(x=>x.Trader!=100);
+Check(InventorySales.Compare(many,now).Split!.Traders==1,"Equal return needlessly split across buyers.");
+many.Quotes.Add(new(1,50,"Tie",100,100,"Online","https://www.tornexchange.com/prices/Tie/",now));
+Check(InventorySales.Compare(many,now).Split!.Traders==1,"One complete buyer lost to unnecessary tied specialist.");
+Check(InventorySales.Compare(many,now.AddMinutes(11)).Split==null,"Unlimited mode used expired prices.");
+Console.WriteLine("MAXIMUM RETURN PASSED: 20 item types/21 traders, exact best-per-item split beyond the old shortlist, one-buyer option, equal-return consolidation and quote expiry.");
