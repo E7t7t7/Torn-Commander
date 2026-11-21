@@ -1,0 +1,30 @@
+using TornCommander;
+void Check(bool v,string m){if(!v)throw new Exception(m);}
+var options=new CrimeLoopOptions();
+CrimeChoice Choice(string action,string target,int cost,int? confidence=null,int? interest=null,int? suspicion=null)=>new(){Key=action+"|"+target,Action=action,Target=target,Cost=cost,Confidence=confidence,Interest=interest,Suspicion=suspicion};
+var b=new CrimeReading{Ok=true,Crime="burglary",Choices=new(){Choice("scout","Residential",3),Choice("case","Apartment",2,40),Choice("burglarize","Apartment",6,40)}};
+CrimeChoice? Next(int spent=0,int done=0,int nerve=100)=>CrimeLoopPlanner.Next(b,options,Array.Empty<CrimeObservation>(),spent,done,nerve);
+Check(Next()?.Action=="case","Must case before threshold.");
+b.Choices[2].Confidence=70;Check(Next()?.Action=="burglarize","Threshold robbery missing.");
+b.Choices[2].Dangerous=true;Check(Next()?.Action=="case","Dangerous target not excluded.");
+options.Reserve=99;Check(Next()==null,"Nerve reserve ignored.");options.Reserve=0;
+Check(Next(100)==null&&Next(done:30)==null,"Budget/limit ignored.");
+options.Crime="hustling";b.Crime="hustling";b.Choices=new(){Choice("gather","Audience",4),Choice("demo","Cornhole",2,interest:20,suspicion:10),Choice("win","Cornhole",2,interest:20,suspicion:10)};
+Check(Next()?.Action=="demo","Hustle before enough interest.");
+b.Choices[2].Interest=60;b.Choices[1].Interest=60;Check(Next()?.Action=="win","Win at interest threshold missing.");
+b.Choices[2].Suspicion=80;b.Choices[1].Suspicion=80;Check(Next()==null,"Suspicious game not paused.");
+b.Choices.RemoveRange(1,2);Check(Next()?.Action=="gather","Empty audience gather missing.");
+b.Crime="burglary";Check(Next()==null,"Cross crime board accepted.");
+options.Crime="burglary";b.Choices=new(){Choice("burglarize","A",6,100),Choice("burglarize","B",6,100)};
+var history=Enumerable.Range(0,3).Select(i=>new CrimeObservation{Crime="burglary",Action="burglarize",Target="B",Nerve=6,Cash=500,SkillGain=.2}).ToList();
+options.Goal="money";Check(CrimeLoopPlanner.Next(b,options,history,0,0,100)?.Target=="B","Observed cash evidence ignored.");
+options.Goal="skill";Check(CrimeLoopPlanner.Next(b,options,history,0,0,100)?.Target=="B","Observed skill evidence ignored.");
+var j=new CrimeLoopJournal{Pending="x",PendingChoice=b.Choices[0],AvailableNerve=100,LastSkill=2};
+var receipt=new CrimeReceipt{Token="x",Done=true,Ok=true,Skill=2.1,Nerve=94,Cash=50};
+CrimeLoopPlanner.Record(j,receipt);Check(j.History.Count==1&&j.SessionNerve==6&&j.Pending==""&&j.AvailableNerve==94,"Receipt not recorded.");
+try{CrimeLoopPlanner.Record(j,receipt);throw new Exception("Duplicate accepted");}catch(InvalidDataException){}
+var other=new CrimeLoopJournal();Check(other.History.Count==0&&other.Pending=="","Account data shared.");
+j.Pending="y";j.PendingChoice=b.Choices[0];try{CrimeLoopPlanner.Record(j,new(){Done=false,Ok=true,Token="y"});throw new Exception("Unverified accepted");}catch(InvalidDataException){}
+Check(j.Pending=="y","Unverified action cleared.");
+options.ActionLimit=201;try{options.Validate();throw new Exception("Unbounded run");}catch(InvalidDataException){}
+Console.WriteLine("CRIME LOOP TESTS PASSED: casing thresholds, danger, nerve reserves/budgets, action cap, gather/demo/win, suspicion, account/crime isolation, observed ranking, exact receipts and duplicate refusal.");

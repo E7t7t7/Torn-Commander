@@ -19,7 +19,7 @@ Fresh installations start with **Profile 1** and **Profile 2**. Customize names 
 
 A Commander release uses the exact asset name `Torn_Commander_vX.Y.Z.zip` and must contain a single `Torn Commander/` source folder. Extract into a permanent local folder and run `REBUILD_AND_LAUNCH.bat` once on Windows with the .NET 8 SDK. The in-app updater (Settings â†’ Update Commander) checks published Releases from this repository; it does **not** read the source branch or synchronize accounts.
 
-**Current source version:** v0.6.113. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
+**Current source version:** v0.6.114. [Latest published release](https://github.com/E7t7t7/Torn-Commander/releases/latest). GitHub Actions builds on Windows, validates the tracked source, and publishes the matching `Torn_Commander_vX.Y.Z.zip` asset whenever a new version is pushed to `main`. The app's Settings â†’ Update Commander â†’ Check GitHub for Update button uses that release channel.
 
 ### Stable shortcuts and saved versions
 
@@ -229,4 +229,6 @@ v0.6.110: Fix Slots dispatch using a full native mouse press/release/click seque
 v0.6.111: **Honors / Missions → Missions** scans the current agent, accepts supported contracts, reuses the existing fight/medical worker with exact Leave/Mug/Hospitalize outcomes, and checks Torn before claiming. Run one or a budgeted batch of up to five supported contracts. Exact linked one-item deliveries require explicit permission and a verified native Send form; special/ambiguous tasks remain manual. Pending fights and transfers persist per profile and never auto-replay on restart. [Mission desk usage and limitations](Torn%20Commander/MISSIONS.md).
 
 
-v0.6.113: Trading scans personal inventory and compares public Torn Exchange quotes for one buyer versus splits across up to five. Select quantities, rating and availability filters; see incomplete coverage and quoted uplift. Public scans use no credentials or automatic transfers and are bounded to 40 listings/item plus 12 candidate price lists. Equipped/unique/faction items are excluded from generic quotes. Crimes now has Show/Hide paint-window controls; the overlay’s × hide preference persists per browser profile without disabling its readings or guide.
+v0.6.114: Trading scans personal inventory and compares public Torn Exchange quotes for one buyer versus splits across up to five. Select quantities, rating and availability filters; see incomplete coverage and quoted uplift. Public scans use no credentials or automatic transfers and are bounded to 40 listings/item plus 12 candidate price lists. Equipped/unique/faction items are excluded from generic quotes. Crimes now has Show/Hide paint-window controls; the overlay’s × hide preference persists per browser profile without disabling its readings or guide.
+
+Company Training supports full-balance multi-train allocation: [usage and model limits](Torn%20Commander/COMPANY_MULTI_TRAINS.md). Crime Coach adds bounded burglary/hustling sessions: [controls and verification](Torn%20Commander/CRIME_SESSIONS.md).

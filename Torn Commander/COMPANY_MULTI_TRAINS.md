@@ -1,0 +1,7 @@
+# Multi-train planning
+Open Company > Training. The tab refreshes available trains and receipts; planning checks the official balance again. Choose Fair random rotation or Recommended growth, leave Use all detected, unassigned trains checked and press Plan all. Uncheck it for a smaller batch.
+The number is trains, not employees. Twenty trains across nine employees can include several trains per employee. Rotation favors the lowest recorded-plus-pending totals, with shuffled ties. Recommended growth simulates each proposed 50-primary/25-secondary train against the employee's current job requirements, recalculating marginal effectiveness gain each time. It uses the continuous work-stat formula to avoid rounding artifacts; this is not a sales forecast. Special-event train multipliers are not modeled.
+Each employee has a quantity and confirmed/remaining count. Follow those quantities in Torn, then Refresh training receipts. Planning does not consume trains automatically.
+Add more trains without losing existing progress. Only outstanding quantities reserve the current available balance. Old single-train plans keep their meaning. Explicit multi-count news receipts count once and historical records remain deduplicated. Unknown or missing news can leave progress unconfirmed; receipts are not invented.
+
+Base gains and company train storage: https://wiki.torn.com/wiki/Work_Stats. The test suite also uses synthetic 30-train balances to check that allocation is not tied to roster size; real planning always uses the verified API balance.

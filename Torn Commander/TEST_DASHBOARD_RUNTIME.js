@@ -419,3 +419,8 @@ assert(ledgerRequests.some(r=>r.cmd==='trainingAdd'&&r.data.count===1&&r.data.co
 vm.runInContext("S.company.training.unassigned=0;S.company.training.plan.push({employee:4,name:'Pending',done:false});renderCompanyTraining(S.company.training,'main')",context);
 assert(nodes.ctChoose.disabled,'Already assigned fourth train could be reserved again');
 console.log('TRAINING TOPUP UI PASSED: 3 confirmed + 1 remaining, bounded Add command and pending-capacity guard.');
+
+context.renderCompanyTraining({companyId:17,day:'2026-11-21',planDay:'2026-11-21',available:28,unassigned:0,requested:30,plan:[{employee:1,name:'Multi',role:'Role',count:30,completed:2,remaining:28,done:false}],rows:[]},'multi');
+assert(nodes.ctGroupSummary.textContent.includes('30 of 30')&&nodes.ctGroupSummary.textContent.includes('2 confirmed'),'Multi-train totals count employees instead of trains');
+assert(nodes.ctPlan.innerHTML.includes('2 / 30 confirmed')&&nodes.ctChoose.disabled,'Partial receipts finished multi-train batch or freed pending balance');
+console.log('MULTI-TRAIN GUI PASSED: assigned/confirmed/pending quantities and reserved balance.');

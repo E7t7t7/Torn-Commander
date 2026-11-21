@@ -1,3 +1,13 @@
+v0.6.114 - Full-balance multi-train planning and bounded crime sessions
+- Company Training now allocates train quantities rather than one employee per train. Both rotation and recommended growth use the full verified available balance, including more trains than staff.
+- Default to Use all detected, unassigned trains; refresh available balance/receipts when opening Training and recheck the official balance before planning. Preserve a manual smaller-batch option.
+- Fair rotation balances recorded + pending + proposed trains and shuffles ties. Recommended growth simulates each added train and recalculates continuous current-job effectiveness gains, avoiding rounded-score artifacts; repeats can concentrate on the strongest modeled benefit. Missing-stat recommendations fall back honestly.
+- Display each employee's train quantity, confirmed count and remainder. Add to an existing employee's batch; partial receipts do not finish a whole batch. Clear unperformed quantities without removing confirmed history.
+- Preserve legacy one-train plans, receipt deduplication, per-account/company history and UTC day boundaries. Import explicit multi-count receipts. Estimates retain the existing base 50-primary/25-secondary assumption; special-event multipliers are not modeled.
+- Crime Coach adds bounded Burglary/Hustling sessions, nerve reserves/budgets, thresholds, pause/resume/stop and explicit interrupted-action review. Persist tokens before native actions, observe matched fetch/XHR receipts, and never blindly repeat an uncertain action. No refills, tool purchases, intentional losing or drugs.
+- Crime ranking uses measured skill/cash rewards after three samples; no invented XP or universal optimum. Unreadable controls/identity and blocked states pause. Live Torn crime layouts remain unverified.
+- Tests: 30 trains/nine employees in both modes, fair distribution, efficient concentration, single-person rosters, partial receipts, top-ups, restart/legacy migration, multi-count deduplication; crime planner and local Edge command/receipt/layout fixtures. Build and dashboard regression checks pass. No live trains or nerve spent.
+
 v0.6.113 - Outbound cargo and travel exclusions
 - Add Travel > Buy in Torn, sell abroad: scan actual official market purchase tiers for goods accepted by each destination's observed shop. Compare purchase depth and 75% General/Arms or 100% Black Market buyback; classify current contraband independently of API item types.
 - Show item, destination, quoted units, total purchase, overseas proceeds, margin, both observation times and source. Exclude/restore items per profile across modern/classic routes and sequences.

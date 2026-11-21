@@ -47,7 +47,7 @@ public sealed partial class MainForm {
     j.MinimumRating=request.GetProperty("rating").GetInt32();j.MaxTraders=request.GetProperty("maxTraders").GetInt32();j.OnlineOnly=request.GetProperty("online").GetBoolean();
     if(j.MinimumRating is <-100000 or >1000000||j.MaxTraders is <1 or >5)throw new InvalidDataException("Use a valid minimum rating and 1–5 traders.");
     j.Selected=selected.ToDictionary(x=>x.Id,x=>x.Quantity);j.Note="Reading public Torn Exchange listings; no API key, inventory quantities or trade submissions are sent.";SaveSales(profile,j);
-    using var handler=new HttpClientHandler{UseCookies=false,AllowAutoRedirect=false};using var http=new HttpClient(handler){Timeout=TimeSpan.FromSeconds(25)};http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.113 (public price comparison)");
+    using var handler=new HttpClientHandler{UseCookies=false,AllowAutoRedirect=false};using var http=new HttpClient(handler){Timeout=TimeSpan.FromSeconds(25)};http.DefaultRequestHeaders.UserAgent.ParseAdd("TornCommander/0.6.114 (public price comparison)");
     async Task<(string Html,DateTime At)> Public(string url){
      if(!Uri.TryCreate(url,UriKind.Absolute,out var uri)||uri.Scheme!="https"||uri.Host!="www.tornexchange.com"||!(uri.AbsolutePath=="/listings"||uri.AbsolutePath.StartsWith("/prices/")))throw new InvalidDataException("Unsupported public quote URL.");
      if(_saleCache.TryGetValue(url,out var cached)&&DateTime.UtcNow-cached.At<TimeSpan.FromMinutes(5))return(cached.Html,cached.At);

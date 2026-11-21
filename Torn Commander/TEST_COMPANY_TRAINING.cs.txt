@@ -39,20 +39,33 @@ j.Plan=[new(){Employee=1}];j.PlanDay=now.ToString("yyyy-MM-dd");
 try{CompanyTraining.Choose(j,team,"rotation",4,now,new Random());throw new Exception("Saved daily group silently rerolled.");}catch(InvalidOperationException){}
 Console.WriteLine("COMPANY TRAINING PASSED: nine-day fair rotation, distinct daily groups, current-job growth recommendations, missing stats, receipt recipient parsing, deduplication, UTC rollover, restart and saved-plan guard.");
 
-var mixed=new CompanyTeamScan{CompanyId=17,EmployeesLoaded=true,Jobs=team.Jobs,Employees=team.Employees.Take(3).Concat(team.Employees.Skip(3).Select(x=>new CompanyEmployeeScan{Id=x.Id,Name=x.Name,Position=x.Position,PositionId=x.PositionId})).ToList()};
+var mixed=new CompanyTeamScan{CompanyId=17,EmployeesLoaded=true,ScannedUtc=now,Jobs=team.Jobs,Employees=team.Employees.Take(3).Concat(team.Employees.Skip(3).Select(x=>new CompanyEmployeeScan{Id=x.Id,Name=x.Name,Position=x.Position,PositionId=x.PositionId})).ToList()};
 var four=CompanyTraining.Choose(new(),mixed,"efficient",4,now,new Random(9));
-Check(four.Count==4&&four.Take(3).All(x=>x.Employee<=3)&&four[3].Reason.StartsWith("No reliable current-job"),"Three scored staff silently reduced a four-person request.");
-var partial=CompanyTraining.Choose(new(),mixed,"efficient",20,now,new Random(9));
-Check(partial.Count==9&&CompanyTraining.Summary(new(){Plan=partial},20,9,false).Contains("Saved 9 of 20"),"Genuine roster shortage was not explicit.");
-var topup=new CompanyTrainingJournal{PlanDay=now.ToString("yyyy-MM-dd"),PlanCreatedUtc=now,Plan=four.Take(3).ToList(),Requested=4};
-foreach(var selected in topup.Plan)topup.Records.Add(new(){Id="confirmed-"+selected.Employee,Employee=selected.Employee,Name=selected.Name,At=now.AddMinutes(1)});
-Check(topup.Plan.All(x=>CompanyTraining.Done(topup,x))&&CompanyTraining.FreeChoices(topup,1,now.AddMinutes(2))==1,"Three confirmed plus one available did not leave one free choice.");
-var extra=CompanyTraining.Choose(topup,mixed,"efficient",1,now.AddMinutes(2),new Random(5),true);
-Check(extra.Count==1&&topup.Plan.All(x=>x.Employee!=extra[0].Employee),"Topup duplicated a trained/saved employee.");
-topup.Plan.AddRange(extra);
-Check(topup.Plan.Count(x=>CompanyTraining.Done(topup,x))==3&&!CompanyTraining.Done(topup,extra[0]),"Topup reset old receipt progress or counted an unperformed train.");
-Check(CompanyTraining.FreeChoices(topup,1,now.AddMinutes(2))==0,"Pending choice did not reserve remaining train capacity.");
-var restartPlan=JsonSerializer.Deserialize<CompanyTrainingJournal>(JsonSerializer.Serialize(topup))!;
-Check(restartPlan.Plan.Count==4&&restartPlan.Plan.Count(x=>CompanyTraining.Done(restartPlan,x))==3,"Restart lost mixed old/new group progress.");
-Check(CompanyTraining.FreeChoices(topup,4,now.AddDays(1))==4,"Yesterday's pending group reserved today's trains.");
-Console.WriteLine("TRAINING COUNT / TOPUP PASSED: request four with three scored, honest fallback, genuine shortages, 3 confirmed + 1 remaining, preserved per-choice receipts, no duplicate assignment, budget and restart.");
+Check(four.Sum(x=>x.Count)==4&&four.All(x=>x.Employee<=3)&&four.Any(x=>x.Count>1),"Four efficient trains were not fully allocated to the scored staff.");
+foreach(var mode in new[]{"rotation","efficient"})foreach(int balance in new[]{10,20,30}){
+ var thirty=CompanyTraining.Choose(new(),team,mode,balance,now,new Random(9));
+ Check(thirty.Sum(x=>x.Count)==balance&&thirty.Any(x=>x.Count>1)&&thirty.Select(x=>x.Employee).Distinct().Count()==thirty.Count,"Banked trains were truncated or duplicate employee rows created.");
+ if(mode=="rotation")Check(thirty.Max(x=>x.Count)-thirty.Min(x=>x.Count)<=1,"Extra rotation trains not balanced.");
+}
+var solo=new CompanyTeamScan{EmployeesLoaded=true,Jobs=team.Jobs,Employees=[team.Employees[0]],ScannedUtc=now};
+Check(CompanyTraining.Choose(new(),solo,"rotation",20,now,new Random(1)).Single().Count==20,"Single employee cannot receive repeated trains.");
+var different=new CompanyTeamScan{EmployeesLoaded=true,ScannedUtc=now,
+ Jobs=[new(){Id=1,Required=new(100,50,0)},new(){Id=2,Required=new(4500,2250,0)}],
+ Employees=[new(){Id=1,Name="High return",PositionId=1,Position="Role A",Stats=new(0,0,0)},new(){Id=2,Name="Lower return",PositionId=2,Position="Role B",Stats=new(0,0,0)}]};
+var efficient=CompanyTraining.Choose(new(),different,"efficient",12,now,new Random(3));
+Check(efficient.First(x=>x.Employee==1).Count>1,"Efficient multi-trains not concentrated on larger modeled gain.");
+var batch=new CompanyTrainingJournal{PlanDay=now.ToString("yyyy-MM-dd"),PlanCreatedUtc=now,Plan=[new(){Employee=1,Name="Worker 1",Count=4,ChosenUtc=now}]};
+batch.Records.Add(new(){Id="two",Employee=1,At=now.AddMinutes(1),Count=2});
+Check(CompanyTraining.Completed(batch,batch.Plan[0])==2&&!CompanyTraining.Done(batch,batch.Plan[0])&&CompanyTraining.FreeChoices(batch,8,now)==6,"Partial receipt counted as the entire multi-train batch.");
+var add=CompanyTraining.Choose(batch,solo,"rotation",6,now.AddMinutes(2),new Random(1),true);
+CompanyTraining.AddChoices(batch,add);
+Check(batch.Plan.Count==1&&batch.Plan[0].Count==10&&CompanyTraining.Completed(batch,batch.Plan[0])==2&&CompanyTraining.Remaining(batch,batch.Plan[0])==8,"Top-up lost existing multi-train progress.");
+var restoredBatch=JsonSerializer.Deserialize<CompanyTrainingJournal>(JsonSerializer.Serialize(batch))!;
+Check(restoredBatch.Plan[0].Count==10&&CompanyTraining.Completed(restoredBatch,restoredBatch.Plan[0])==2,"Restart lost train quantities.");
+Check(CompanyTraining.FreeChoices(batch,4,now.AddDays(1))==4,"Yesterday reserved today's trains.");
+var legacy=JsonSerializer.Deserialize<CompanyTrainChoice>("""{"Employee":1,"Name":"Old choice"}""")!;
+Check(legacy.Count==1,"Legacy one-train plans changed meaning.");
+var counted=CompanyTraining.ReadNews(JsonSerializer.Serialize(new{news=new[]{new{id="multi",timestamp=stamp,text="You trained <a href='profiles.php?XID=1'>Worker 1</a> 3 times"}}}),now);
+Check(counted.Records.Count==1&&counted.Records[0].Count==3,"Counted training news not imported.");
+Check(CompanyTraining.Merge(imported,counted.Records)==1&&CompanyTraining.Merge(imported,counted.Records)==0&&CompanyTraining.Total(imported,1)==3,"Counted receipt duplicated.");
+Console.WriteLine("MULTI-TRAIN TESTS PASSED: 30 trains/nine people in both modes, fair split, efficient concentration, one-person roster, partial receipts, top-up merge, restart/legacy compatibility, UTC rollover and multi-count deduplication.");
