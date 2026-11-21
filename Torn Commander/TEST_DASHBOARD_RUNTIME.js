@@ -59,7 +59,7 @@ assert(render.indexOf("$('profileSelect').replaceChildren")<render.indexOf("rend
 console.log('DASHBOARD RUNTIME PASSED: real markup IDs, company rendering, profile-first order and panel failure isolation.');
 
 for(const node of Object.values(nodes)) node.replaceChildren=function(...children){this.options=children};
-Object.assign(context,{S:{},casinoAdviceGeneration:0,Option:function(name,id){this.text=name;this.value=id},applyTheme:()=>{},renderApiActivity:()=>{},renderItinerary:()=>{},renderArrival:()=>{},setFilters:()=>{},renderTravelRows:()=>{},renderProgression:()=>{},renderScriptTools:()=>{},renderTrading:()=>{}});
+Object.assign(context,{S:{},casinoAdviceGeneration:0,Option:function(name,id){this.text=name;this.value=id},applyTheme:()=>{},renderApiActivity:()=>{},renderCargo:()=>{},renderCrimeLoop:()=>{},renderItinerary:()=>{},renderArrival:()=>{},setFilters:()=>{},renderTravelRows:()=>{},renderProgression:()=>{},renderScriptTools:()=>{},renderTrading:()=>{}});
 vm.runInContext(script.slice(script.indexOf("let itemConfigIdentity="),script.indexOf("let lossEditorIdentity=")),context);
 vm.runInContext(script.slice(script.indexOf("let lossEditorIdentity="),script.indexOf('function renderSection(')),context);
 vm.runInContext(render,context);
