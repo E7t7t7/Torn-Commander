@@ -1,3 +1,13 @@
+v0.6.117 - Gorilla Mercenary Services Discord fallback
+- Add Loss Desk > Fallback: Gorilla Mercenary Services. Open Discord, manually join, paste the latest Live Contract Progress card, preview target/cash price/shared remaining, confirm the selected selling account and import a bounded local batch.
+- Parse exact losses-N contract identity, Buy Losses type, active status, bracketed Torn target ID, coherent requested/verified/remaining totals, cash payout and active/removed vendor entries. Reject combined cards, contradictions, wrong vendors, inactive/empty contracts and unsafe links.
+- Keep Discord's shared verified count separate from personal deliveries. Import starts no attacks and makes no remote reservation; existing Start A, medical optimizer, pause/stop and local cash/Xanax settlement remain in use.
+- Bind batches to one confirmed profile/key owner. Refresh an existing batch only with its worker stopped, retain completed deliveries/payment history, and set its new remaining batch. Prevent duplicate active orders per contract/profile; preserve historical completed batches.
+- Block new starts/claims when the copied snapshot is older than 15 minutes. Show source and order links, current-energy batch estimate, manual leave guidance and explicit copied-data limitations. Shared remaining may change immediately as other vendors work.
+- No documented Gorilla API was found. Automatic Discord Join/Leave, live contract discovery, phone-to-PC Gorilla sync and provider payment reconciliation are not implemented. No user-token access, self-bot, server joining, messages or contract button actions were used.
+- Tests use fictional copied cards: field/price/target parsing, vendor removal/ownership, manual-join gate, active/consistency checks, batch bound, profile/freshness, multi-card refusal and message URL validation. Local Edge fixtures cover preview/import payload, energy estimate, draft retention, profile clearing and responsive layout. Existing loss/accounting regression tests and release build pass.
+- No live claims, fights, medical consumption, payments or Discord actions performed during testing.
+
 v0.6.116 - Finance cash collection and real transaction coverage
 - Fix the ineffective latest-100-general-logs collector: discover official financial categories and query the last 30 days directly, up to two 100-row pages per category. Fights and medical logs no longer dominate the only history request.
 - Recognize current market cost_total, company deposited/withdrawn, faction money_given/money_deposited, crime money_gained/lost and slot bet_amount/won_amount fields. Keep bank/vault/company movements as transfers, faction book credit out of wallet income, and ambiguous receipts/unknown sale fees for review.

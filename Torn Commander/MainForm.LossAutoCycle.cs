@@ -231,6 +231,7 @@ public sealed partial class MainForm
         }
 
         var profileId = accountA ? order.ProfileAId : order.ProfileBId;
+        if(order.SourceService==GorillaContracts.Service&&GorillaContracts.RunBlock(order.RemoteProfileId,profileId,order.DiscordJoined,order.DiscordCopiedUtc,DateTime.UtcNow) is { } gorillaBlock){StartMessage(gorillaBlock);return false;}
         var other = accountA ? _lossWorkerB : _lossWorkerA;
         var current = accountA ? _lossWorkerA : _lossWorkerB;
         if (current?.IsArmed == true || (other?.IsArmed == true && other.ProfileId.Equals(profileId, StringComparison.OrdinalIgnoreCase)))
@@ -271,6 +272,7 @@ public sealed partial class MainForm
             return false;
         }
 
+        if(order.SourceService==GorillaContracts.Service&&profileSnapshot.PlayerId!=order.RemoteOwner){StartMessage("The Torn key owner changed. Preview and confirm this Gorilla contract for the correct account again.");return false;}
         if(order.SourceService=="FFScouter"&&(!FFExecutable(order,profileId)||profileSnapshot.PlayerId!=order.RemoteOwner)){StartMessage("Refresh the owning FFScouter claim/account before starting.");return false;}
         if(order.SourceService=="FFScouter")FFActivity(profileId,"Opening the isolated worker browser…");
         var worker = await InitializeLossWorkerAsync(accountA, profileId);
@@ -465,6 +467,7 @@ public sealed partial class MainForm
         var order = _lossOrders.FirstOrDefault(x => x.Id.Equals(orderId, StringComparison.OrdinalIgnoreCase));
         if (order is null) return (false, "", "Order no longer exists.");
         if(order.IsClosed||_closingLossOrders.Contains(order.Id))return(false,"","Order closed or closing; no new fight permitted.");
+        if(order.SourceService==GorillaContracts.Service&&GorillaContracts.RunBlock(order.RemoteProfileId,worker.ProfileId,order.DiscordJoined,order.DiscordCopiedUtc,DateTime.UtcNow) is { } gorillaBlock)return(false,"",gorillaBlock);
         if (order.Status == "Paused") return (false, "", "Order is paused.");
         if (order.Status == "Complete" || order.Remaining <= 0) return (false, "", "Order complete — no remaining losses.");
 

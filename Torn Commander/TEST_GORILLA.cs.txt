@@ -1,0 +1,55 @@
+using TornCommander;
+void Check(bool v,string note){if(!v)throw new Exception(note);}
+void Refuse(Action a,string note){try{a();}catch(InvalidDataException){return;}throw new Exception(note);}
+var text="""
+📈 Live Contract Progress
+Customer
+Example Buyer
+Contract ID
+losses-1234
+Contract Type
+Buy Losses
+Status
+🟡 In Progress
+Patron / Target
+Example Buyer [1234567]
+Notes
+Example only
+Requested Losses
+228
+Verified Losses
+186
+Remaining Losses
+42
+Progress
+81%
+Payout Per Loss
+$225,000
+Assigned Loss Vendors
+Vendor[7654321] — 60 loss(es)
+Other[7654322] — 33 loss(es) (removed)
+""";
+text=text.Replace("\r\n","\n");
+var c=GorillaContracts.Parse(text);
+Check(c.Id=="losses-1234"&&c.Target==1234567&&c.Remaining==42&&c.Pay==225000&&c.Active,"Contract target, price or shared totals not parsed.");
+Check(c.Vendors.Count==2&&c.Vendors[0].Delivered==60&&!c.Vendors[0].Removed&&c.Vendors[1].Removed,"Vendor removed state misread.");
+GorillaContracts.ValidateImport(c,7654321,20,true);
+Refuse(()=>GorillaContracts.ValidateImport(c,7654322,20,true),"Removed vendor authorized.");
+Refuse(()=>GorillaContracts.ValidateImport(c,7654323,20,true),"Other account authorized.");
+Refuse(()=>GorillaContracts.ValidateImport(c,7654321,20,false),"Unjoined account authorized.");
+Refuse(()=>GorillaContracts.ValidateImport(c,1234567,20,true),"Target authorized as seller.");
+Refuse(()=>GorillaContracts.ValidateImport(c,7654321,43,true),"Shared remaining count exceeded.");
+Refuse(()=>GorillaContracts.ValidateImport(c with{State="Not In Progress"},7654321,20,true),"Inactive status authorized.");
+Refuse(()=>GorillaContracts.Parse(text.Replace("Remaining Losses\n42","Remaining Losses\n43")),"Contradictory totals accepted.");
+Refuse(()=>GorillaContracts.Parse(text.Replace("Buy Losses","Buy Escapes")),"Non-loss service accepted.");
+Refuse(()=>GorillaContracts.Parse(text+"\n"+text),"Multiple copied cards accepted.");
+Refuse(()=>GorillaContracts.Parse(text.Replace("$225,000","TBD")),"Unknown cash payout invented.");
+Check(GorillaContracts.Parse(text.Replace("Contract ID\nlosses-1234","Contract ID: losses-1234")).Id=="losses-1234","Same-line label unsupported.");
+var now=DateTime.UtcNow;
+Check(GorillaContracts.RunBlock("main","main",true,now,now)==null,"Fresh owning account blocked.");
+Check(GorillaContracts.RunBlock("main","wife",true,now,now)!=null&&GorillaContracts.RunBlock("main","main",true,now.AddMinutes(-16),now)!=null,"Wrong profile or stale copy authorized.");
+Check(GorillaContracts.RunBlock("main","main",true,now.AddMinutes(3),now)!=null,"Future snapshot authorized.");
+string link="https://discord.com/channels/123456789012345678/234567890123456789/345678901234567890";
+Check(GorillaContracts.MessageUrl(link)==link&&GorillaContracts.MessageUrl("")=="","Message link not preserved.");
+foreach(var url in new[]{"https://evil.example/channels/123/456","https://discord.com/channels/@me/234567890123456789","javascript:alert(1)",link+"?token=x",link.Replace("discord.com","name:secret@discord.com")})Refuse(()=>GorillaContracts.MessageUrl(url),"Unsafe Discord link accepted.");
+Console.WriteLine("GORILLA PASSED: copied progress/price/target, shared versus personal counts, vendor ownership/removal, manual join gate, active status, consistency/duplicate cards, batch bound, profile/freshness and message URL checks.");

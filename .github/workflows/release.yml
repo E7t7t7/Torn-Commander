@@ -169,6 +169,11 @@ jobs:
         run: |
           node 'Torn Commander/TEST_GRAFFITI_HELPER.js' 'Torn Commander/BundledScripts/Torn_Graffiti_Paint_Helper.user.js'
           if ($LASTEXITCODE -ne 0) { throw 'Graffiti command test failed; release withheld.' }
+      - name: Check Gorilla Discord contract import
+        shell: pwsh
+        run: |
+          & 'Torn Commander/TEST_GORILLA.ps1'
+          if ($LASTEXITCODE -ne 0) { throw 'Gorilla import regression failed; release withheld.' }
       - name: Check loss-worker retries and accounting
         shell: pwsh
         run: |

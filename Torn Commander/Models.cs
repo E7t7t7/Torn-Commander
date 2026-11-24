@@ -240,6 +240,7 @@ public sealed class MarketScanResult
 
 public sealed class LossOrder
 {
+    public string DiscordContractId{get;set;}="";public string DiscordMessageUrl{get;set;}="";public bool DiscordJoined{get;set;}public DateTime? DiscordCopiedUtc{get;set;}public int DiscordSharedRemaining{get;set;}
     public string SourceService {get;set;}="Direct";
     public long RemoteClaimId{get;set;}public string RemoteOrderNumber{get;set;}="";public string RemoteProfileId{get;set;}="";
     public int RemoteOwner{get;set;}public int RemoteDelivered{get;set;}public List<long> RemoteAttackIds{get;set;}=new();
